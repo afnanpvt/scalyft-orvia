@@ -13,7 +13,9 @@
       "Bash(npx create-next-app@latest scalyft-orvia --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm)",
       "Bash(npx create-next-app@latest scalyft-orvia --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --turbopack)",
       "Bash(printf \"n\\\\nn\\\\n\")",
-      "Bash(yes \"n\")"
+      "Bash(yes \"n\")",
+      "Bash(cp -r _temp/* scalyft-orvia/)",
+      "Bash(rm -rf _temp)"
     ]
   }
 }
