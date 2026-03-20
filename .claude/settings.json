@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 skills/ui-ux-pro-max/scripts/search.py \"healthcare dental clinic SaaS dashboard professional clean\" --design-system --persist -p \"Orvia\")",
+      "Read(//c/Users/moham/.claude/**)",
+      "Bash(python3 \"C:/Users/moham/.claude/plugins/marketplaces/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py\" \"healthcare dental clinic SaaS dashboard professional clean\" --design-system --persist -p \"Orvia\")",
+      "Bash(python3 \"C:/Users/moham/.claude/plugins/marketplaces/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts/search.py\" \"dashboard cards data table mobile-first\" --stack shadcn)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm)",
+      "Bash(mkdir -p _temp)",
+      "Bash(mv config:*)",
+      "Read(//c/W-Drive/**)",
+      "Bash(mv scalyft-orvia/_temp .)",
+      "Bash(npx create-next-app@latest scalyft-orvia --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm)",
+      "Bash(npx create-next-app@latest scalyft-orvia --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --use-npm --turbopack)",
+      "Bash(printf \"n\\\\nn\\\\n\")",
+      "Bash(yes \"n\")"
+    ]
+  }
+}
