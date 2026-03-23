@@ -1,4 +1,6 @@
-import Link from "next/link";
+"use client";
+
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -11,75 +13,106 @@ import {
 import type { Call } from "@/lib/types";
 
 function formatTime(dateStr: string): string {
-  return new Date(dateStr).toLocaleString("en-IN", {
+  return new Date(dateStr).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
-    hour: "2-digit",
+    hour: "numeric",
     minute: "2-digit",
+    hour12: true,
   });
 }
 
-function outcomeColor(outcome: Call["outcome"]): string {
-  switch (outcome) {
-    case "appointment_booked":
-      return "default";
-    case "lead_captured":
-      return "secondary";
-    case "transferred":
-      return "outline";
-    default:
-      return "secondary";
-  }
+function formatDuration(secs: number | null): string {
+  if (secs === null || secs === undefined) return "\u2014";
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  if (m === 0) return `${s}s`;
+  return `${m}m ${s}s`;
+}
+
+function outcomeBadge(outcome: Call["outcome"]) {
+  if (!outcome) return null;
+
+  const config: Record<
+    NonNullable<Call["outcome"]>,
+    { label: string; className: string }
+  > = {
+    appointment_booked: {
+      label: "Booked",
+      className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-0",
+    },
+    lead_captured: {
+      label: "Lead",
+      className: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-0",
+    },
+    info_given: {
+      label: "Info",
+      className: "bg-muted text-muted-foreground border-0",
+    },
+    transferred: {
+      label: "Transferred",
+      className: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-0",
+    },
+    missed: {
+      label: "Missed",
+      className: "bg-destructive/10 text-destructive border-0",
+    },
+  };
+
+  const c = config[outcome];
+  return (
+    <Badge className={`rounded-full text-[12px] font-medium px-2.5 py-0.5 ${c.className}`}>
+      {c.label}
+    </Badge>
+  );
 }
 
 export function CallListTable({ calls }: { calls: Call[] }) {
-  if (calls.length === 0) {
-    return (
-      <p className="py-8 text-center text-sm text-muted-foreground">
-        No calls yet.
-      </p>
-    );
-  }
+  const router = useRouter();
 
   return (
     <Table>
       <TableHeader>
-        <TableRow>
-          <TableHead>Time</TableHead>
-          <TableHead>Caller</TableHead>
-          <TableHead className="hidden sm:table-cell">Duration</TableHead>
-          <TableHead className="hidden md:table-cell">Summary</TableHead>
-          <TableHead>Outcome</TableHead>
+        <TableRow className="border-b border-border/30 hover:bg-transparent">
+          <TableHead className="w-[160px] text-[13px] font-medium uppercase tracking-[0.04em] text-muted-foreground/70 py-3 px-4">
+            Time
+          </TableHead>
+          <TableHead className="w-[140px] text-[13px] font-medium uppercase tracking-[0.04em] text-muted-foreground/70 py-3 px-4">
+            Caller
+          </TableHead>
+          <TableHead className="hidden w-[80px] sm:table-cell text-[13px] font-medium uppercase tracking-[0.04em] text-muted-foreground/70 py-3 px-4">
+            Duration
+          </TableHead>
+          <TableHead className="hidden md:table-cell text-[13px] font-medium uppercase tracking-[0.04em] text-muted-foreground/70 py-3 px-4">
+            Summary
+          </TableHead>
+          <TableHead className="w-[100px] text-[13px] font-medium uppercase tracking-[0.04em] text-muted-foreground/70 py-3 px-4">
+            Outcome
+          </TableHead>
         </TableRow>
       </TableHeader>
-      <TableBody>
+      <TableBody className="divide-y divide-border/50">
         {calls.map((call) => (
-          <TableRow key={call.id} className="cursor-pointer">
-            <TableCell>
-              <Link href={`/calls/${call.id}`} className="block">
-                {formatTime(call.created_at)}
-              </Link>
+          <TableRow
+            key={call.id}
+            className="cursor-pointer border-0 transition-colors duration-150 hover:bg-muted/40"
+            onClick={() => router.push(`/calls/${call.id}`)}
+          >
+            <TableCell className="text-[14px] py-4 px-4 tabular-nums text-muted-foreground">
+              {formatTime(call.created_at)}
             </TableCell>
-            <TableCell>
-              <Link href={`/calls/${call.id}`} className="block">
-                {call.caller_phone ?? "Unknown"}
-              </Link>
+            <TableCell className="text-[14px] py-4 px-4 font-medium text-foreground">
+              {call.caller_phone ?? "Unknown"}
             </TableCell>
-            <TableCell className="hidden sm:table-cell">
-              {call.duration_secs
-                ? `${Math.floor(call.duration_secs / 60)}:${String(call.duration_secs % 60).padStart(2, "0")}`
-                : "—"}
+            <TableCell className="hidden sm:table-cell text-[14px] py-4 px-4 tabular-nums text-muted-foreground">
+              {formatDuration(call.duration_secs)}
             </TableCell>
-            <TableCell className="hidden max-w-xs truncate md:table-cell">
-              {call.summary ?? "—"}
+            <TableCell className="hidden md:table-cell max-w-xs truncate text-[14px] py-4 px-4 text-muted-foreground">
+              {call.summary ?? "\u2014"}
             </TableCell>
-            <TableCell>
-              {call.outcome ? (
-                <Badge variant={outcomeColor(call.outcome) as "default" | "secondary" | "outline"}>
-                  {call.outcome.replace("_", " ")}
-                </Badge>
-              ) : (
-                <span className="text-xs text-muted-foreground">—</span>
+            <TableCell className="py-4 px-4">
+              {outcomeBadge(call.outcome) ?? (
+                <span className="text-[14px] text-muted-foreground/40">{"\u2014"}</span>
               )}
             </TableCell>
           </TableRow>

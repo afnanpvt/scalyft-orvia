@@ -1,5 +1,6 @@
-import { Sidebar } from "@/components/dashboard/sidebar";
-import { Header } from "@/components/dashboard/header";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { OrviaSidebar } from "@/components/dashboard/orvia-sidebar";
+import { OrviaHeader } from "@/components/dashboard/orvia-header";
 import { getClinicSettings } from "@/lib/queries";
 
 export default async function DashboardLayout({
@@ -11,14 +12,25 @@ export default async function DashboardLayout({
   const clinicName = clinic?.name ?? "Orvia Dashboard";
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header clinicName={clinicName} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          {children}
-        </main>
-      </div>
-    </div>
+    <SidebarProvider
+      style={
+        {
+          "--sidebar-width": "calc(var(--spacing) * 64)",
+          "--header-height": "calc(var(--spacing) * 12)",
+        } as React.CSSProperties
+      }
+    >
+      <OrviaSidebar clinicName={clinicName} />
+      <SidebarInset>
+        <OrviaHeader />
+        <div className="flex flex-1 flex-col bg-background">
+          <div className="@container/main flex flex-1 flex-col">
+            <div className="mx-auto w-full max-w-6xl px-8 py-8">
+              {children}
+            </div>
+          </div>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

@@ -1,0 +1,145 @@
+{
+  "clinic_identity": {
+    "name": "Dr. Sharma's Dental Care",
+    "doctor_name": "Dr. Priya Sharma",
+    "tagline": "Gentle care for your smile",
+    "established_year": 2018,
+    "location": {
+      "address": "204, 2nd Floor, ABC Complex, MG Road, Pune",
+      "landmark": "Above SBI Bank, opposite City Mall",
+      "city": "Pune",
+      "google_maps_link": "https://maps.google.com/..."
+    }
+  },
+
+  "operating_hours": {
+    "monday":    { "open": "09:00", "close": "20:00", "lunch_break": "13:00-14:00" },
+    "tuesday":   { "open": "09:00", "close": "20:00", "lunch_break": "13:00-14:00" },
+    "wednesday": { "open": "09:00", "close": "20:00", "lunch_break": "13:00-14:00" },
+    "thursday":  { "open": "09:00", "close": "20:00", "lunch_break": "13:00-14:00" },
+    "friday":    { "open": "09:00", "close": "20:00", "lunch_break": "13:00-14:00" },
+    "saturday":  { "open": "09:00", "close": "15:00", "lunch_break": null },
+    "sunday":    { "closed": true }
+  },
+
+  "services": [
+    {
+      "name": "General Checkup",
+      "duration_minutes": 30,
+      "price_range": "₹300-500",
+      "description": "Routine dental examination with cleaning",
+      "can_book_directly": true
+    },
+    {
+      "name": "Teeth Cleaning / Scaling",
+      "duration_minutes": 45,
+      "price_range": "₹800-1500",
+      "description": "Professional cleaning and polishing",
+      "can_book_directly": true
+    },
+    {
+      "name": "Tooth Extraction",
+      "duration_minutes": 30,
+      "price_range": "₹500-2000",
+      "description": "Simple or surgical extraction",
+      "can_book_directly": true
+    },
+    {
+      "name": "Root Canal Treatment",
+      "duration_minutes": 60,
+      "price_range": "₹3000-8000",
+      "description": "Single or multi-sitting RCT",
+      "can_book_directly": false,
+      "note": "Requires consultation first"
+    },
+    {
+      "name": "Braces / Orthodontics",
+      "duration_minutes": 45,
+      "price_range": "₹25000-80000",
+      "description": "Metal or ceramic braces, clear aligners",
+      "can_book_directly": false,
+      "note": "Requires consultation first - give consultation appointment"
+    },
+    {
+      "name": "Dental Implants",
+      "duration_minutes": 60,
+      "price_range": "₹20000-50000",
+      "description": "Single or multiple implants",
+      "can_book_directly": false,
+      "note": "Requires X-ray and consultation first"
+    },
+    {
+      "name": "Teeth Whitening",
+      "duration_minutes": 60,
+      "price_range": "₹5000-15000",
+      "description": "In-office professional whitening",
+      "can_book_directly": true
+    },
+    {
+      "name": "Emergency / Pain",
+      "duration_minutes": 30,
+      "price_range": "₹500-1500",
+      "description": "Toothache, swelling, broken tooth",
+      "can_book_directly": true,
+      "priority": "high",
+      "note": "Try to book same-day or next available"
+    }
+  ],
+
+  "faq": [
+    {
+      "question": "Do you accept insurance?",
+      "answer": "We accept most major dental insurance plans. Please bring your insurance card to your appointment and we'll verify coverage."
+    },
+    {
+      "question": "Is parking available?",
+      "answer": "Yes, there is free parking in the basement of ABC Complex."
+    },
+    {
+      "question": "Do you treat children?",
+      "answer": "Yes, Dr. Sharma treats patients of all ages including children. We recommend first dental visit by age 1."
+    },
+    {
+      "question": "What payment methods do you accept?",
+      "answer": "We accept cash, UPI, all major debit/credit cards, and EMI options for treatments above ₹10,000."
+    },
+    {
+      "question": "How long does a root canal take?",
+      "answer": "A root canal typically takes 1-2 sittings of about 45-60 minutes each, depending on the tooth."
+    }
+  ],
+
+  "receptionist_personality": {
+    "name": "Orvia",
+    "tone": "warm, professional, reassuring",
+    "language_preference": "english",
+    "special_instructions": [
+      "Always reassure nervous patients - dental anxiety is common",
+      "For emergency/pain cases, express empathy first before booking",
+      "Never give exact prices - always say 'starting from' or 'typically ranges'",
+      "If someone asks for Dr. Sharma directly, say she is with a patient and offer to book a callback or appointment",
+      "For braces, implants, and root canal - always book a consultation first, not the treatment directly"
+    ]
+  },
+
+  "emergency_protocol": {
+    "during_hours": "Book the next available emergency slot same day",
+    "after_hours": "Take details, tell patient the clinic will call back first thing in the morning. For severe cases (uncontrolled bleeding, jaw trauma), advise going to nearest hospital ER.",
+    "emergency_contact": "+91-9876543210"
+  },
+
+  "notification_preferences": {
+    "new_appointment": { "whatsapp": true, "sms": false, "email": true },
+    "new_lead": { "whatsapp": true, "sms": false, "email": false },
+    "emergency_call": { "whatsapp": true, "sms": true, "email": false },
+    "daily_summary": { "email": true, "time": "20:00" }
+  },
+
+  "calendar": {
+    "provider": "google",
+    "calendar_id": "clinic@gmail.com",
+    "slot_duration_default": 30,
+    "buffer_between_appointments": 15,
+    "max_appointments_per_day": 20
+  }
+}

@@ -35,9 +35,14 @@ yarn-error.log*
 .env.local
 .env.*.local
 
+# vite build output
+/dist
+
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel

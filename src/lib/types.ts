@@ -12,14 +12,67 @@ export interface Clinic {
   updated_at: string;
 }
 
+export interface ClinicService {
+  name: string;
+  duration_minutes: number;
+  price_range: string;
+  description: string;
+  can_book_directly: boolean;
+  priority?: "high" | "normal";
+  note?: string;
+}
+
+export interface ClinicFAQ {
+  question: string;
+  answer: string;
+}
+
 export interface ClinicSettings {
+  // Basic info
   greeting?: string;
+  doctor_name?: string;
+  tagline?: string;
+  address?: string;
+  landmark?: string;
+  city?: string;
+
+  // Operating hours per day
   hours?: string;
+  operating_hours?: Record<
+    string,
+    { open: string; close: string; lunch_break?: string | null; closed?: boolean }
+  >;
+
+  // Services with full detail
   services?: string[];
-  languages?: string[];
+  service_details?: ClinicService[];
+
+  // FAQ the AI can answer
+  faq?: ClinicFAQ[];
+
+  // AI personality
+  receptionist_name?: string;
+  tone?: string;
+  language_preference?: "english" | "hindi" | "bilingual";
+  special_instructions?: string[];
+
+  // Emergency
   emergency_number?: string;
-  calendar_id?: string;
+  emergency_protocol?: {
+    during_hours: string;
+    after_hours: string;
+  };
+
+  // Notifications
   transfer_number?: string;
+  notification_phone?: string;
+
+  // Calendar
+  calendar_id?: string;
+  calendar_provider?: "google";
+  slot_duration_default?: number;
+  buffer_between_appointments?: number;
+  max_appointments_per_day?: number;
 }
 
 export interface User {

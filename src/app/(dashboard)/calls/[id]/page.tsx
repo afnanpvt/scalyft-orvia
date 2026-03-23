@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getCallById, getLeadByCallId, getAppointmentByCallId } from "@/lib/queries";
 import { CallDetailView } from "@/components/dashboard/call-detail-view";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ChevronLeftIcon } from "lucide-react";
 
 export default async function CallDetailPage({
   params,
@@ -22,14 +22,19 @@ export default async function CallDetailPage({
   ]);
 
   return (
-    <div className="space-y-4">
-      <Link
-        href="/calls"
-        className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to calls
-      </Link>
-      <CallDetailView call={call} lead={lead} appointment={appointment} />
+    <div className="flex flex-col space-y-8 py-6 md:py-8">
+      <div className="px-4 lg:px-6">
+        <Link
+          href="/calls"
+          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground/70 transition-colors duration-150 hover:text-foreground"
+        >
+          <ChevronLeftIcon className="size-3.5" />
+          Back to calls
+        </Link>
+      </div>
+      <div className="px-4 lg:px-6">
+        <CallDetailView call={call} lead={lead} appointment={appointment} />
+      </div>
     </div>
   );
 }

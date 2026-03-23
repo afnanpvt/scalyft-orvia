@@ -15,7 +15,17 @@
       "Bash(printf \"n\\\\nn\\\\n\")",
       "Bash(yes \"n\")",
       "Bash(cp -r _temp/* scalyft-orvia/)",
-      "Bash(rm -rf _temp)"
+      "Bash(rm -rf _temp)",
+      "mcp__supabase__list_projects",
+      "mcp__supabase__list_tables",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__execute_sql",
+      "WebFetch(domain:docs.vapi.ai)",
+      "WebFetch(domain:vapi.ai)",
+      "WebFetch(domain:www.cloudtalk.io)",
+      "WebSearch",
+      "WebFetch(domain:www.ringg.ai)",
+      "WebFetch(domain:blog.dograh.com)"
     ]
   }
 }

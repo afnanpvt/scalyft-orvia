@@ -46,9 +46,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Build and return assistant config
-    const n8nBaseUrl =
-      process.env.N8N_BASE_URL || "https://n8n.railway.app";
-    const webhookSecret = process.env.N8N_WEBHOOK_SECRET || "";
+    const n8nBaseUrl = process.env.N8N_BASE_URL;
+    if (!n8nBaseUrl) {
+      console.error("N8N_BASE_URL environment variable is not set");
+      return NextResponse.json(
+        { error: "Server misconfiguration" },
+        { status: 500 }
+      );
+    }
+    const webhookSecret = process.env.N8N_WEBHOOK_SECRET ?? "";
 
     const assistantConfig = buildAssistantConfig(
       clinic,
@@ -56,7 +62,8 @@ export async function POST(request: NextRequest) {
       webhookSecret
     );
 
-    return NextResponse.json(assistantConfig);
+    // Vapi expects { assistant: { ... } } wrapper for transient assistants
+    return NextResponse.json({ assistant: assistantConfig });
   } catch (err) {
     console.error("assistant-request error:", err);
     return NextResponse.json(

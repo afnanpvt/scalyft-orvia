@@ -123,6 +123,99 @@ export async function getAppointmentByCallId(
   return (data as Appointment) ?? null;
 }
 
+export async function getWeeklyCallStats(): Promise<
+  { date: string; calls: number; leads: number; appointments: number }[]
+> {
+  const supabase = await createClient();
+  const days: { date: string; calls: number; leads: number; appointments: number }[] = [];
+
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const start = new Date(d);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(d);
+    end.setHours(23, 59, 59, 999);
+
+    const [callsRes, leadsRes, apptsRes] = await Promise.all([
+      supabase
+        .from("calls")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", start.toISOString())
+        .lte("created_at", end.toISOString()),
+      supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", start.toISOString())
+        .lte("created_at", end.toISOString()),
+      supabase
+        .from("appointments")
+        .select("id", { count: "exact", head: true })
+        .gte("created_at", start.toISOString())
+        .lte("created_at", end.toISOString()),
+    ]);
+
+    days.push({
+      date: d.toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric" }),
+      calls: callsRes.count ?? 0,
+      leads: leadsRes.count ?? 0,
+      appointments: apptsRes.count ?? 0,
+    });
+  }
+
+  return days;
+}
+
+export async function getOutcomeBreakdown(): Promise<
+  { outcome: string; count: number }[]
+> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("calls")
+    .select("outcome");
+
+  if (!data) return [];
+
+  const counts: Record<string, number> = {};
+  for (const row of data) {
+    const key = row.outcome ?? "unknown";
+    counts[key] = (counts[key] || 0) + 1;
+  }
+
+  return Object.entries(counts).map(([outcome, count]) => ({
+    outcome: outcome.replace(/_/g, " "),
+    count,
+  }));
+}
+
+export async function getLeads(
+  page = 1,
+  pageSize = 20,
+  status?: string
+): Promise<{ leads: Lead[]; total: number }> {
+  const supabase = await createClient();
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from("leads")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(from, to);
+
+  if (status && status !== "all") {
+    query = query.eq("status", status);
+  }
+
+  const { data, error, count } = await query;
+
+  if (error) {
+    console.error("getLeads error:", error);
+    return { leads: [], total: 0 };
+  }
+  return { leads: (data as Lead[]) ?? [], total: count ?? 0 };
+}
+
 export async function getClinicSettings(): Promise<Clinic | null> {
   const supabase = await createClient();
   const {
