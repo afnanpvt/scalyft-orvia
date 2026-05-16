@@ -5,8 +5,7 @@ import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/_dashboard")({
   beforeLoad: ({ context }) => {
-    // Only redirect if auth has fully resolved and there's no user
-    if (!context.auth.isLoading && !context.auth.user) {
+    if (!context.auth.user) {
       throw redirect({ to: "/login" });
     }
   },
@@ -17,19 +16,12 @@ function DashboardLayout() {
   const { user, isLoading } = useAuth();
   const navigate = useNavigate();
 
+  // Handle logout while on dashboard (auth state changes after initial load)
   useEffect(() => {
     if (!isLoading && !user) {
       navigate({ to: "/login" });
     }
   }, [user, isLoading, navigate]);
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-foreground border-t-transparent" />
-      </div>
-    );
-  }
 
   if (!user) return null;
 
