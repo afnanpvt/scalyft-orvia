@@ -71,7 +71,7 @@
 
   /* Muted — subtle toned-down surfaces */
   --muted: oklch(0.94 0.006 85);
-  --muted-foreground: oklch(0.45 0 0);
+  --muted-foreground: oklch(0.38 0 0);
 
   /* Accent — warm highlight */
   --accent: oklch(0.95 0.01 85);

@@ -1,3 +1,15 @@
 {
-  "mcpServers": {}
+  "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": ["-y", "@supabase/mcp-server-supabase@latest"]
+    },
+    "vercel": {
+      "command": "npx",
+      "args": ["-y", "@vercel/mcp-adapter"],
+      "env": {
+        "VERCEL_API_TOKEN": "vcp_4iMY4lOZ5nBLdfc8ak7jqvXXYgeRtbTBZwA7EAzRAxk5rxAIqX2Yt68v"
+      }
+    }
+  }
 }

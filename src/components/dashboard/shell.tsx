@@ -78,7 +78,7 @@ function UserDropdown() {
         <span className="hidden sm:block text-[13px] font-medium text-foreground">
           {displayName}
         </span>
-        <ChevronDown className={`size-3 text-muted-foreground/40 transition-transform ${open ? "rotate-180" : ""}`} />
+        <ChevronDown className={`size-3 text-muted-foreground/65 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
       {/* Dropdown */}
@@ -88,7 +88,7 @@ function UserDropdown() {
           <div className="p-4 border-b border-border/20">
             {editing ? (
               <div className="space-y-3">
-                <label className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground/40 block">
+                <label className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground/65 block">
                   Full Name
                 </label>
                 <input
@@ -115,7 +115,7 @@ function UserDropdown() {
                       setEditing(false);
                       setNameInput(profile.fullName ?? "");
                     }}
-                    className="text-[11px] text-muted-foreground/50 hover:text-foreground cursor-pointer transition-colors"
+                    className="text-[11px] text-muted-foreground/70 hover:text-foreground cursor-pointer transition-colors"
                   >
                     Cancel
                   </button>
@@ -126,14 +126,14 @@ function UserDropdown() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[14px] font-medium">{displayName}</p>
-                    <p className="text-[11px] text-muted-foreground/40 mt-0.5">
+                    <p className="text-[11px] text-muted-foreground/65 mt-0.5">
                       {profile.email}
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setEditing(true)}
-                    className="text-[10px] font-medium text-muted-foreground/40 hover:text-foreground cursor-pointer transition-colors uppercase tracking-[0.06em]"
+                    className="text-[10px] font-medium text-muted-foreground/65 hover:text-foreground cursor-pointer transition-colors uppercase tracking-[0.06em]"
                   >
                     Edit
                   </button>
@@ -197,7 +197,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                     ${
                       isActive
                         ? "font-medium text-foreground bg-accent/30"
-                        : "text-muted-foreground/50"
+                        : "text-muted-foreground/70"
                     }
                   `}
                 >
@@ -214,7 +214,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   signOut();
                   setMobileOpen(false);
                 }}
-                className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground/50 hover:text-foreground transition-colors w-full"
+                className="flex items-center gap-3 px-4 py-3 text-sm text-muted-foreground/70 hover:text-foreground transition-colors w-full"
               >
                 <LogOut className="size-[15px]" />
                 Sign out
@@ -234,7 +234,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             </h1>
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
           </div>
-          <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/30">
+          <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/55">
             AI Front Desk
           </p>
         </div>
@@ -255,7 +255,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   ${
                     isActive
                       ? "font-medium text-foreground border-l-2 border-foreground"
-                      : "text-muted-foreground/50 hover:text-muted-foreground border-l-2 border-transparent"
+                      : "text-muted-foreground/70 hover:text-muted-foreground border-l-2 border-transparent"
                   }
                 `}
               >
@@ -268,7 +268,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
         {/* Footer */}
         <div className="px-6 pb-6">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/20">
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
             Powered by Scalyft
           </p>
         </div>

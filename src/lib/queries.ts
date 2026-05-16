@@ -1,8 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
+import { supabase } from "@/lib/supabase";
 import type { Call, Lead, Appointment, Clinic } from "@/lib/types";
 
 export async function getUserClinicId(): Promise<string | null> {
-  const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -18,7 +17,7 @@ export async function getUserClinicId(): Promise<string | null> {
 }
 
 export async function getOverviewStats() {
-  const supabase = await createClient();
+  
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -47,7 +46,7 @@ export async function getOverviewStats() {
 }
 
 export async function getRecentCalls(limit = 15): Promise<Call[]> {
-  const supabase = await createClient();
+  
   const { data, error } = await supabase
     .from("calls")
     .select("*")
@@ -65,7 +64,7 @@ export async function getCalls(
   page = 1,
   pageSize = 20
 ): Promise<{ calls: Call[]; total: number }> {
-  const supabase = await createClient();
+  
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
@@ -83,7 +82,7 @@ export async function getCalls(
 }
 
 export async function getCallById(id: string): Promise<Call | null> {
-  const supabase = await createClient();
+  
   const { data, error } = await supabase
     .from("calls")
     .select("*")
@@ -100,7 +99,7 @@ export async function getCallById(id: string): Promise<Call | null> {
 export async function getLeadByCallId(
   callId: string
 ): Promise<Lead | null> {
-  const supabase = await createClient();
+  
   const { data } = await supabase
     .from("leads")
     .select("*")
@@ -113,7 +112,7 @@ export async function getLeadByCallId(
 export async function getAppointmentByCallId(
   callId: string
 ): Promise<Appointment | null> {
-  const supabase = await createClient();
+  
   const { data } = await supabase
     .from("appointments")
     .select("*")
@@ -126,7 +125,7 @@ export async function getAppointmentByCallId(
 export async function getWeeklyCallStats(): Promise<
   { date: string; calls: number; leads: number; appointments: number }[]
 > {
-  const supabase = await createClient();
+  
   const days: { date: string; calls: number; leads: number; appointments: number }[] = [];
 
   for (let i = 6; i >= 0; i--) {
@@ -169,7 +168,7 @@ export async function getWeeklyCallStats(): Promise<
 export async function getOutcomeBreakdown(): Promise<
   { outcome: string; count: number }[]
 > {
-  const supabase = await createClient();
+  
   const { data } = await supabase
     .from("calls")
     .select("outcome");
@@ -193,7 +192,7 @@ export async function getLeads(
   pageSize = 20,
   status?: string
 ): Promise<{ leads: Lead[]; total: number }> {
-  const supabase = await createClient();
+  
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
@@ -217,7 +216,7 @@ export async function getLeads(
 }
 
 export async function getClinicSettings(): Promise<Clinic | null> {
-  const supabase = await createClient();
+  
   const {
     data: { user },
   } = await supabase.auth.getUser();

@@ -121,7 +121,7 @@ function MetricBlock({
       </p>
       <p
         className={`text-[10px] font-medium uppercase tracking-[0.12em] mt-1 ${
-          accent ? "text-background/40" : "text-muted-foreground/40"
+          accent ? "text-background/70" : "text-muted-foreground/65"
         }`}
       >
         {label}
@@ -160,7 +160,7 @@ function AppointmentRow({ apt, isNext }: { apt: Appointment; isNext?: boolean })
         </p>
         <div className="flex items-center gap-2 mt-0.5">
           {apt.service_type && (
-            <span className="text-[11px] text-muted-foreground/40 truncate">
+            <span className="text-[11px] text-muted-foreground/60 truncate">
               {apt.service_type}
             </span>
           )}
@@ -171,7 +171,7 @@ function AppointmentRow({ apt, isNext }: { apt: Appointment; isNext?: boolean })
       {apt.patient_phone && (
         <a
           href={`tel:${apt.patient_phone}`}
-          className="text-[11px] tabular-nums text-muted-foreground/30 hover:text-foreground transition-colors cursor-pointer shrink-0"
+          className="text-[11px] tabular-nums text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer shrink-0"
           onClick={(e) => e.stopPropagation()}
         >
           {apt.patient_phone}
@@ -209,7 +209,7 @@ function ExceptionRow({ call }: { call: Call }) {
       <div className="min-w-0 flex-1">
         <p className="text-[13px] truncate">
           <span className="font-medium">{call.caller_phone ?? "Unknown"}</span>
-          <span className="text-muted-foreground/40"> — </span>
+          <span className="text-muted-foreground/65"> — </span>
           <span className="text-muted-foreground/50">
             {call.status === "transferred"
               ? "Transferred to clinic"
@@ -217,7 +217,7 @@ function ExceptionRow({ call }: { call: Call }) {
           </span>
         </p>
       </div>
-      <span className="text-[11px] text-muted-foreground/30 tabular-nums shrink-0">
+      <span className="text-[11px] text-muted-foreground/55 tabular-nums shrink-0">
         {timeAgo(call.started_at ?? call.created_at)}
       </span>
     </Link>
@@ -231,7 +231,7 @@ function WeeklyMiniChart({ data }: { data: { date: string; calls: number }[] }) 
 
   return (
     <div>
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/30 mb-3">
+      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/55 mb-3">
         This week
       </p>
       <ResponsiveContainer width="100%" height={100}>
@@ -280,14 +280,14 @@ function ActivityRow({ call }: { call: Call }) {
         {hasArrow ? (
           <>
             <span className="font-medium text-foreground">{parts[0].trim()}</span>
-            <span className="text-muted-foreground/30"> → </span>
-            <span className="text-muted-foreground/40">{parts.slice(1).join("→").trim()}</span>
+            <span className="text-muted-foreground/55"> → </span>
+            <span className="text-muted-foreground/65">{parts.slice(1).join("→").trim()}</span>
           </>
         ) : (
           <span className="text-muted-foreground/50">{summary}</span>
         )}
       </p>
-      <span className="text-[10px] text-muted-foreground/20 tabular-nums shrink-0">
+      <span className="text-[10px] text-muted-foreground/50 tabular-nums shrink-0">
         {timeAgo(call.started_at ?? call.created_at)}
       </span>
     </Link>
@@ -377,7 +377,7 @@ export default function OverviewPage() {
         <p className="text-[14px] text-muted-foreground/50 leading-relaxed mt-2 tabular-nums">
           {status}
         </p>
-        <p className="text-[11px] text-muted-foreground/25 mt-1">
+        <p className="text-[11px] text-muted-foreground/50 mt-1">
           {new Date().toLocaleDateString("en-IN", {
             weekday: "long",
             month: "long",
@@ -398,18 +398,18 @@ export default function OverviewPage() {
         {/* Left: Today's appointments (3 cols) */}
         <div className="lg:col-span-3">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/30">
+            <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/55">
               <Calendar className="size-3 inline-block mr-1.5 -mt-px" />
               Today's appointments
             </p>
             {todaysAppointments.length > 0 && (
-              <span className="text-[11px] tabular-nums text-muted-foreground/30">
+              <span className="text-[11px] tabular-nums text-muted-foreground/55">
                 {todaysAppointments.length}
               </span>
             )}
           </div>
           {todaysAppointments.length === 0 ? (
-            <p className="text-[13px] text-muted-foreground/30 py-6">
+            <p className="text-[13px] text-muted-foreground/55 py-6">
               No appointments scheduled today.
             </p>
           ) : (
@@ -458,14 +458,14 @@ export default function OverviewPage() {
       {/* Recent activity feed */}
       <section>
         <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/30">
+          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/55">
             <Phone className="size-3 inline-block mr-1.5 -mt-px" />
             Recent calls
           </p>
           {recentCalls.length > 0 && (
             <Link
               to="/calls"
-              className="text-[11px] text-muted-foreground/30 hover:text-foreground transition-colors inline-flex items-center gap-1 cursor-pointer"
+              className="text-[11px] text-muted-foreground/55 hover:text-foreground transition-colors inline-flex items-center gap-1 cursor-pointer"
             >
               View all
               <ArrowRight className="size-3" />
@@ -473,7 +473,7 @@ export default function OverviewPage() {
           )}
         </div>
         {recentCalls.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground/30 py-4">
+          <p className="text-[13px] text-muted-foreground/55 py-4">
             No recent calls.
           </p>
         ) : (
