@@ -46,3 +46,6 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# supabase CLI temp files
+supabase/.temp/
