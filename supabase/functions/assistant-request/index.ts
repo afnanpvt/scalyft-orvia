@@ -193,8 +193,9 @@ Capture their lead information using capture_lead, and assure them someone will 
   return sections.join("\n\n");
 }
 
-function buildTools(clinic: Clinic, n8nBaseUrl: string, webhookSecret: string) {
+function buildTools(clinic: Clinic, n8nBaseUrl: string, webhookSecret: string, supabaseUrl: string) {
   const { settings } = clinic;
+  const edgeFnBase = `${supabaseUrl}/functions/v1`;
 
   const tools: unknown[] = [
     {
@@ -234,7 +235,7 @@ function buildTools(clinic: Clinic, n8nBaseUrl: string, webhookSecret: string) {
           required: ["date"],
         },
       },
-      server: { url: `${n8nBaseUrl}/webhook/check-availability`, secret: webhookSecret },
+      server: { url: `${edgeFnBase}/check-availability?clinic_id=${clinic.id}`, secret: webhookSecret },
     },
     {
       type: "function",
@@ -274,7 +275,7 @@ function buildTools(clinic: Clinic, n8nBaseUrl: string, webhookSecret: string) {
   return tools;
 }
 
-function buildAssistantConfig(clinic: Clinic, n8nBaseUrl: string, webhookSecret: string) {
+function buildAssistantConfig(clinic: Clinic, n8nBaseUrl: string, webhookSecret: string, supabaseUrl: string) {
   return {
     model: {
       provider: "openai",
@@ -287,7 +288,7 @@ function buildAssistantConfig(clinic: Clinic, n8nBaseUrl: string, webhookSecret:
       voiceId: "rachel",
     },
     firstMessage: buildGreeting(clinic),
-    tools: buildTools(clinic, n8nBaseUrl, webhookSecret),
+    tools: buildTools(clinic, n8nBaseUrl, webhookSecret, supabaseUrl),
     endCallPhrases: ["goodbye", "bye", "thank you", "thanks", "that's all", "no more questions"],
     serverUrl: `${n8nBaseUrl}/webhook/vapi-events`,
     silenceTimeoutSeconds: 15,
@@ -356,7 +357,7 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const assistantConfig = buildAssistantConfig(clinic as Clinic, n8nBaseUrl, webhookSecret);
+  const assistantConfig = buildAssistantConfig(clinic as Clinic, n8nBaseUrl, webhookSecret, supabaseUrl);
 
   return new Response(
     JSON.stringify({ assistant: assistantConfig }),

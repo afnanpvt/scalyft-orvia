@@ -107,7 +107,11 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const { clinic_id, date } = body;
+  // clinic_id can come from the request body OR the query string
+  // (assistant-request embeds clinic_id as ?clinic_id= in the tool server URL)
+  const url = new URL(req.url);
+  const clinic_id = body.clinic_id ?? url.searchParams.get("clinic_id") ?? undefined;
+  const { date } = body;
 
   if (!clinic_id || !date) {
     return new Response(
