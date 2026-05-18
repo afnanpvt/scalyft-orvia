@@ -104,7 +104,7 @@ function buildHoursSection(clinic: Clinic): string {
     });
     return lines.join("\n");
   }
-  return `Clinic hours: ${settings.hours || "10am-7pm Mon-Sat, closed Sunday"}.`;
+  return `Business hours: ${settings.hours || "Mon-Sat 7am-7pm, closed Sunday"}.`;
 }
 
 function buildSystemPrompt(clinic: Clinic): string {
@@ -114,9 +114,9 @@ function buildSystemPrompt(clinic: Clinic): string {
 
   sections.push(`# Who You Are
 You are ${name}, the AI receptionist for ${clinic.name}.
-${settings.doctor_name ? `The clinic is run by ${settings.doctor_name}.` : ""}
-${settings.tagline ? `The clinic's motto: "${settings.tagline}"` : ""}
-You are warm, professional, and reassuring. You sound like a real person who works at this clinic - not a robot, not a call center agent.`);
+${settings.doctor_name ? `The business is run by ${settings.doctor_name}.` : ""}
+${settings.tagline ? `Their motto: "${settings.tagline}"` : ""}
+You are warm, professional, and efficient. You sound like a real person who works here - not a robot, not a call center agent.`);
 
   sections.push(`# How You Speak
 - Speak naturally in English. Use simple, clear sentences.
@@ -130,65 +130,64 @@ You are warm, professional, and reassuring. You sound like a real person who wor
 - Mention this call may be recorded at the start.`);
 
   if (settings.special_instructions?.length) {
-    sections.push(`# Special Instructions from the Clinic Owner\n${settings.special_instructions.map((i) => `- ${i}`).join("\n")}`);
+    sections.push(`# Special Instructions from the Owner\n${settings.special_instructions.map((i) => `- ${i}`).join("\n")}`);
   }
 
   if (settings.service_details?.length) {
     sections.push(`# Services Offered\n${buildServiceSection(settings.service_details)}`);
   } else if (settings.services?.length) {
-    sections.push(`# Services Offered\nThe clinic offers: ${settings.services.join(", ")}.`);
+    sections.push(`# Services Offered\n${clinic.name} offers: ${settings.services.join(", ")}.`);
   }
 
   if (settings.faq?.length) {
     sections.push(`# Common Questions\n${buildFAQSection(settings.faq)}`);
   }
 
-  sections.push(`# Clinic Hours\n${buildHoursSection(clinic)}`);
+  sections.push(`# Business Hours\n${buildHoursSection(clinic)}`);
 
   if (settings.address) {
-    sections.push(`# Location\nThe clinic is located at: ${settings.address}${settings.landmark ? ` (${settings.landmark})` : ""}.`);
+    sections.push(`# Location\n${clinic.name} is located at: ${settings.address}${settings.landmark ? ` (${settings.landmark})` : ""}.`);
   }
 
   sections.push(`# How to Handle Calls
 
-## Patient wants an appointment
+## Caller wants to book a service
 1. Ask what service they need (if not already mentioned)
 2. Ask their preferred date and time
 3. Use the check_availability tool to find open slots
 4. Offer available slots to the caller
 5. Once they pick a slot, ask for their name and phone number
 6. Use the book_appointment tool to confirm
-7. Repeat the appointment details: "You're all set - [service] on [date] at [time] with ${settings.doctor_name || "the doctor"}."
+7. Confirm the booking: "You're all set - [service] on [date] at [time]. We'll see you then."
 
-## Patient asking about services or pricing
+## Caller asking about services or pricing
 - Share the price RANGE, never an exact price. Say "typically ranges from" or "starts from".
-- For complex treatments (braces, implants, root canal), always suggest a consultation first.
+- For jobs requiring an on-site look, suggest booking a free estimate first.
 
-## Emergency or pain
+## Emergency call
 ${settings.emergency_protocol?.during_hours
-  ? `During clinic hours: ${settings.emergency_protocol.during_hours}`
-  : "During clinic hours: Try to book the next available slot today."}
+  ? `During hours: ${settings.emergency_protocol.during_hours}`
+  : "During hours: Try to dispatch someone same day."}
 ${settings.emergency_protocol?.after_hours
   ? `After hours: ${settings.emergency_protocol.after_hours}`
-  : "After hours: Take their details, assure them the clinic will call back first thing in the morning."}
-${settings.emergency_number ? `For true emergencies, transfer to: ${settings.emergency_number}` : ""}
+  : "After hours: Take their details, assure them someone will call back within 30 minutes."}
+${settings.emergency_number ? `For emergencies, transfer to: ${settings.emergency_number}` : ""}
 
-## Patient wants to talk to the doctor directly
-Say the doctor is currently with a patient. Offer to book a callback or an appointment.
+## Caller wants to speak to the owner or manager
+Say they are currently unavailable. Offer to book a callback or take a message.
 
-## Non-patient calls (vendors, sales, etc.)
-Politely take a message. Do not book an appointment for non-patients.
+## Non-customer calls (vendors, sales, etc.)
+Politely take a message. Do not book a job for non-customers.
 
-## You can't complete a booking (system error, no slots)
-Capture their lead information using capture_lead, and assure them someone will call back within 30 minutes.`);
+## You can't complete a booking (no slots, system error)
+Capture their information using capture_lead, and assure them someone will call back within 30 minutes.`);
 
   sections.push(`# What You Must NOT Do
-- Never give medical advice. You are not a doctor.
-- Never diagnose conditions based on symptoms.
-- Never guarantee exact prices - always give ranges.
-- Never share other patients' information.
-- Never argue with a caller. If they're upset, empathize and offer to have the clinic owner call them.
-- Never make promises the clinic can't keep (same-day for non-emergency, specific doctor availability).`);
+- Never guarantee exact prices - always give ranges or say a technician will provide a free on-site estimate.
+- Never share other customers' information.
+- Never argue with a caller. If they're upset, empathize and offer to have the owner call them back.
+- Never make promises the business can't keep.
+- Never confirm a booking outside the service area.`);
 
   return sections.join("\n\n");
 }
@@ -202,19 +201,19 @@ function buildTools(clinic: Clinic, n8nBaseUrl: string, webhookSecret: string, s
       type: "function",
       function: {
         name: "capture_lead",
-        description: "Save the patient's contact information when you cannot complete a booking or they just want a callback",
+        description: "Save the caller's contact information when you cannot complete a booking or they just want a callback",
         parameters: {
           type: "object",
           properties: {
-            name: { type: "string", description: "Patient's full name" },
-            phone: { type: "string", description: "Patient's phone number (only if different from caller ID)" },
-            service_needed: { type: "string", description: "What dental service they need" },
+            name: { type: "string", description: "Caller's full name" },
+            phone: { type: "string", description: "Caller's phone number (only if different from caller ID)" },
+            service_needed: { type: "string", description: "What service they need" },
             urgency: {
               type: "string",
               enum: ["emergency", "urgent", "routine", "inquiry"],
               description: "How urgent is the request",
             },
-            notes: { type: "string", description: "Any other relevant details mentioned by the patient" },
+            notes: { type: "string", description: "Any other relevant details mentioned by the caller" },
           },
           required: ["name", "service_needed", "urgency"],
         },
@@ -225,7 +224,7 @@ function buildTools(clinic: Clinic, n8nBaseUrl: string, webhookSecret: string, s
       type: "function",
       function: {
         name: "check_availability",
-        description: "Check available appointment slots for a specific date. Call this before offering slots to the patient.",
+        description: "Check available slots for a specific date. Call this before offering times to the caller.",
         parameters: {
           type: "object",
           properties: {
@@ -241,13 +240,13 @@ function buildTools(clinic: Clinic, n8nBaseUrl: string, webhookSecret: string, s
       type: "function",
       function: {
         name: "book_appointment",
-        description: "Book a confirmed appointment after the patient has selected a slot",
+        description: "Book a confirmed appointment after the caller has selected a slot",
         parameters: {
           type: "object",
           properties: {
-            patient_name: { type: "string", description: "Patient's full name" },
-            patient_phone: { type: "string", description: "Patient's phone number" },
-            service_type: { type: "string", description: "Type of dental service" },
+            patient_name: { type: "string", description: "Caller's full name" },
+            patient_phone: { type: "string", description: "Caller's phone number" },
+            service_type: { type: "string", description: "Type of service being booked" },
             slot: { type: "string", description: "ISO 8601 datetime of the appointment (e.g., 2026-03-21T14:30:00+05:30)" },
             notes: { type: "string", description: "Any notes about the appointment" },
           },
@@ -266,7 +265,7 @@ function buildTools(clinic: Clinic, n8nBaseUrl: string, webhookSecret: string, s
         {
           type: "number",
           number: transferNumber,
-          message: "One moment, let me connect you to the clinic directly.",
+          message: "One moment, let me connect you directly.",
         },
       ],
     });

@@ -105,18 +105,19 @@ ${settings.special_instructions.map((i) => `- ${i}`).join("\n")}`);
   // ── Booking Rules ─────────────────────────────────────
   sections.push(`# How to Handle Calls
 
-## Patient wants an appointment
+## Caller wants an appointment
 1. Ask what service they need (if not already mentioned)
-2. Ask their preferred date and time
-3. Use the check_availability tool to find open slots
-4. Offer available slots to the caller
-5. Once they pick a slot, ask for their name and phone number
-6. Use the book_appointment tool to confirm
-7. Repeat the appointment details: "You're all set — [service] on [date] at [time] with ${settings.doctor_name || "the doctor"}."
+2. Ask for their zip code to confirm service area (if applicable)
+3. Ask their preferred date and time
+4. Use the check_availability tool to find open slots
+5. Offer available slots to the caller
+6. Once they pick a slot, ask for their name and phone number
+7. Use the book_appointment tool to confirm
+8. Repeat the booking details: "You're all set — [service] on [date] at [time]."
 
-## Patient asking about services or pricing
+## Caller asking about services or pricing
 - Share the price RANGE, never an exact price. Say "typically ranges from" or "starts from".
-- For complex treatments (braces, implants, root canal), always suggest a consultation first.
+- For complex jobs requiring an on-site assessment, suggest booking a free estimate first.
 
 ## Emergency or pain
 ${settings.emergency_protocol?.during_hours
@@ -127,23 +128,22 @@ ${settings.emergency_protocol?.after_hours
     : "After hours: Take their details, assure them the clinic will call back first thing in the morning."}
 ${settings.emergency_number ? `For true emergencies, transfer to: ${settings.emergency_number}` : ""}
 
-## Patient wants to talk to the doctor directly
-Say the doctor is currently with a patient. Offer to book a callback or an appointment.
+## Caller wants to speak to the owner or manager directly
+Say they are currently unavailable. Offer to book a callback or take a message.
 
-## Non-patient calls (vendors, sales, etc.)
-Politely take a message. Do not book an appointment for non-patients.
+## Non-customer calls (vendors, sales, etc.)
+Politely take a message. Do not book a job for non-customers.
 
 ## You can't complete a booking (system error, no slots)
 Capture their lead information using capture_lead, and assure them someone will call back within 30 minutes.`);
 
   // ── Boundaries ────────────────────────────────────────
   sections.push(`# What You Must NOT Do
-- Never give medical advice. You are not a doctor.
-- Never diagnose conditions based on symptoms.
-- Never guarantee exact prices — always give ranges.
-- Never share other patients' information.
-- Never argue with a caller. If they're upset, empathize and offer to have the clinic owner call them.
-- Never make promises the clinic can't keep (same-day for non-emergency, specific doctor availability).`);
+- Never guarantee exact prices — always give ranges or say the technician will provide a free on-site estimate.
+- Never share other customers' information.
+- Never argue with a caller. If they're upset, empathize and offer to have the owner call them back.
+- Never make promises the business can't keep (same-day for non-emergency, specific technician availability).
+- Never confirm a booking outside the service area.`);
 
   return sections.join("\n\n");
 }
@@ -212,22 +212,22 @@ function buildTools(
       function: {
         name: "capture_lead",
         description:
-          "Save the patient's contact information when you cannot complete a booking or they just want a callback",
+          "Save the caller's contact information when you cannot complete a booking or they just want a callback",
         parameters: {
           type: "object",
           properties: {
             name: {
               type: "string",
-              description: "Patient's full name",
+              description: "Caller's full name",
             },
             phone: {
               type: "string",
               description:
-                "Patient's phone number (only if different from caller ID)",
+                "Caller's phone number (only if different from caller ID)",
             },
             service_needed: {
               type: "string",
-              description: "What dental service they need",
+              description: "What service they need",
             },
             urgency: {
               type: "string",
