@@ -323,7 +323,7 @@ export async function getBriefing() {
       .from("calls")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(8),
+      .limit(10),
   ]);
 
   const rawRecent = (recentRes.data as Call[]) ?? [];
@@ -338,6 +338,15 @@ export async function getBriefing() {
     is_repeat_caller: c.caller_phone ? (phoneCounts[c.caller_phone] ?? 0) > 1 : false,
   }));
 
+  // Avg call duration — today's calls only, from the recent set
+  const todayStart = today.toISOString();
+  const todayCallDurations = rawRecent
+    .filter((c) => c.created_at >= todayStart && c.duration_secs != null)
+    .map((c) => c.duration_secs as number);
+  const avgCallSecs = todayCallDurations.length > 0
+    ? Math.round(todayCallDurations.reduce((a, b) => a + b, 0) / todayCallDurations.length)
+    : null;
+
   return {
     callsToday: callsRes.count ?? 0,
     leadsToday: leadsRes.count ?? 0,
@@ -345,6 +354,7 @@ export async function getBriefing() {
     todaysAppointments: (appointmentsRes.data as Appointment[]) ?? [],
     exceptionCalls: (exceptionsRes.data as Call[]) ?? [],
     recentCalls,
+    avgCallSecs,
   };
 }
 

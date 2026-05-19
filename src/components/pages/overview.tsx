@@ -2,11 +2,19 @@ import { useState, useEffect, useRef } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import {
+  BarChart,
+  Bar,
+  XAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts"
+import {
   Phone,
   Calendar,
   AlertTriangle,
   TrendingUp,
   ArrowRight,
+  CheckCircle,
   X,
 } from "lucide-react"
 
@@ -16,6 +24,7 @@ import {
   getLiveCallStatus,
   markLeadContacted,
   getFollowUpQueue,
+  getWeeklyCallStats,
 } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import type { Call, Appointment, Lead } from "@/lib/types"
@@ -157,11 +166,12 @@ function StatCard({ value, label, sublabel, accentLeft }: {
 
 // ─── Section Card ─────────────────────────────────────────
 
-function SectionCard({ title, icon: Icon, count, action, children, style: extraStyle, accentLeft }: {
+function SectionCard({ title, icon: Icon, count, action, subtitle, children, style: extraStyle, accentLeft }: {
   title: string
   icon?: React.ElementType
   count?: number
   action?: React.ReactNode
+  subtitle?: string
   children: React.ReactNode
   style?: React.CSSProperties
   accentLeft?: string
@@ -177,11 +187,103 @@ function SectionCard({ title, icon: Icon, count, action, children, style: extraS
           {count != null && (
             <span style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)" }}>{count}</span>
           )}
+          {subtitle && (
+            <span style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)" }}>{subtitle}</span>
+          )}
         </div>
         {action}
       </div>
       <div style={{ padding: 0 }}>{children}</div>
     </div>
+  )
+}
+
+// ─── Weekly Chart ─────────────────────────────────────────
+
+type WeekDay = { date: string; calls: number; leads: number; appointments: number }
+
+function WeeklyChart() {
+  const { data: raw, isLoading } = useQuery({
+    queryKey: ["weekly-stats"],
+    queryFn: getWeeklyCallStats,
+  })
+
+  const days: WeekDay[] = raw ?? []
+  const totalCalls = days.reduce((s, d) => s + d.calls, 0)
+  const totalBooked = days.reduce((s, d) => s + d.appointments, 0)
+
+  const subtitle = isLoading
+    ? undefined
+    : totalCalls === 0
+    ? "No calls yet this week"
+    : `${totalCalls} call${totalCalls !== 1 ? "s" : ""} · ${totalBooked} booked this week`
+
+  return (
+    <SectionCard
+      title="This week"
+      icon={TrendingUp}
+      subtitle={subtitle}
+      action={
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "rgba(0,122,255,0.6)", flexShrink: 0 }} />
+            <span style={{ fontSize: 11, color: "#8E8E93", fontFamily: "var(--font-mono)" }}>Calls</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "rgba(52,199,89,0.6)", flexShrink: 0 }} />
+            <span style={{ fontSize: 11, color: "#8E8E93", fontFamily: "var(--font-mono)" }}>Booked</span>
+          </div>
+        </div>
+      }
+    >
+      <div style={{ padding: "8px 8px 4px" }}>
+        {isLoading ? (
+          <div style={{ height: 180, display: "flex", alignItems: "flex-end", gap: 6, padding: "0 8px" }}>
+            {[60, 80, 40, 100, 70, 50, 90].map((h, i) => (
+              <div key={i} style={{ flex: 1, display: "flex", gap: 3, alignItems: "flex-end" }}>
+                <div style={{ flex: 1, height: h * 0.8, background: "rgba(60,60,67,0.07)", borderRadius: 3 }} />
+                <div style={{ flex: 1, height: h * 0.5, background: "rgba(60,60,67,0.05)", borderRadius: 3 }} />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={days} barCategoryGap="30%" barGap={3} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+              <XAxis
+                dataKey="date"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 11, fill: "#AEAEB2", fontFamily: "var(--font-mono)" }}
+              />
+              <Tooltip
+                cursor={{ fill: "rgba(60,60,67,0.04)" }}
+                content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null
+                  const calls = (payload.find((p) => p.dataKey === "calls")?.value as number) ?? 0
+                  const booked = (payload.find((p) => p.dataKey === "appointments")?.value as number) ?? 0
+                  return (
+                    <div style={{
+                      background: "#FFFFFF",
+                      border: "0.5px solid rgba(60,60,67,0.12)",
+                      borderRadius: 8,
+                      padding: "6px 10px",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+                    }}>
+                      <p style={{ fontSize: 11, fontWeight: 600, color: "#1C1C1E", fontFamily: "var(--font-mono)", marginBottom: 2 }}>{label}</p>
+                      <p style={{ fontSize: 11, color: "#636366", fontFamily: "var(--font-mono)" }}>
+                        {calls} call{calls !== 1 ? "s" : ""} · {booked} booked
+                      </p>
+                    </div>
+                  )
+                }}
+              />
+              <Bar dataKey="calls" fill="rgba(0,122,255,0.6)" radius={[3, 3, 0, 0]} />
+              <Bar dataKey="appointments" fill="rgba(52,199,89,0.6)" radius={[3, 3, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </SectionCard>
   )
 }
 
@@ -194,69 +296,82 @@ function FollowUpQueue() {
     refetchInterval: 60_000,
   })
 
-  if (isLoading) return null
-
-  if (queue.length === 0) {
-    return (
-      <div className="ios-card animate-fade-up" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#34C759", flexShrink: 0 }} />
-        <span style={{ fontSize: 13, color: "#8E8E93" }}>No follow-ups needed. Orvia closed every lead today.</span>
+  if (isLoading) return (
+    <div className="ios-card animate-fade-up" style={{ padding: 0, overflow: "hidden", borderLeft: "3px solid #FF9500" }}>
+      <div style={{ padding: "14px 18px", borderBottom: "0.5px solid rgba(60,60,67,0.08)" }}>
+        <div style={{ height: 10, width: 100, background: "rgba(60,60,67,0.08)", borderRadius: 4 }} />
       </div>
-    )
-  }
+      {[1, 2].map((i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", borderBottom: "0.5px solid rgba(60,60,67,0.08)" }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ height: 12, width: 120, background: "rgba(60,60,67,0.08)", borderRadius: 4, marginBottom: 5 }} />
+            <div style={{ height: 10, width: 80, background: "rgba(60,60,67,0.05)", borderRadius: 4 }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 
   return (
     <SectionCard
       title="Follow-up Queue"
       icon={Phone}
-      count={queue.length}
+      count={queue.length > 0 ? queue.length : undefined}
       accentLeft="#FF9500"
     >
-      {queue.map((lead: Lead) => (
-        <div
-          key={lead.id}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            padding: "11px 18px",
-            borderBottom: "0.5px solid rgba(60,60,67,0.08)",
-          }}
-          className="last:border-b-0"
-        >
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 14, fontWeight: 500, color: "#1C1C1E", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {lead.name ?? "Unknown caller"}
-            </p>
-            <p style={{ fontSize: 12, color: "#8E8E93", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {lead.service_needed ?? lead.notes ?? "No details"}
-            </p>
-          </div>
-          <span style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)", flexShrink: 0, whiteSpace: "nowrap" }}>
-            {timeAgo(lead.created_at)}
-          </span>
-          <a
-            href={`tel:${lead.phone}`}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 5,
-              fontSize: 12,
-              fontWeight: 500,
-              color: "#007AFF",
-              textDecoration: "none",
-              padding: "5px 12px",
-              borderRadius: 8,
-              background: "rgba(0,122,255,0.08)",
-              flexShrink: 0,
-            }}
-          >
-            <Phone style={{ width: 11, height: 11 }} />
-            Call back
-          </a>
-          <FollowUpDoneButton leadId={lead.id} />
+      {queue.length === 0 ? (
+        <div style={{ padding: "28px 18px", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+          <CheckCircle style={{ width: 22, height: 22, color: "#34C759" }} strokeWidth={1.5} />
+          <p style={{ fontSize: 14, fontWeight: 500, color: "#1C1C1E", textAlign: "center" }}>All leads closed</p>
+          <p style={{ fontSize: 13, color: "#8E8E93", textAlign: "center" }}>Orvia booked or resolved every call today.</p>
         </div>
-      ))}
+      ) : (
+        queue.map((lead: Lead) => (
+          <div
+            key={lead.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "11px 18px",
+              borderBottom: "0.5px solid rgba(60,60,67,0.08)",
+            }}
+            className="last:border-b-0"
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 14, fontWeight: 500, color: "#1C1C1E", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {lead.name ?? "Unknown caller"}
+              </p>
+              <p style={{ fontSize: 12, color: "#8E8E93", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {lead.service_needed ?? lead.notes ?? "No details"}
+              </p>
+            </div>
+            <span style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)", flexShrink: 0, whiteSpace: "nowrap" }}>
+              {timeAgo(lead.created_at)}
+            </span>
+            <a
+              href={`tel:${lead.phone}`}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                fontSize: 12,
+                fontWeight: 500,
+                color: "#007AFF",
+                textDecoration: "none",
+                padding: "5px 12px",
+                borderRadius: 8,
+                background: "rgba(0,122,255,0.08)",
+                flexShrink: 0,
+              }}
+            >
+              <Phone style={{ width: 11, height: 11 }} />
+              Call back
+            </a>
+            <FollowUpDoneButton leadId={lead.id} />
+          </div>
+        ))
+      )}
     </SectionCard>
   )
 }
@@ -295,9 +410,48 @@ function FollowUpDoneButton({ leadId }: { leadId: string }) {
   )
 }
 
-// ─── Feature 2: Today's Schedule Timeline ─────────────────
+// ─── Today's Schedule Timeline ────────────────────────────
+
+const PLACEHOLDER_SLOTS = [
+  { time: "9:00 AM" },
+  { time: "11:00 AM" },
+  { time: "2:00 PM" },
+]
 
 function ScheduleTimeline({ appointments }: { appointments: Appointment[] }) {
+  if (appointments.length === 0) {
+    return (
+      <>
+        {PLACEHOLDER_SLOTS.map((slot) => (
+          <div
+            key={slot.time}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "10px 18px",
+              borderBottom: "0.5px solid rgba(60,60,67,0.08)",
+              opacity: 0.35,
+            }}
+          >
+            <span style={{ width: 60, flexShrink: 0, fontSize: 11, fontFamily: "var(--font-mono)", color: "#8E8E93", textAlign: "right" }}>
+              {slot.time}
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ height: 10, width: 120, background: "rgba(60,60,67,0.15)", borderRadius: 4, marginBottom: 4 }} />
+              <p style={{ fontSize: 12, color: "#AEAEB2" }}>Appointment slot open</p>
+            </div>
+          </div>
+        ))}
+        <div style={{ padding: "12px 18px" }}>
+          <p style={{ fontSize: 12, color: "#AEAEB2", textAlign: "center" }}>
+            No bookings yet today — Orvia is ready to fill these slots.
+          </p>
+        </div>
+      </>
+    )
+  }
+
   const sorted = [...appointments].sort(
     (a, b) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime()
   )
@@ -312,12 +466,8 @@ function ScheduleTimeline({ appointments }: { appointments: Appointment[] }) {
         const isPast = new Date(apt.scheduled_start) < now
         const isNext = i === nextIdx
 
-        const pillColor = isPast ? "#34C759"
-          : isNext ? "#007AFF"
-          : "#8E8E93"
-        const pillBg = isPast ? "rgba(52,199,89,0.1)"
-          : isNext ? "rgba(0,122,255,0.1)"
-          : "rgba(142,142,147,0.08)"
+        const pillColor = isPast ? "#34C759" : isNext ? "#007AFF" : "#8E8E93"
+        const pillBg = isPast ? "rgba(52,199,89,0.1)" : isNext ? "rgba(0,122,255,0.1)" : "rgba(142,142,147,0.08)"
         const pillLabel = isPast ? "Done" : isNext ? "Next" : "Upcoming"
 
         return (
@@ -366,7 +516,7 @@ function ScheduleTimeline({ appointments }: { appointments: Appointment[] }) {
   )
 }
 
-// ─── Feature 4: Missed Call Heatmap ──────────────────────
+// ─── Missed Call Heatmap ──────────────────────────────────
 
 function MissedCallHeatmap({ rows }: { rows: { hour: number; count: number }[] }) {
   const [mounted, setMounted] = useState(false)
@@ -375,17 +525,22 @@ function MissedCallHeatmap({ rows }: { rows: { hour: number; count: number }[] }
     return () => clearTimeout(t)
   }, [])
 
+  if (rows.length === 0) {
+    return (
+      <div style={{ padding: "28px 18px", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+        <TrendingUp style={{ width: 22, height: 22, color: "#AEAEB2" }} strokeWidth={1.5} />
+        <p style={{ fontSize: 13, color: "#AEAEB2", textAlign: "center" }}>No missed calls yet — data will appear here.</p>
+      </div>
+    )
+  }
+
   const maxCount = Math.max(...rows.map((r) => r.count))
 
   return (
     <div style={{ padding: "12px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
       {rows.map((row, i) => {
         const pct = row.count / maxCount
-        const barColor = i < 2
-          ? "rgba(255,59,48,0.5)"
-          : i < 4
-          ? "rgba(255,149,0,0.4)"
-          : "rgba(142,142,147,0.3)"
+        const barColor = i < 2 ? "rgba(255,59,48,0.5)" : i < 4 ? "rgba(255,149,0,0.4)" : "rgba(142,142,147,0.3)"
         return (
           <div key={row.hour} style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ width: 44, fontSize: 11, color: "#8E8E93", fontFamily: "var(--font-mono)", flexShrink: 0, textAlign: "right" }}>
@@ -410,7 +565,7 @@ function MissedCallHeatmap({ rows }: { rows: { hour: number; count: number }[] }
   )
 }
 
-// ─── Feature 5: Activity Row (with badges + repeat flag) ──
+// ─── Activity Row ─────────────────────────────────────────
 
 function ActivityRow({ call, delay }: { call: Call & { is_repeat_caller?: boolean }; delay?: number }) {
   const summary = buildCallSummary(call)
@@ -476,7 +631,29 @@ function ActivityRow({ call, delay }: { call: Call & { is_repeat_caller?: boolea
   )
 }
 
-// ─── Feature 6: Live Status Bar ───────────────────────────
+// ─── Ghost Activity Row (no-data placeholder) ────────────
+
+function GhostActivityRow() {
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      padding: "11px 18px",
+      borderBottom: "0.5px solid rgba(60,60,67,0.08)",
+      opacity: 0.3,
+    }}>
+      <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#AEAEB2", flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 14, color: "#1C1C1E" }}>— Waiting for first call —</p>
+        <div style={{ height: 10, width: 80, background: "rgba(60,60,67,0.1)", borderRadius: 4, marginTop: 5 }} />
+      </div>
+      <div style={{ height: 10, width: 40, background: "rgba(60,60,67,0.08)", borderRadius: 4, flexShrink: 0 }} />
+    </div>
+  )
+}
+
+// ─── Live Status Bar ──────────────────────────────────────
 
 function LiveStatusBar({ clinicActive }: { clinicActive: boolean }) {
   const { data: liveCall } = useQuery({
@@ -590,14 +767,16 @@ export default function OverviewPage() {
           <div style={{ height: 28, width: 240, background: "rgba(60,60,67,0.08)", borderRadius: 6, marginBottom: 8 }} />
           <div style={{ height: 14, width: 180, background: "rgba(60,60,67,0.05)", borderRadius: 4 }} />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-          <StatSkeleton /><StatSkeleton /><StatSkeleton />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+          <StatSkeleton /><StatSkeleton /><StatSkeleton /><StatSkeleton />
         </div>
         <div className="ios-card" style={{ height: 120 }} />
+        <div className="ios-card" style={{ height: 220 }} />
         <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 12 }}>
-          <div className="ios-card" style={{ height: 240 }} />
-          <div className="ios-card" style={{ height: 240 }} />
+          <div className="ios-card" style={{ height: 220 }} />
+          <div className="ios-card" style={{ height: 220 }} />
         </div>
+        <div className="ios-card" style={{ height: 300 }} />
       </div>
     )
   }
@@ -615,9 +794,13 @@ export default function OverviewPage() {
   const calls = d?.callsToday ?? 0
   const appointments = d?.appointmentsToday ?? 0
   const leads = d?.leadsToday ?? 0
+  const avgCallSecs = d?.avgCallSecs ?? null
   const todaysAppointments = d?.todaysAppointments ?? []
   const exceptions = d?.exceptionCalls ?? []
   const recentCalls = d?.recentCalls ?? []
+  const heatmapRows = heatmapQuery.data ?? []
+
+  const avgCallDisplay = avgCallSecs != null ? formatDuration(avgCallSecs) : "—"
 
   const greeting = getGreeting(profile.fullName)
   const statusLine = calls === 0
@@ -643,8 +826,8 @@ export default function OverviewPage() {
         </p>
       </div>
 
-      {/* Stat cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+      {/* Stat cards — 4 columns */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
         <div className="animate-fade-up animate-fade-up-2">
           <StatCard value={calls} label="Calls handled" sublabel="Today" accentLeft="#34C759" />
         </div>
@@ -653,6 +836,9 @@ export default function OverviewPage() {
         </div>
         <div className="animate-fade-up animate-fade-up-4">
           <StatCard value={leads} label="Leads captured" sublabel="Awaiting follow-up" accentLeft="#FF9500" />
+        </div>
+        <div className="animate-fade-up animate-fade-up-5">
+          <StatCard value={avgCallDisplay} label="Avg call time" sublabel="Today" accentLeft="#5856D6" />
         </div>
       </div>
 
@@ -672,37 +858,28 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* Two-column: schedule + heatmap — only rendered when there is data */}
-      {(todaysAppointments.length > 0 || (heatmapQuery.data ?? []).length > 0) && (
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: todaysAppointments.length > 0 && (heatmapQuery.data ?? []).length > 0
-            ? "3fr 2fr"
-            : "1fr",
-          gap: 12,
-        }}>
-          {todaysAppointments.length > 0 && (
-            <SectionCard
-              title="Today's schedule"
-              icon={Calendar}
-              count={todaysAppointments.length}
-            >
-              <ScheduleTimeline appointments={todaysAppointments} />
-            </SectionCard>
-          )}
+      {/* Weekly chart */}
+      <WeeklyChart />
 
-          {(heatmapQuery.data ?? []).length > 0 && (
-            <SectionCard title="When you miss calls" icon={TrendingUp} style={{ height: "100%" }}>
-              <div style={{ padding: "4px 0" }}>
-                <p style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)", padding: "0 18px 10px" }}>Last 30 days</p>
-                <MissedCallHeatmap rows={heatmapQuery.data!} />
-              </div>
-            </SectionCard>
-          )}
-        </div>
-      )}
+      {/* Two-column: schedule + heatmap — always shown */}
+      <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 12 }}>
+        <SectionCard
+          title="Today's schedule"
+          icon={Calendar}
+          count={todaysAppointments.length > 0 ? todaysAppointments.length : undefined}
+        >
+          <ScheduleTimeline appointments={todaysAppointments} />
+        </SectionCard>
 
-      {/* Feature 3 + 5: Recent calls with outcome badges + repeat flag */}
+        <SectionCard title="When you miss calls" icon={TrendingUp} style={{ height: "100%" }}>
+          <div style={{ padding: "4px 0" }}>
+            <p style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)", padding: "0 18px 10px" }}>Last 30 days</p>
+            <MissedCallHeatmap rows={heatmapRows} />
+          </div>
+        </SectionCard>
+      </div>
+
+      {/* Recent calls */}
       <SectionCard
         title="Recent calls"
         icon={Phone}
@@ -715,16 +892,17 @@ export default function OverviewPage() {
         }
       >
         {recentCalls.length === 0 ? (
-          <div style={{ padding: "28px 18px", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-            <Phone style={{ width: 24, height: 24, color: "#AEAEB2" }} strokeWidth={1.5} />
-            <p style={{ fontSize: 13, color: "#AEAEB2" }}>No calls yet</p>
-          </div>
+          <>
+            <GhostActivityRow />
+            <GhostActivityRow />
+            <GhostActivityRow />
+          </>
         ) : (
           recentCalls.map((call, i) => <ActivityRow key={call.id} call={call} delay={i * 50} />)
         )}
       </SectionCard>
 
-      {/* Feature 6: Live status */}
+      {/* Live status */}
       <LiveStatusBar clinicActive={true} />
     </div>
   )
