@@ -18,9 +18,11 @@ import {
   getMissedCallHeatmap,
   getLiveCallStatus,
   markCallHandled,
+  markLeadContacted,
+  getFollowUpQueue,
 } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
-import type { Call, Appointment } from "@/lib/types"
+import type { Call, Appointment, Lead } from "@/lib/types"
 
 // ─── Helpers ─────────────────────────────────────────────
 
@@ -190,6 +192,116 @@ function SectionCard({ title, icon: Icon, count, action, children, style: extraS
       </div>
       <div style={{ padding: 0 }}>{children}</div>
     </div>
+  )
+}
+
+// ─── Follow-up Queue ─────────────────────────────────────
+
+function FollowUpQueue() {
+  const { data: queue = [], isLoading } = useQuery({
+    queryKey: ["followup-queue"],
+    queryFn: getFollowUpQueue,
+    refetchInterval: 60_000,
+  })
+
+  if (isLoading) return null
+
+  if (queue.length === 0) {
+    return (
+      <div className="ios-card animate-fade-up" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#34C759", flexShrink: 0 }} />
+        <span style={{ fontSize: 13, color: "#8E8E93" }}>No follow-ups needed. Orvia closed every lead today.</span>
+      </div>
+    )
+  }
+
+  return (
+    <SectionCard
+      title="Follow-up Queue"
+      icon={Phone}
+      count={queue.length}
+      accentLeft="#FF9500"
+    >
+      {queue.map((lead: Lead) => (
+        <div
+          key={lead.id}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "11px 18px",
+            borderBottom: "0.5px solid rgba(60,60,67,0.08)",
+          }}
+          className="last:border-b-0"
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: 14, fontWeight: 500, color: "#1C1C1E", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {lead.name ?? "Unknown caller"}
+            </p>
+            <p style={{ fontSize: 12, color: "#8E8E93", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {lead.service_needed ?? lead.notes ?? "No details"}
+            </p>
+          </div>
+          <span style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)", flexShrink: 0, whiteSpace: "nowrap" }}>
+            {timeAgo(lead.created_at)}
+          </span>
+          <a
+            href={`tel:${lead.phone}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              fontSize: 12,
+              fontWeight: 500,
+              color: "#007AFF",
+              textDecoration: "none",
+              padding: "5px 12px",
+              borderRadius: 8,
+              background: "rgba(0,122,255,0.08)",
+              flexShrink: 0,
+            }}
+          >
+            <Phone style={{ width: 11, height: 11 }} />
+            Call back
+          </a>
+          <FollowUpDoneButton leadId={lead.id} />
+        </div>
+      ))}
+    </SectionCard>
+  )
+}
+
+function FollowUpDoneButton({ leadId }: { leadId: string }) {
+  const queryClient = useQueryClient()
+  const dismiss = useMutation({
+    mutationFn: markLeadContacted,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["followup-queue"] })
+    },
+  })
+
+  return (
+    <button
+      onClick={() => dismiss.mutate(leadId)}
+      disabled={dismiss.isPending}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 28,
+        height: 28,
+        borderRadius: 8,
+        border: "none",
+        background: "rgba(60,60,67,0.06)",
+        color: "#8E8E93",
+        cursor: dismiss.isPending ? "not-allowed" : "pointer",
+        flexShrink: 0,
+        opacity: dismiss.isPending ? 0.4 : 1,
+      }}
+      title="Mark done"
+    >
+      <X style={{ width: 13, height: 13 }} />
+    </button>
   )
 }
 
@@ -683,6 +795,9 @@ export default function OverviewPage() {
           <StatCard value={leads} label="Leads captured" sublabel="Awaiting follow-up" accentLeft="#FF9500" />
         </div>
       </div>
+
+      {/* Follow-up queue */}
+      <FollowUpQueue />
 
       {/* Feature 1: Missed call queue */}
       <MissedCallQueue />

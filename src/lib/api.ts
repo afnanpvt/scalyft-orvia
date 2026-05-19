@@ -203,6 +203,23 @@ export async function getClinicSettings(): Promise<Clinic | null> {
   return (clinic as Clinic) ?? null;
 }
 
+// ─── Follow-up Queue ─────────────────────────────────────
+
+export async function getFollowUpQueue(): Promise<Lead[]> {
+  const cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
+  const { data } = await supabase
+    .from("leads")
+    .select("*, appointments!left(id)")
+    .gte("created_at", cutoff)
+    .order("created_at", { ascending: false });
+
+  if (!data) return [];
+
+  return (data as (Lead & { appointments: { id: string }[] })[])
+    .filter((row) => !row.appointments || row.appointments.length === 0)
+    .map(({ appointments: _appts, ...lead }) => lead as Lead);
+}
+
 // ─── Missed Call Queue ───────────────────────────────────
 
 export async function getMissedCallQueue(): Promise<Call[]> {
