@@ -302,52 +302,29 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <aside
         className="hidden lg:flex"
         style={{
-          width: 220,
+          width: 216,
           flexShrink: 0,
           flexDirection: "column",
           background: "#F2F2F7",
-          boxShadow: "1px 0 0 rgba(60,60,67,0.12)",
+          borderRight: "0.5px solid rgba(60,60,67,0.08)",
         }}
       >
         {/* Brand */}
-        <div style={{ padding: "24px 20px 20px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ padding: "28px 20px 24px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
             <span
               className="animate-live-pulse"
               style={{ width: 6, height: 6, borderRadius: "50%", background: "#34C759", flexShrink: 0 }}
             />
-            <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: "-0.3px", color: "#1C1C1E" }}>
+            <span style={{ fontSize: 16, fontWeight: 600, letterSpacing: "-0.4px", color: "#1C1C1E" }}>
               Orvia
             </span>
           </div>
-          <p style={{
-            marginTop: 3,
-            fontSize: 10,
-            color: "#34C759",
-            fontFamily: "var(--font-mono)",
-            letterSpacing: "0.5px",
-            paddingLeft: 14,
-          }}>
-            LIVE
-          </p>
         </div>
 
         {/* Nav */}
-        <nav style={{ flex: 1, padding: "4px 12px", overflowY: "auto" }}>
-          {/* Main */}
-          <p style={{
-            fontSize: 11,
-            fontWeight: 500,
-            color: "#AEAEB2",
-            letterSpacing: "1.2px",
-            textTransform: "uppercase",
-            padding: "0 10px",
-            marginBottom: 4,
-            fontFamily: "var(--font-mono)",
-          }}>
-            Menu
-          </p>
-          <div style={{ marginBottom: 20 }}>
+        <nav style={{ flex: 1, padding: "0 10px", overflowY: "auto" }}>
+          <div style={{ marginBottom: 2 }}>
             {NAV_MAIN.map(({ label, to, icon: Icon }) => {
               const isActive = to === "/" ? pathname === "/" : pathname.startsWith(to);
               return (
@@ -357,46 +334,35 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 10,
-                    padding: "9px 10px",
-                    borderRadius: 10,
-                    fontSize: 14,
+                    gap: 9,
+                    padding: "8px 10px",
+                    borderRadius: 9,
+                    fontSize: 13.5,
                     fontWeight: isActive ? 500 : 400,
-                    color: isActive ? "#1C1C1E" : "#3A3A3C",
+                    color: isActive ? "#1C1C1E" : "#636366",
                     background: isActive ? "#FFFFFF" : "transparent",
-                    marginBottom: 2,
+                    marginBottom: 1,
                     textDecoration: "none",
-                    boxShadow: isActive ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-                    transition: "background 0.15s, box-shadow 0.15s",
+                    boxShadow: isActive
+                      ? "0 1px 2px rgba(0,0,0,0.04), 0 0 0 0.5px rgba(60,60,67,0.06)"
+                      : "none",
+                    transition: "background 0.18s cubic-bezier(0.16,1,0.3,1), color 0.18s cubic-bezier(0.16,1,0.3,1)",
                   }}
                   onMouseEnter={(e) => {
-                    if (!isActive) (e.currentTarget as HTMLElement).style.background = "rgba(60,60,67,0.05)";
+                    if (!isActive) (e.currentTarget as HTMLElement).style.background = "rgba(60,60,67,0.04)";
                   }}
                   onMouseLeave={(e) => {
                     if (!isActive) (e.currentTarget as HTMLElement).style.background = "transparent";
                   }}
                 >
-                  <Icon style={{ width: 16, height: 16, color: isActive ? "#007AFF" : "#8E8E93", flexShrink: 0 }} />
+                  <Icon style={{ width: 15, height: 15, color: isActive ? "#007AFF" : "#AEAEB2", flexShrink: 0 }} />
                   {label}
                 </Link>
               );
             })}
           </div>
 
-          {/* Other */}
-          <p style={{
-            fontSize: 11,
-            fontWeight: 500,
-            color: "#AEAEB2",
-            letterSpacing: "1.2px",
-            textTransform: "uppercase",
-            padding: "0 10px",
-            marginBottom: 4,
-            fontFamily: "var(--font-mono)",
-          }}>
-            Other
-          </p>
-          <div>
+          <div style={{ marginTop: 20, paddingTop: 20, borderTop: "0.5px solid rgba(60,60,67,0.08)" }}>
             {NAV_OTHER.map(({ label, to, icon: Icon }) => {
               const isActive = pathname.startsWith(to);
               return (
@@ -406,26 +372,28 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 10,
-                    padding: "9px 10px",
-                    borderRadius: 10,
-                    fontSize: 14,
+                    gap: 9,
+                    padding: "8px 10px",
+                    borderRadius: 9,
+                    fontSize: 13.5,
                     fontWeight: isActive ? 500 : 400,
-                    color: isActive ? "#1C1C1E" : "#3A3A3C",
+                    color: isActive ? "#1C1C1E" : "#636366",
                     background: isActive ? "#FFFFFF" : "transparent",
-                    marginBottom: 2,
+                    marginBottom: 1,
                     textDecoration: "none",
-                    boxShadow: isActive ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-                    transition: "background 0.15s",
+                    boxShadow: isActive
+                      ? "0 1px 2px rgba(0,0,0,0.04), 0 0 0 0.5px rgba(60,60,67,0.06)"
+                      : "none",
+                    transition: "background 0.18s cubic-bezier(0.16,1,0.3,1)",
                   }}
                   onMouseEnter={(e) => {
-                    if (!isActive) (e.currentTarget as HTMLElement).style.background = "rgba(60,60,67,0.05)";
+                    if (!isActive) (e.currentTarget as HTMLElement).style.background = "rgba(60,60,67,0.04)";
                   }}
                   onMouseLeave={(e) => {
                     if (!isActive) (e.currentTarget as HTMLElement).style.background = "transparent";
                   }}
                 >
-                  <Icon style={{ width: 16, height: 16, color: isActive ? "#007AFF" : "#8E8E93", flexShrink: 0 }} />
+                  <Icon style={{ width: 15, height: 15, color: isActive ? "#007AFF" : "#AEAEB2", flexShrink: 0 }} />
                   {label}
                 </Link>
               );
@@ -434,7 +402,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* User pinned at bottom */}
-        <div style={{ padding: "12px", borderTop: "0.5px solid rgba(60,60,67,0.12)" }}>
+        <div style={{ padding: "10px", borderTop: "0.5px solid rgba(60,60,67,0.08)" }}>
           <UserDropdown />
         </div>
       </aside>

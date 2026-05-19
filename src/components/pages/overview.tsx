@@ -101,15 +101,15 @@ function OutcomeBadge({ outcome }: { outcome: Call["outcome"] }) {
   if (!style) return null
   return (
     <span style={{
-      fontSize: 11,
+      fontSize: 10.5,
       fontWeight: 500,
       padding: "2px 7px",
-      borderRadius: 5,
+      borderRadius: 4,
       background: style.bg,
       color: style.text,
-      fontFamily: "var(--font-mono)",
       whiteSpace: "nowrap",
       flexShrink: 0,
+      letterSpacing: "0.1px",
     }}>
       {style.label}
     </span>
@@ -152,14 +152,35 @@ function StatCard({ value, label, sublabel, accentLeft }: {
   accentLeft?: string
 }) {
   return (
-    <div className="ios-card animate-fade-up" style={{ padding: "18px 20px", borderLeft: accentLeft ? `3px solid ${accentLeft}` : undefined }}>
-      <p style={{ fontSize: 11, fontWeight: 500, color: "#8E8E93", letterSpacing: "1.2px", textTransform: "uppercase", fontFamily: "var(--font-mono)", marginBottom: 10 }}>
+    <div
+      className="ios-card ios-card-interactive animate-fade-up"
+      style={{ padding: "20px 20px 18px", borderLeft: accentLeft ? `3px solid ${accentLeft}` : undefined }}
+    >
+      <p style={{
+        fontSize: 10,
+        fontWeight: 600,
+        color: "#AEAEB2",
+        letterSpacing: "0.7px",
+        textTransform: "uppercase",
+        marginBottom: 12,
+      }}>
         {label}
       </p>
-      <p style={{ fontSize: 36, fontWeight: 700, color: "#1C1C1E", fontVariantNumeric: "tabular-nums", lineHeight: 1, marginBottom: 6, fontFamily: "var(--font-mono)" }}>
+      <p style={{
+        fontSize: 38,
+        fontWeight: 600,
+        color: "#1C1C1E",
+        fontVariantNumeric: "tabular-nums",
+        lineHeight: 1,
+        marginBottom: 7,
+        fontFamily: "var(--font-mono)",
+        letterSpacing: "-1px",
+      }}>
         {value}
       </p>
-      {sublabel && <p style={{ fontSize: 13, color: "#8E8E93" }}>{sublabel}</p>}
+      {sublabel && (
+        <p style={{ fontSize: 12, color: "#AEAEB2" }}>{sublabel}</p>
+      )}
     </div>
   )
 }
@@ -178,17 +199,39 @@ function SectionCard({ title, icon: Icon, count, action, subtitle, children, sty
 }) {
   return (
     <div className="ios-card animate-fade-up" style={{ padding: 0, overflow: "hidden", borderLeft: accentLeft ? `3px solid ${accentLeft}` : undefined, ...extraStyle }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", borderBottom: "0.5px solid rgba(60,60,67,0.08)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          {Icon && <Icon style={{ width: 13, height: 13, color: accentLeft ?? "#8E8E93" }} />}
-          <span style={{ fontSize: 11, fontWeight: 500, color: accentLeft ?? "#8E8E93", letterSpacing: "1.2px", textTransform: "uppercase", fontFamily: "var(--font-mono)" }}>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "13px 18px",
+        borderBottom: "0.5px solid rgba(60,60,67,0.06)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {Icon && <Icon style={{ width: 13, height: 13, color: accentLeft ?? "#C7C7CC", flexShrink: 0 }} />}
+          <span style={{
+            fontSize: 12,
+            fontWeight: 500,
+            color: "#636366",
+          }}>
             {title}
           </span>
           {count != null && (
-            <span style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)" }}>{count}</span>
+            <span style={{
+              fontSize: 11,
+              color: "#FFFFFF",
+              background: accentLeft ?? "#AEAEB2",
+              fontFamily: "var(--font-mono)",
+              padding: "0px 5px",
+              borderRadius: 4,
+              fontWeight: 600,
+              lineHeight: "18px",
+              display: "inline-block",
+            }}>
+              {count}
+            </span>
           )}
           {subtitle && (
-            <span style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)" }}>{subtitle}</span>
+            <span style={{ fontSize: 11, color: "#AEAEB2" }}>{subtitle}</span>
           )}
         </div>
         {action}
@@ -334,7 +377,7 @@ function FollowUpQueue() {
               alignItems: "center",
               gap: 12,
               padding: "11px 18px",
-              borderBottom: "0.5px solid rgba(60,60,67,0.08)",
+              borderBottom: "0.5px solid rgba(60,60,67,0.06)",
             }}
             className="last:border-b-0"
           >
@@ -430,7 +473,7 @@ function ScheduleTimeline({ appointments }: { appointments: Appointment[] }) {
               alignItems: "center",
               gap: 12,
               padding: "10px 18px",
-              borderBottom: "0.5px solid rgba(60,60,67,0.08)",
+              borderBottom: "0.5px solid rgba(60,60,67,0.06)",
               opacity: 0.35,
             }}
           >
@@ -478,7 +521,7 @@ function ScheduleTimeline({ appointments }: { appointments: Appointment[] }) {
               alignItems: "center",
               gap: 12,
               padding: "10px 18px",
-              borderBottom: "0.5px solid rgba(60,60,67,0.08)",
+              borderBottom: "0.5px solid rgba(60,60,67,0.06)",
               borderLeft: isNext ? "3px solid #007AFF" : "3px solid transparent",
               opacity: isPast ? 0.5 : 1,
             }}
@@ -527,9 +570,9 @@ function MissedCallHeatmap({ rows }: { rows: { hour: number; count: number }[] }
 
   if (rows.length === 0) {
     return (
-      <div style={{ padding: "28px 18px", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-        <TrendingUp style={{ width: 22, height: 22, color: "#AEAEB2" }} strokeWidth={1.5} />
-        <p style={{ fontSize: 13, color: "#AEAEB2", textAlign: "center" }}>No missed calls yet — data will appear here.</p>
+      <div style={{ padding: "32px 18px", display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+        <TrendingUp style={{ width: 18, height: 18, color: "#D1D1D6" }} strokeWidth={1.5} />
+        <p style={{ fontSize: 12, color: "#C7C7CC", textAlign: "center" }}>No data yet</p>
       </div>
     )
   }
@@ -537,25 +580,25 @@ function MissedCallHeatmap({ rows }: { rows: { hour: number; count: number }[] }
   const maxCount = Math.max(...rows.map((r) => r.count))
 
   return (
-    <div style={{ padding: "12px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+    <div style={{ padding: "14px 18px", display: "flex", flexDirection: "column", gap: 9 }}>
       {rows.map((row, i) => {
         const pct = row.count / maxCount
-        const barColor = i < 2 ? "rgba(255,59,48,0.5)" : i < 4 ? "rgba(255,149,0,0.4)" : "rgba(142,142,147,0.3)"
+        const barColor = i < 2 ? "rgba(255,59,48,0.45)" : i < 4 ? "rgba(255,149,0,0.35)" : "rgba(142,142,147,0.25)"
         return (
           <div key={row.hour} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ width: 44, fontSize: 11, color: "#8E8E93", fontFamily: "var(--font-mono)", flexShrink: 0, textAlign: "right" }}>
+            <span style={{ width: 40, fontSize: 10.5, color: "#AEAEB2", fontFamily: "var(--font-mono)", flexShrink: 0, textAlign: "right" }}>
               {formatHour(row.hour)}
             </span>
-            <div style={{ flex: 1, background: "rgba(60,60,67,0.06)", borderRadius: 4, height: 8, overflow: "hidden" }}>
+            <div style={{ flex: 1, background: "rgba(60,60,67,0.05)", borderRadius: 3, height: 6, overflow: "hidden" }}>
               <div style={{
                 height: "100%",
-                borderRadius: 4,
+                borderRadius: 3,
                 background: barColor,
                 width: mounted ? `${pct * 100}%` : "0%",
-                transition: `width 600ms ease-out ${i * 60}ms`,
+                transition: `width 500ms cubic-bezier(0.16,1,0.3,1) ${i * 50}ms`,
               }} />
             </div>
-            <span style={{ width: 44, fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)", textAlign: "right", flexShrink: 0 }}>
+            <span style={{ width: 20, fontSize: 10.5, color: "#C7C7CC", fontFamily: "var(--font-mono)", textAlign: "right", flexShrink: 0 }}>
               {row.count}
             </span>
           </div>
@@ -583,16 +626,16 @@ function ActivityRow({ call, delay }: { call: Call & { is_repeat_caller?: boolea
         padding: "11px 18px",
         textDecoration: "none",
         cursor: "pointer",
-        background: hovered ? "#F2F2F7" : "transparent",
-        transition: "background 0.15s",
-        borderBottom: "0.5px solid rgba(60,60,67,0.08)",
+        background: hovered ? "rgba(60,60,67,0.03)" : "transparent",
+        transition: "background 0.18s cubic-bezier(0.16,1,0.3,1)",
+        borderBottom: "0.5px solid rgba(60,60,67,0.06)",
         animationDelay: `${delay ?? 0}ms`,
       }}
       className="animate-fade-up last:border-b-0"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, flexShrink: 0 }} />
+      <div style={{ width: 7, height: 7, borderRadius: "50%", background: dotColor, flexShrink: 0, opacity: 0.9 }} />
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
@@ -640,7 +683,7 @@ function GhostActivityRow() {
       alignItems: "center",
       gap: 12,
       padding: "11px 18px",
-      borderBottom: "0.5px solid rgba(60,60,67,0.08)",
+      borderBottom: "0.5px solid rgba(60,60,67,0.06)",
       opacity: 0.3,
     }}>
       <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#AEAEB2", flexShrink: 0 }} />
@@ -680,9 +723,9 @@ function LiveStatusBar({ clinicActive }: { clinicActive: boolean }) {
 
   if (!clinicActive) {
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 8 }}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#FF3B30", flexShrink: 0 }} />
-        <span style={{ fontSize: 11, color: "#FF3B30", fontFamily: "var(--font-mono)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, paddingBottom: 8 }}>
+        <span style={{ width: 5, height: 5, borderRadius: "50%", background: "#FF3B30", flexShrink: 0 }} />
+        <span style={{ fontSize: 11, color: "#FF3B30" }}>
           Orvia is not configured — check settings
         </span>
       </div>
@@ -691,20 +734,20 @@ function LiveStatusBar({ clinicActive }: { clinicActive: boolean }) {
 
   if (liveCall) {
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 8 }}>
-        <span className="animate-live-pulse" style={{ width: 6, height: 6, borderRadius: "50%", background: "#007AFF", flexShrink: 0 }} />
-        <span style={{ fontSize: 11, color: "#007AFF", fontFamily: "var(--font-mono)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 7, paddingBottom: 8 }}>
+        <span className="animate-live-pulse" style={{ width: 5, height: 5, borderRadius: "50%", background: "#007AFF", flexShrink: 0 }} />
+        <span style={{ fontSize: 11, color: "#007AFF" }}>
           Call in progress — AI is handling it
-          {elapsed && <span style={{ color: "#AEAEB2", marginLeft: 8 }}>{elapsed}</span>}
+          {elapsed && <span style={{ color: "#AEAEB2", marginLeft: 8, fontFamily: "var(--font-mono)" }}>{elapsed}</span>}
         </span>
       </div>
     )
   }
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 8 }}>
-      <span className="animate-live-pulse" style={{ width: 6, height: 6, borderRadius: "50%", background: "#34C759", flexShrink: 0 }} />
-      <span style={{ fontSize: 11, color: "#34C759", fontFamily: "var(--font-mono)" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 7, paddingBottom: 8 }}>
+      <span className="animate-live-pulse" style={{ width: 5, height: 5, borderRadius: "50%", background: "#34C759", flexShrink: 0 }} />
+      <span style={{ fontSize: 11, color: "#8E8E93" }}>
         Orvia is live — ready for calls
       </span>
     </div>
@@ -725,7 +768,7 @@ function ExceptionRow({ call }: { call: Call }) {
         padding: "10px 18px",
         textDecoration: "none",
         cursor: "pointer",
-        borderBottom: "0.5px solid rgba(60,60,67,0.08)",
+        borderBottom: "0.5px solid rgba(60,60,67,0.06)",
       }}
       className="last:border-b-0"
     >
@@ -816,13 +859,20 @@ export default function OverviewPage() {
 
       {/* Header */}
       <div className="animate-fade-up animate-fade-up-1">
-        <h1 style={{ fontSize: 28, fontWeight: 600, letterSpacing: "-0.5px", color: "#1C1C1E", marginBottom: 4 }}>
+        <h1 style={{
+          fontSize: 26,
+          fontWeight: 600,
+          letterSpacing: "-0.6px",
+          color: "#1C1C1E",
+          marginBottom: 5,
+          lineHeight: 1.2,
+        }}>
           {greeting}
         </h1>
-        <p style={{ fontSize: 13, color: "#8E8E93" }}>
+        <p style={{ fontSize: 13, color: "#AEAEB2", lineHeight: 1.4 }}>
           {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-          <span style={{ margin: "0 6px", color: "#AEAEB2" }}>·</span>
-          {statusLine}
+          <span style={{ margin: "0 7px", color: "#D1D1D6" }}>·</span>
+          <span style={{ color: "#8E8E93" }}>{statusLine}</span>
         </p>
       </div>
 

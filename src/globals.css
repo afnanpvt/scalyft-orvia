@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", ui-sans-serif, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", ui-sans-serif, sans-serif;
   --font-mono: "SF Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --font-heading: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", ui-sans-serif, sans-serif;
+  --font-heading: -apple-system, BlinkMacSystemFont, "SF Pro Display", ui-sans-serif, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -46,6 +46,12 @@
   --radius-2xl: calc(var(--radius) * 2);
 }
 
+/* ─── Custom easing tokens ─── */
+:root {
+  --ease-out-strong: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
 /* ─── iOS / Apple HIG Light Theme ─── */
 :root {
   --background: #F2F2F7;
@@ -71,8 +77,8 @@
 
   --destructive: #FF3B30;
 
-  --border: rgba(60, 60, 67, 0.12);
-  --input: rgba(60, 60, 67, 0.12);
+  --border: rgba(60, 60, 67, 0.1);
+  --input: rgba(60, 60, 67, 0.1);
   --ring: #007AFF;
 
   --chart-1: #34C759;
@@ -81,7 +87,7 @@
   --chart-4: #FF3B30;
   --chart-5: #8E8E93;
 
-  --radius: 1rem;
+  --radius: 0.875rem;
 
   --sidebar: #F2F2F7;
   --sidebar-foreground: #1C1C1E;
@@ -89,7 +95,7 @@
   --sidebar-primary-foreground: #FFFFFF;
   --sidebar-accent: #FFFFFF;
   --sidebar-accent-foreground: #1C1C1E;
-  --sidebar-border: rgba(60, 60, 67, 0.12);
+  --sidebar-border: rgba(60, 60, 67, 0.08);
   --sidebar-ring: #007AFF;
 }
 
@@ -109,8 +115,8 @@
   --accent: #3A3A3C;
   --accent-foreground: #F2F2F7;
   --destructive: #FF453A;
-  --border: rgba(255, 255, 255, 0.1);
-  --input: rgba(255, 255, 255, 0.1);
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.08);
   --ring: #0A84FF;
   --sidebar: #2C2C2E;
   --sidebar-foreground: #F2F2F7;
@@ -118,7 +124,7 @@
   --sidebar-primary-foreground: #1C1C1E;
   --sidebar-accent: #3A3A3C;
   --sidebar-accent-foreground: #F2F2F7;
-  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: #0A84FF;
 }
 
@@ -128,55 +134,68 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", ui-sans-serif, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", ui-sans-serif, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 }
 
-/* ─── iOS card shadow ─── */
+/* ─── Card — stat cards get subtle lift on hover, section cards do not ─── */
 .ios-card {
   background: #FFFFFF;
-  border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition: box-shadow 0.2s cubic-bezier(0.4, 0.0, 0.2, 1),
-              transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border-radius: 14px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 0 0 0.5px rgba(60, 60, 67, 0.06);
 }
-.ios-card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04);
+
+.ios-card-interactive {
+  transition:
+    box-shadow 0.2s var(--ease-out-strong),
+    transform 0.2s var(--ease-out-strong);
+}
+.ios-card-interactive:hover {
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.07),
+    0 1px 4px rgba(0, 0, 0, 0.04),
+    0 0 0 0.5px rgba(60, 60, 67, 0.06);
   transform: translateY(-1px);
 }
+.ios-card-interactive:active {
+  transform: scale(0.99) translateY(0);
+  transition-duration: 0.1s;
+}
 
-/* ─── Stat card mount animation ─── */
+/* ─── Page section enter animation ─── */
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateY(40px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 .animate-fade-up {
-  animation: fadeUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation: fadeUp 0.35s var(--ease-out-strong) both;
 }
 .animate-fade-up-1 { animation-delay: 0ms; }
-.animate-fade-up-2 { animation-delay: 60ms; }
-.animate-fade-up-3 { animation-delay: 120ms; }
-.animate-fade-up-4 { animation-delay: 180ms; }
-.animate-fade-up-5 { animation-delay: 240ms; }
+.animate-fade-up-2 { animation-delay: 50ms; }
+.animate-fade-up-3 { animation-delay: 100ms; }
+.animate-fade-up-4 { animation-delay: 150ms; }
+.animate-fade-up-5 { animation-delay: 200ms; }
 
-/* ─── Bar chart animation ─── */
-@keyframes growWidth {
-  from { width: 0; }
-  to   { width: var(--bar-width); }
-}
-
-/* ─── Live pulse ─── */
+/* ─── Live pulse — refined, not aggressive ─── */
 @keyframes livePulse {
   0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.5; transform: scale(1.4); }
+  50%       { opacity: 0.6; transform: scale(1.3); }
 }
 .animate-live-pulse {
-  animation: livePulse 2s cubic-bezier(0.4, 0.0, 0.2, 1) infinite;
+  animation: livePulse 2.4s var(--ease-in-out-strong) infinite;
 }
 
-/* ─── iOS inset separator (like Messages app) ─── */
+/* ─── iOS inset separator ─── */
 .ios-separator {
   position: relative;
 }
@@ -187,8 +206,15 @@
   left: 16px;
   right: 0;
   height: 0.5px;
-  background: rgba(60, 60, 67, 0.12);
+  background: rgba(60, 60, 67, 0.08);
 }
 .ios-separator:last-child::after {
   display: none;
+}
+
+/* ─── Button press feedback ─── */
+button:active,
+a[role="button"]:active {
+  transform: scale(0.98);
+  transition: transform 0.1s var(--ease-out-strong);
 }
