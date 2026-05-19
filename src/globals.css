@@ -7,9 +7,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "DM Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
-  --font-heading: "DM Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", ui-sans-serif, sans-serif;
+  --font-mono: "SF Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-heading: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", ui-sans-serif, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -39,104 +39,87 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 2);
 }
 
-/* ─── Orvia Light Theme: Creamy + Moonlight + Black ─── */
+/* ─── iOS / Apple HIG Light Theme ─── */
 :root {
-  /* Creamy (#FBF8F1) — warm off-white background */
-  --background: oklch(0.98 0.008 85);
-  --foreground: oklch(0.12 0 0);
+  --background: #F2F2F7;
+  --foreground: #1C1C1E;
 
-  /* Moonlight (#F4F6F5) — cool gray for cards */
-  --card: oklch(0.97 0.003 180);
-  --card-foreground: oklch(0.12 0 0);
+  --card: #FFFFFF;
+  --card-foreground: #1C1C1E;
 
-  --popover: oklch(0.99 0.004 85);
-  --popover-foreground: oklch(0.12 0 0);
+  --popover: #FFFFFF;
+  --popover-foreground: #1C1C1E;
 
-  /* Primary — near black for buttons, emphasis */
-  --primary: oklch(0.15 0 0);
-  --primary-foreground: oklch(0.98 0.008 85);
+  --primary: #1C1C1E;
+  --primary-foreground: #FFFFFF;
 
-  /* Secondary — softer moonlight for secondary surfaces */
-  --secondary: oklch(0.95 0.004 160);
-  --secondary-foreground: oklch(0.18 0 0);
+  --secondary: #F2F2F7;
+  --secondary-foreground: #1C1C1E;
 
-  /* Muted — subtle toned-down surfaces */
-  --muted: oklch(0.94 0.006 85);
-  --muted-foreground: oklch(0.38 0 0);
+  --muted: #F2F2F7;
+  --muted-foreground: #636366;
 
-  /* Accent — warm highlight */
-  --accent: oklch(0.95 0.01 85);
-  --accent-foreground: oklch(0.15 0 0);
+  --accent: #F2F2F7;
+  --accent-foreground: #1C1C1E;
 
-  --destructive: oklch(0.577 0.245 27.325);
+  --destructive: #FF3B30;
 
-  /* Borders — very subtle warm tint */
-  --border: oklch(0.90 0.006 85);
-  --input: oklch(0.90 0.006 85);
-  --ring: oklch(0.55 0 0);
+  --border: rgba(60, 60, 67, 0.12);
+  --input: rgba(60, 60, 67, 0.12);
+  --ring: #007AFF;
 
-  /* Charts — rich semantic palette */
-  --chart-1: oklch(0.55 0.15 160);   /* emerald — booked/success */
-  --chart-2: oklch(0.55 0.12 250);   /* slate blue — leads */
-  --chart-3: oklch(0.60 0.10 70);    /* warm amber — transfers */
-  --chart-4: oklch(0.50 0.14 25);    /* muted coral — missed */
-  --chart-5: oklch(0.65 0.06 85);    /* warm taupe — info */
+  --chart-1: #34C759;
+  --chart-2: #007AFF;
+  --chart-3: #FF9500;
+  --chart-4: #FF3B30;
+  --chart-5: #8E8E93;
 
-  --radius: 0.75rem;
+  --radius: 1rem;
 
-  /* Sidebar — slightly darker creamy tone */
-  --sidebar: oklch(0.96 0.01 85);
-  --sidebar-foreground: oklch(0.12 0 0);
-  --sidebar-primary: oklch(0.15 0 0);
-  --sidebar-primary-foreground: oklch(0.98 0.008 85);
-  --sidebar-accent: oklch(0.93 0.01 85);
-  --sidebar-accent-foreground: oklch(0.15 0 0);
-  --sidebar-border: oklch(0.88 0.008 85);
-  --sidebar-ring: oklch(0.55 0 0);
+  --sidebar: #F2F2F7;
+  --sidebar-foreground: #1C1C1E;
+  --sidebar-primary: #1C1C1E;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #FFFFFF;
+  --sidebar-accent-foreground: #1C1C1E;
+  --sidebar-border: rgba(60, 60, 67, 0.12);
+  --sidebar-ring: #007AFF;
 }
 
-/* ─── Dark mode (keeping for future, but not active) ─── */
 .dark {
-  --background: oklch(0.12 0 0);
-  --foreground: oklch(0.96 0.006 85);
-  --card: oklch(0.16 0 0);
-  --card-foreground: oklch(0.96 0.006 85);
-  --popover: oklch(0.16 0 0);
-  --popover-foreground: oklch(0.96 0.006 85);
-  --primary: oklch(0.96 0.008 85);
-  --primary-foreground: oklch(0.12 0 0);
-  --secondary: oklch(0.22 0.003 85);
-  --secondary-foreground: oklch(0.96 0.006 85);
-  --muted: oklch(0.22 0.003 85);
-  --muted-foreground: oklch(0.65 0 0);
-  --accent: oklch(0.22 0.005 85);
-  --accent-foreground: oklch(0.96 0.006 85);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.55 0 0);
-  --chart-1: oklch(0.85 0.008 85);
-  --chart-2: oklch(0.70 0.006 85);
-  --chart-3: oklch(0.55 0.003 85);
-  --chart-4: oklch(0.40 0.004 85);
-  --chart-5: oklch(0.25 0.005 85);
-  --sidebar: oklch(0.16 0 0);
-  --sidebar-foreground: oklch(0.96 0.006 85);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.96 0.006 85);
-  --sidebar-accent: oklch(0.22 0.003 85);
-  --sidebar-accent-foreground: oklch(0.96 0.006 85);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.55 0 0);
+  --background: #1C1C1E;
+  --foreground: #F2F2F7;
+  --card: #2C2C2E;
+  --card-foreground: #F2F2F7;
+  --popover: #2C2C2E;
+  --popover-foreground: #F2F2F7;
+  --primary: #F2F2F7;
+  --primary-foreground: #1C1C1E;
+  --secondary: #3A3A3C;
+  --secondary-foreground: #F2F2F7;
+  --muted: #3A3A3C;
+  --muted-foreground: #8E8E93;
+  --accent: #3A3A3C;
+  --accent-foreground: #F2F2F7;
+  --destructive: #FF453A;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.1);
+  --ring: #0A84FF;
+  --sidebar: #2C2C2E;
+  --sidebar-foreground: #F2F2F7;
+  --sidebar-primary: #F2F2F7;
+  --sidebar-primary-foreground: #1C1C1E;
+  --sidebar-accent: #3A3A3C;
+  --sidebar-accent-foreground: #F2F2F7;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #0A84FF;
 }
 
 @layer base {
@@ -145,25 +128,67 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", ui-sans-serif, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-  html {
-    @apply font-sans;
-  }
+}
 
-  /* ─── Apple/Linear Typography System ─── */
-  h1 {
-    @apply text-3xl font-semibold tracking-tight leading-tight;
-  }
-  h2 {
-    @apply text-2xl font-semibold tracking-tight leading-snug;
-  }
-  h3 {
-    @apply text-lg font-medium tracking-tight leading-snug;
-  }
-  h4 {
-    @apply text-base font-medium tracking-tight;
-  }
-  p {
-    @apply leading-relaxed;
-  }
+/* ─── iOS card shadow ─── */
+.ios-card {
+  background: #FFFFFF;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.2s cubic-bezier(0.4, 0.0, 0.2, 1),
+              transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.ios-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04);
+  transform: translateY(-1px);
+}
+
+/* ─── Stat card mount animation ─── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(40px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  animation: fadeUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.animate-fade-up-1 { animation-delay: 0ms; }
+.animate-fade-up-2 { animation-delay: 60ms; }
+.animate-fade-up-3 { animation-delay: 120ms; }
+.animate-fade-up-4 { animation-delay: 180ms; }
+.animate-fade-up-5 { animation-delay: 240ms; }
+
+/* ─── Bar chart animation ─── */
+@keyframes growWidth {
+  from { width: 0; }
+  to   { width: var(--bar-width); }
+}
+
+/* ─── Live pulse ─── */
+@keyframes livePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(1.4); }
+}
+.animate-live-pulse {
+  animation: livePulse 2s cubic-bezier(0.4, 0.0, 0.2, 1) infinite;
+}
+
+/* ─── iOS inset separator (like Messages app) ─── */
+.ios-separator {
+  position: relative;
+}
+.ios-separator::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 16px;
+  right: 0;
+  height: 0.5px;
+  background: rgba(60, 60, 67, 0.12);
+}
+.ios-separator:last-child::after {
+  display: none;
 }

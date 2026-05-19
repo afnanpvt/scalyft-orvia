@@ -21,16 +21,9 @@ function formatRelativeTime(dateString: string | null): string {
   if (diffSecs < 60) return "Just now"
   if (diffMins < 60) return `${diffMins}m ago`
   if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays === 1) {
-    return `Yesterday ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`
-  }
+  if (diffDays === 1) return `Yesterday ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`
   if (diffDays < 7) return `${diffDays}d ago`
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  })
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
 }
 
 function formatDuration(secs: number | null): string {
@@ -45,41 +38,48 @@ function formatLabel(value: string | null): string {
   return value.replace(/_/g, " ")
 }
 
-// --- Badge styles -------------------------------------------
+// --- Outcome styles -----------------------------------------
 
-const outcomeDotColors: Record<string, string> = {
-  appointment_booked: "bg-emerald-500",
-  lead_captured: "bg-blue-500",
-  info_given: "bg-muted-foreground/30",
-  transferred: "bg-amber-500",
-  missed: "bg-red-500",
+function outcomeColor(outcome: string | null): string {
+  switch (outcome) {
+    case "appointment_booked": return "#34C759"
+    case "lead_captured": return "#007AFF"
+    case "transferred": return "#FF9500"
+    case "missed": return "#FF3B30"
+    default: return "#AEAEB2"
+  }
 }
 
-const outcomeBadgeStyles: Record<string, string> = {
-  appointment_booked: "bg-emerald-500/10 text-emerald-700",
-  lead_captured: "bg-blue-500/10 text-blue-700",
-  info_given: "bg-muted text-muted-foreground",
-  transferred: "bg-amber-500/10 text-amber-700",
-  missed: "bg-red-500/10 text-red-700",
+function outcomeBg(outcome: string | null): string {
+  switch (outcome) {
+    case "appointment_booked": return "rgba(52,199,89,0.1)"
+    case "lead_captured": return "rgba(0,122,255,0.1)"
+    case "transferred": return "rgba(255,149,0,0.1)"
+    case "missed": return "rgba(255,59,48,0.1)"
+    default: return "rgba(142,142,147,0.1)"
+  }
 }
 
-// --- Skeletons ----------------------------------------------
+// --- Skeleton -----------------------------------------------
 
 function RowSkeleton() {
   return (
-    <div className="flex items-center gap-4 px-5 py-4 border-b border-border/40 last:border-0">
-      <div className="size-2 rounded-full bg-muted/50 animate-pulse shrink-0" />
-      <div className="flex-1 min-w-0 space-y-1.5">
-        <div className="flex items-center justify-between">
-          <div className="h-3.5 w-32 bg-muted/50 animate-pulse rounded-lg" />
-          <div className="h-2.5 w-14 bg-muted/40 animate-pulse rounded-lg" />
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      gap: 14,
+      padding: "14px 18px",
+      borderBottom: "0.5px solid rgba(60,60,67,0.08)",
+    }}>
+      <div style={{ width: 3, height: 32, borderRadius: 3, background: "rgba(60,60,67,0.08)", flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+          <div style={{ height: 13, width: 120, background: "rgba(60,60,67,0.08)", borderRadius: 4 }} />
+          <div style={{ height: 11, width: 50, background: "rgba(60,60,67,0.05)", borderRadius: 4 }} />
         </div>
-        <div className="h-3 w-3/4 bg-muted/30 animate-pulse rounded-lg" />
+        <div style={{ height: 11, width: "65%", background: "rgba(60,60,67,0.05)", borderRadius: 4 }} />
       </div>
-      <div className="flex items-center gap-3 shrink-0">
-        <div className="h-5 w-24 bg-muted/40 animate-pulse rounded-full" />
-        <div className="h-3 w-10 bg-muted/30 animate-pulse rounded-lg" />
-      </div>
+      <div style={{ height: 20, width: 80, background: "rgba(60,60,67,0.06)", borderRadius: 6 }} />
     </div>
   )
 }
@@ -102,123 +102,177 @@ export default function CallsPage() {
   const rangeEnd = Math.min(page * pageSize, total)
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+
       {/* Header */}
-      <div>
-        <div className="flex items-baseline gap-2.5">
-          <h1 className="text-2xl font-semibold tracking-[-0.04em]">Calls</h1>
+      <div className="animate-fade-up animate-fade-up-1">
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 600, letterSpacing: "-0.5px", color: "#1C1C1E" }}>Calls</h1>
           {!isLoading && total > 0 && (
-            <span className="text-[14px] tabular-nums text-muted-foreground/35">{total}</span>
+            <span style={{ fontSize: 14, color: "#AEAEB2", fontFamily: "var(--font-mono)" }}>{total}</span>
           )}
         </div>
-        <p className="text-[13px] text-muted-foreground/50 mt-1">
-          Every call handled by Orvia
-        </p>
+        <p style={{ fontSize: 13, color: "#8E8E93", marginTop: 4 }}>Every call handled by Orvia</p>
       </div>
 
       {/* Error */}
       {isError && (
-        <div className="py-16 text-center">
-          <p className="text-[14px] text-destructive">Something went wrong loading calls.</p>
-          <button onClick={() => refetch()} className="text-[13px] text-muted-foreground/50 hover:text-foreground mt-2 cursor-pointer">
+        <div style={{ padding: "64px 0", textAlign: "center" }}>
+          <p style={{ fontSize: 14, color: "#FF3B30" }}>Something went wrong loading calls.</p>
+          <button
+            onClick={() => refetch()}
+            style={{ fontSize: 13, color: "#8E8E93", marginTop: 8, border: "none", background: "transparent", cursor: "pointer" }}
+          >
             Try again
           </button>
         </div>
       )}
 
       {/* Card */}
-      <div className="bg-card border border-border/60 rounded-xl overflow-hidden">
+      <div
+        className="ios-card animate-fade-up animate-fade-up-2"
+        style={{ padding: 0, overflow: "hidden" }}
+      >
         {isLoading ? (
           <>
-            <RowSkeleton />
-            <RowSkeleton />
-            <RowSkeleton />
-            <RowSkeleton />
-            <RowSkeleton />
-            <RowSkeleton />
-            <RowSkeleton />
-            <RowSkeleton />
+            <RowSkeleton /><RowSkeleton /><RowSkeleton />
+            <RowSkeleton /><RowSkeleton /><RowSkeleton />
           </>
         ) : calls.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 gap-3">
-            <Phone className="size-8 text-muted-foreground/15" strokeWidth={1.5} />
-            <div className="text-center space-y-1">
-              <p className="text-[14px] font-medium text-muted-foreground/40">No calls yet</p>
-              <p className="text-[12px] text-muted-foreground/25">
-                Calls will appear here when callers reach your Orvia number
-              </p>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "96px 0", gap: 10 }}>
+            <Phone style={{ width: 32, height: 32, color: "#AEAEB2" }} strokeWidth={1.5} />
+            <div style={{ textAlign: "center" }}>
+              <p style={{ fontSize: 14, fontWeight: 500, color: "#AEAEB2" }}>No calls yet</p>
+              <p style={{ fontSize: 12, color: "#C7C7CC", marginTop: 4 }}>Calls appear here when callers reach your Orvia number</p>
             </div>
           </div>
         ) : (
-          calls.map((call: Call) => (
-            <Link
-              key={call.id}
-              to="/calls/$id"
-              params={{ id: call.id }}
-              className="flex items-center gap-4 px-5 py-4 border-b border-border/40 last:border-0 hover:bg-accent/20 transition-colors duration-100 cursor-pointer"
-            >
-              {/* Outcome dot */}
-              <div
-                className={`size-2 rounded-full shrink-0 ${
-                  outcomeDotColors[call.outcome ?? ""] ?? "bg-muted-foreground/20"
-                }`}
-              />
+          calls.map((call: Call) => {
+            const color = outcomeColor(call.outcome ?? null)
+            return (
+              <Link
+                key={call.id}
+                to="/calls/$id"
+                params={{ id: call.id }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
+                  padding: "12px 18px",
+                  borderBottom: "0.5px solid rgba(60,60,67,0.08)",
+                  textDecoration: "none",
+                  cursor: "pointer",
+                  transition: "background 0.15s",
+                  minHeight: 56,
+                }}
+                onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = "#F2F2F7"}
+                onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = "transparent"}
+              >
+                {/* Left color strip */}
+                <div style={{ width: 3, alignSelf: "stretch", borderRadius: 3, background: color, flexShrink: 0 }} />
 
-              {/* Main content */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-[14px] font-medium truncate">
-                    {call.caller_phone ?? "Unknown caller"}
+                {/* Main content */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <span style={{ fontSize: 14, fontWeight: 500, color: "#1C1C1E", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {call.caller_phone ?? "Unknown caller"}
+                    </span>
+                    <span style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)", flexShrink: 0 }}>
+                      {formatRelativeTime(call.started_at ?? call.created_at)}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: 12, color: "#8E8E93", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>
+                    {call.summary ?? "No summary"}
+                  </p>
+                </div>
+
+                {/* Chips */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                  <span style={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    padding: "2px 8px",
+                    borderRadius: 6,
+                    color: color,
+                    background: outcomeBg(call.outcome ?? null),
+                    fontFamily: "var(--font-mono)",
+                    textTransform: "capitalize",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {formatLabel(call.outcome)}
                   </span>
-                  <span className="text-[11px] text-muted-foreground/35 tabular-nums shrink-0">
-                    {formatRelativeTime(call.started_at ?? call.created_at)}
+                  <span style={{
+                    fontSize: 11,
+                    color: "#AEAEB2",
+                    fontFamily: "var(--font-mono)",
+                    width: 44,
+                    textAlign: "right",
+                    display: "none",
+                  }}
+                  className="sm:block"
+                  >
+                    {formatDuration(call.duration_secs)}
                   </span>
                 </div>
-                <p className="text-[12px] text-muted-foreground/50 truncate mt-0.5">
-                  {call.summary ?? "No summary"}
-                </p>
-              </div>
-
-              {/* Badges */}
-              <div className="flex items-center gap-3 shrink-0">
-                <span
-                  className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize whitespace-nowrap ${
-                    outcomeBadgeStyles[call.outcome ?? ""] ?? "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {formatLabel(call.outcome)}
-                </span>
-                <span className="text-[11px] tabular-nums text-muted-foreground/35 w-12 text-right hidden sm:block">
-                  {formatDuration(call.duration_secs)}
-                </span>
-              </div>
-            </Link>
-          ))
+              </Link>
+            )
+          })
         )}
 
-        {/* Pagination — inside the card */}
+        {/* Pagination */}
         {!isLoading && total > pageSize && (
-          <div className="flex items-center justify-between px-5 py-3.5 border-t border-border/40 bg-background/40">
-            <span className="text-[11px] tabular-nums text-muted-foreground/40">
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px 18px",
+            borderTop: "0.5px solid rgba(60,60,67,0.08)",
+            background: "rgba(242,242,247,0.5)",
+          }}>
+            <span style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)" }}>
               {rangeStart}–{rangeEnd} of {total}
             </span>
-            <div className="flex items-center gap-1">
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <button
                 onClick={() => { setPage((p) => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: "smooth" }) }}
                 disabled={page <= 1}
-                className="flex items-center justify-center size-7 rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
+                  border: "0.5px solid rgba(60,60,67,0.2)",
+                  background: "#FFFFFF",
+                  color: "#636366",
+                  cursor: page <= 1 ? "not-allowed" : "pointer",
+                  opacity: page <= 1 ? 0.35 : 1,
+                }}
               >
-                <ChevronLeft className="size-3.5" />
+                <ChevronLeft style={{ width: 14, height: 14 }} />
               </button>
-              <span className="text-[11px] tabular-nums text-muted-foreground/50 px-2">
+              <span style={{ fontSize: 11, color: "#8E8E93", fontFamily: "var(--font-mono)", padding: "0 8px" }}>
                 {page} / {totalPages}
               </span>
               <button
                 onClick={() => { setPage((p) => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: "smooth" }) }}
                 disabled={page >= totalPages}
-                className="flex items-center justify-center size-7 rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
+                  border: "0.5px solid rgba(60,60,67,0.2)",
+                  background: "#FFFFFF",
+                  color: "#636366",
+                  cursor: page >= totalPages ? "not-allowed" : "pointer",
+                  opacity: page >= totalPages ? 0.35 : 1,
+                }}
               >
-                <ChevronRight className="size-3.5" />
+                <ChevronRight style={{ width: 14, height: 14 }} />
               </button>
             </div>
           </div>

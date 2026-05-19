@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   TrendingUp,
   ArrowRight,
-  CheckCircle2,
   Circle,
 } from "lucide-react"
 import {
@@ -58,237 +57,108 @@ function buildCallSummary(call: Call): string {
   return `${name} → ${outcome}`
 }
 
-function outcomeDot(outcome: Call["outcome"]): string {
+function outcomeColor(outcome: Call["outcome"]): string {
   switch (outcome) {
-    case "appointment_booked": return "bg-emerald-500"
-    case "lead_captured": return "bg-blue-500"
-    case "transferred": return "bg-amber-500"
-    case "missed": return "bg-red-500"
-    default: return "bg-muted-foreground/30"
+    case "appointment_booked": return "#34C759"
+    case "lead_captured": return "#007AFF"
+    case "transferred": return "#FF9500"
+    case "missed": return "#FF3B30"
+    default: return "#AEAEB2"
   }
 }
 
-function outcomeBg(outcome: Call["outcome"]): string {
+function outcomeTextColor(outcome: Call["outcome"]): string {
   switch (outcome) {
-    case "appointment_booked": return "text-emerald-700"
-    case "lead_captured": return "text-blue-600"
-    case "transferred": return "text-amber-700"
-    case "missed": return "text-red-600"
-    default: return "text-muted-foreground/60"
+    case "appointment_booked": return "#34C759"
+    case "lead_captured": return "#007AFF"
+    case "transferred": return "#FF9500"
+    case "missed": return "#FF3B30"
+    default: return "#8E8E93"
+  }
+}
+
+function outcomeLabel(outcome: Call["outcome"]): string {
+  switch (outcome) {
+    case "appointment_booked": return "booked"
+    case "lead_captured": return "lead"
+    case "info_given": return "info"
+    case "transferred": return "transferred"
+    case "missed": return "missed"
+    default: return outcome ?? "unknown"
   }
 }
 
 // --- Skeletons ----------------------------------------------
 
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`bg-muted/40 animate-pulse rounded-lg ${className}`} />
+function StatSkeleton() {
+  return (
+    <div className="ios-card" style={{ padding: "18px 20px" }}>
+      <div style={{ height: 11, width: 60, background: "rgba(60,60,67,0.08)", borderRadius: 4, marginBottom: 12 }} />
+      <div style={{ height: 36, width: 48, background: "rgba(60,60,67,0.1)", borderRadius: 6, marginBottom: 8 }} />
+      <div style={{ height: 11, width: 80, background: "rgba(60,60,67,0.06)", borderRadius: 4 }} />
+    </div>
+  )
 }
 
-function PageSkeleton() {
+function RowSkeletonSmall() {
   return (
-    <div className="space-y-8">
-      <div className="space-y-2">
-        <Skeleton className="h-7 w-72" />
-        <Skeleton className="h-4 w-52" />
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Skeleton className="h-28 rounded-xl" />
-        <Skeleton className="h-28 rounded-xl" />
-        <Skeleton className="h-28 rounded-xl" />
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <Skeleton className="lg:col-span-3 h-64 rounded-xl" />
-        <Skeleton className="lg:col-span-2 h-64 rounded-xl" />
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "0.5px solid rgba(60,60,67,0.08)" }}>
+      <div style={{ height: 11, width: 40, background: "rgba(60,60,67,0.07)", borderRadius: 4, flexShrink: 0 }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ height: 12, width: "60%", background: "rgba(60,60,67,0.08)", borderRadius: 4, marginBottom: 4 }} />
+        <div style={{ height: 10, width: "40%", background: "rgba(60,60,67,0.05)", borderRadius: 4 }} />
       </div>
     </div>
   )
 }
 
-// --- Metric Card --------------------------------------------
+// --- Stat Card ----------------------------------------------
 
-function MetricCard({
+function StatCard({
   value,
   label,
   sublabel,
-  accent,
-  icon: Icon,
+  accentLeft,
 }: {
   value: number | string
   label: string
   sublabel?: string
-  accent?: boolean
-  icon?: React.ElementType
+  accentLeft?: string
 }) {
   return (
     <div
-      className={`rounded-xl px-5 py-5 border ${
-        accent
-          ? "bg-foreground text-background border-foreground"
-          : "bg-card border-border/60"
-      }`}
+      className="ios-card animate-fade-up"
+      style={{
+        padding: "18px 20px",
+        borderLeft: accentLeft ? `3px solid ${accentLeft}` : undefined,
+      }}
     >
-      {Icon && (
-        <div className={`mb-3 ${accent ? "text-background/60" : "text-muted-foreground/40"}`}>
-          <Icon className="size-4" />
-        </div>
-      )}
-      <p
-        className={`text-4xl font-light tracking-[-0.05em] tabular-nums leading-none ${
-          accent ? "text-background" : "text-foreground"
-        }`}
-      >
-        {value}
-      </p>
-      <p
-        className={`text-[11px] font-semibold uppercase tracking-[0.1em] mt-2 ${
-          accent ? "text-background/60" : "text-muted-foreground/50"
-        }`}
-      >
+      <p style={{
+        fontSize: 11,
+        fontWeight: 500,
+        color: "#8E8E93",
+        letterSpacing: "1.2px",
+        textTransform: "uppercase",
+        fontFamily: "var(--font-mono)",
+        marginBottom: 10,
+      }}>
         {label}
       </p>
+      <p style={{
+        fontSize: 36,
+        fontWeight: 700,
+        color: "#1C1C1E",
+        fontVariantNumeric: "tabular-nums",
+        lineHeight: 1,
+        marginBottom: 6,
+        fontFamily: "var(--font-mono)",
+      }}>
+        {value}
+      </p>
       {sublabel && (
-        <p className={`text-[11px] mt-1 ${accent ? "text-background/40" : "text-muted-foreground/35"}`}>
-          {sublabel}
-        </p>
+        <p style={{ fontSize: 13, color: "#8E8E93" }}>{sublabel}</p>
       )}
     </div>
-  )
-}
-
-// --- Appointment Row ----------------------------------------
-
-function AppointmentRow({ apt, isNext }: { apt: Appointment; isNext?: boolean }) {
-  const isPast = new Date(apt.scheduled_start) < new Date()
-
-  return (
-    <div
-      className={`flex items-center gap-4 py-3 border-b border-border/40 last:border-0 ${
-        isNext ? "bg-emerald-500/5 -mx-4 px-4 rounded-lg" : ""
-      } ${isPast ? "opacity-40" : ""}`}
-    >
-      <div className="w-14 shrink-0 text-right">
-        <span className="text-[13px] font-medium tabular-nums">{formatTime(apt.scheduled_start)}</span>
-        {isNext && (
-          <span className="block text-[9px] font-semibold uppercase tracking-[0.1em] text-emerald-600 mt-0.5">
-            Next
-          </span>
-        )}
-      </div>
-
-      <div className={`size-1.5 rounded-full shrink-0 ${
-        apt.status === "confirmed" ? "bg-emerald-500" :
-        apt.status === "completed" ? "bg-muted-foreground/30" :
-        apt.status === "no_show" ? "bg-red-500" : "bg-amber-500"
-      }`} />
-
-      <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium truncate leading-tight">{apt.patient_name}</p>
-        {apt.service_type && (
-          <p className="text-[11px] text-muted-foreground/50 truncate mt-0.5">{apt.service_type}</p>
-        )}
-      </div>
-
-      {apt.patient_phone && (
-        <a
-          href={`tel:${apt.patient_phone}`}
-          className="text-[11px] tabular-nums text-muted-foreground/40 hover:text-foreground transition-colors shrink-0"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {apt.patient_phone}
-        </a>
-      )}
-
-      <span
-        className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize shrink-0 ${
-          apt.status === "confirmed"
-            ? "bg-emerald-500/10 text-emerald-700"
-            : apt.status === "completed"
-              ? "bg-muted text-muted-foreground"
-              : apt.status === "no_show"
-                ? "bg-red-500/10 text-red-600"
-                : "bg-amber-500/10 text-amber-700"
-        }`}
-      >
-        {apt.status === "no_show" ? "No show" : apt.status}
-      </span>
-    </div>
-  )
-}
-
-// --- Activity Row -------------------------------------------
-
-function ActivityRow({ call }: { call: Call }) {
-  const summary = buildCallSummary(call)
-  const parts = summary.split("→")
-  const hasArrow = parts.length > 1
-
-  return (
-    <Link
-      to="/calls/$id"
-      params={{ id: call.id }}
-      className="flex items-start gap-3 py-2.5 hover:bg-accent/20 -mx-4 px-4 rounded-lg transition-colors cursor-pointer group"
-    >
-      <span className={`size-2 rounded-full shrink-0 mt-1.5 ${outcomeDot(call.outcome)}`} />
-      <div className="min-w-0 flex-1">
-        <p className="text-[13px] leading-snug">
-          {hasArrow ? (
-            <>
-              <span className="text-foreground/80">{parts[0].trim()}</span>
-              <span className="text-muted-foreground/40 mx-1">→</span>
-              <span className={`font-medium ${outcomeBg(call.outcome)}`}>{parts.slice(1).join("→").trim()}</span>
-            </>
-          ) : (
-            <span className="text-muted-foreground/60">{summary}</span>
-          )}
-        </p>
-      </div>
-      <span className="text-[11px] text-muted-foreground/40 tabular-nums shrink-0 mt-0.5">
-        {timeAgo(call.started_at ?? call.created_at)}
-      </span>
-    </Link>
-  )
-}
-
-// --- Weekly Chart -------------------------------------------
-
-function WeeklyChart({ data }: { data: { date: string; calls: number }[] }) {
-  if (!data.length) return (
-    <div className="flex items-center justify-center h-full">
-      <p className="text-[12px] text-muted-foreground/30">No data yet</p>
-    </div>
-  )
-
-  return (
-    <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} margin={{ top: 4, right: 0, left: -24, bottom: 0 }}>
-        <XAxis
-          dataKey="date"
-          tickLine={false}
-          axisLine={false}
-          tick={{ fontSize: 10, fill: "var(--muted-foreground)", opacity: 0.4 }}
-          tickMargin={8}
-        />
-        <YAxis
-          tickLine={false}
-          axisLine={false}
-          tick={{ fontSize: 10, fill: "var(--muted-foreground)", opacity: 0.4 }}
-          allowDecimals={false}
-        />
-        <Tooltip
-          cursor={{ fill: "var(--accent)", opacity: 0.2, radius: 4 }}
-          content={({ active, payload, label }) => {
-            if (!active || !payload?.length) return null
-            return (
-              <div className="bg-popover border border-border rounded-lg px-3 py-2 shadow-lg shadow-black/8">
-                <p className="text-[10px] text-muted-foreground/50 mb-0.5">{label}</p>
-                <p className="text-[13px] font-semibold tabular-nums">{payload[0].value} calls</p>
-              </div>
-            )
-          }}
-        />
-        <Bar dataKey="calls" fill="var(--foreground)" radius={[4, 4, 0, 0]} barSize={20} opacity={0.8} />
-      </BarChart>
-    </ResponsiveContainer>
   )
 }
 
@@ -300,51 +170,239 @@ function SectionCard({
   count,
   action,
   children,
-  className = "",
+  style: extraStyle,
 }: {
   title: string
   icon?: React.ElementType
   count?: number
   action?: React.ReactNode
   children: React.ReactNode
-  className?: string
+  style?: React.CSSProperties
 }) {
   return (
-    <div className={`bg-card border border-border/60 rounded-xl overflow-hidden ${className}`}>
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
-        <div className="flex items-center gap-2">
-          {Icon && <Icon className="size-3.5 text-muted-foreground/50" />}
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/60">
+    <div className="ios-card animate-fade-up" style={{ padding: 0, overflow: "hidden", ...extraStyle }}>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "14px 18px",
+        borderBottom: "0.5px solid rgba(60,60,67,0.08)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          {Icon && <Icon style={{ width: 13, height: 13, color: "#8E8E93" }} />}
+          <span style={{
+            fontSize: 11,
+            fontWeight: 500,
+            color: "#8E8E93",
+            letterSpacing: "1.2px",
+            textTransform: "uppercase",
+            fontFamily: "var(--font-mono)",
+          }}>
             {title}
-          </h3>
+          </span>
           {count != null && (
-            <span className="text-[11px] tabular-nums text-muted-foreground/40">{count}</span>
+            <span style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)" }}>{count}</span>
           )}
         </div>
         {action}
       </div>
-      <div className="px-4 py-3">{children}</div>
+      <div style={{ padding: "12px 18px" }}>{children}</div>
     </div>
   )
 }
 
-// --- Greeting -----------------------------------------------
+// --- Appointment Row ----------------------------------------
 
-function getGreeting(name: string | null): string {
-  const firstName = name?.split(" ")[0] ?? null
-  const greetings = firstName
-    ? [
-        `Good to see you, ${firstName}`,
-        `Hey ${firstName}`,
-        `Welcome back, ${firstName}`,
-        `Hi ${firstName}`,
-      ]
-    : ["Welcome back", "Good to see you", "Hey there"]
+function AppointmentRow({ apt, isNext }: { apt: Appointment; isNext?: boolean }) {
+  const isPast = new Date(apt.scheduled_start) < new Date()
 
-  const dayOfYear = Math.floor(
-    (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
+  const statusColor = apt.status === "confirmed" ? "#34C759"
+    : apt.status === "no_show" ? "#FF3B30"
+    : "#8E8E93"
+
+  return (
+    <div
+      className="ios-separator"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "10px 0",
+        opacity: isPast ? 0.45 : 1,
+        background: isNext ? "rgba(52,199,89,0.04)" : "transparent",
+      }}
+    >
+      <div style={{ width: 52, flexShrink: 0, textAlign: "right" }}>
+        <span style={{ fontSize: 11, fontWeight: 500, fontFamily: "var(--font-mono)", color: "#1C1C1E" }}>
+          {formatTime(apt.scheduled_start)}
+        </span>
+        {isNext && (
+          <span style={{ display: "block", fontSize: 9, fontWeight: 600, letterSpacing: "0.8px", textTransform: "uppercase", color: "#34C759", marginTop: 1, fontFamily: "var(--font-mono)" }}>
+            Next
+          </span>
+        )}
+      </div>
+
+      <div style={{ width: 4, height: 4, borderRadius: "50%", background: statusColor, flexShrink: 0 }} />
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 13, fontWeight: 500, color: "#1C1C1E", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {apt.patient_name}
+        </p>
+        {apt.service_type && (
+          <p style={{ fontSize: 11, color: "#8E8E93", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>
+            {apt.service_type}
+          </p>
+        )}
+      </div>
+
+      <span style={{
+        fontSize: 10,
+        fontWeight: 500,
+        padding: "2px 8px",
+        borderRadius: 6,
+        color: statusColor,
+        background: apt.status === "confirmed" ? "rgba(52,199,89,0.1)"
+          : apt.status === "no_show" ? "rgba(255,59,48,0.1)"
+          : "rgba(142,142,147,0.1)",
+        fontFamily: "var(--font-mono)",
+        textTransform: "capitalize",
+        flexShrink: 0,
+      }}>
+        {apt.status === "no_show" ? "no show" : apt.status}
+      </span>
+    </div>
   )
-  return greetings[dayOfYear % greetings.length]
+}
+
+// --- Activity Row -------------------------------------------
+
+function ActivityRow({ call, delay }: { call: Call; delay?: number }) {
+  const summary = buildCallSummary(call)
+  const parts = summary.split("→")
+  const hasArrow = parts.length > 1
+  const color = outcomeColor(call.outcome)
+
+  return (
+    <Link
+      to="/calls/$id"
+      params={{ id: call.id }}
+      className="ios-separator animate-fade-up"
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 0,
+        padding: "12px 0",
+        textDecoration: "none",
+        cursor: "pointer",
+        position: "relative",
+        animationDelay: `${delay ?? 0}ms`,
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.background = "#F2F2F7";
+        (e.currentTarget as HTMLElement).style.marginLeft = "-18px";
+        (e.currentTarget as HTMLElement).style.marginRight = "-18px";
+        (e.currentTarget as HTMLElement).style.paddingLeft = "18px";
+        (e.currentTarget as HTMLElement).style.paddingRight = "18px";
+        (e.currentTarget as HTMLElement).style.borderRadius = "8px";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.background = "transparent";
+        (e.currentTarget as HTMLElement).style.marginLeft = "0";
+        (e.currentTarget as HTMLElement).style.marginRight = "0";
+        (e.currentTarget as HTMLElement).style.paddingLeft = "0";
+        (e.currentTarget as HTMLElement).style.paddingRight = "0";
+        (e.currentTarget as HTMLElement).style.borderRadius = "0";
+      }}
+    >
+      {/* Left color strip */}
+      <div style={{ width: 3, alignSelf: "stretch", borderRadius: 3, background: color, flexShrink: 0, marginRight: 12 }} />
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 14, color: "#1C1C1E", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>
+          {hasArrow ? (
+            <>
+              <span style={{ color: "#3A3A3C" }}>{parts[0].trim()}</span>
+              <span style={{ color: "#AEAEB2", margin: "0 4px" }}>→</span>
+              <span style={{ fontWeight: 500, color: outcomeTextColor(call.outcome) }}>{parts.slice(1).join("→").trim()}</span>
+            </>
+          ) : (
+            <span style={{ color: "#636366" }}>{summary}</span>
+          )}
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+          <span style={{
+            fontSize: 11,
+            fontWeight: 500,
+            padding: "1px 7px",
+            borderRadius: 6,
+            color: outcomeTextColor(call.outcome),
+            background: `${color}18`,
+            fontFamily: "var(--font-mono)",
+          }}>
+            {outcomeLabel(call.outcome)}
+          </span>
+          {call.duration_secs != null && (
+            <span style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)" }}>
+              {Math.floor(call.duration_secs / 60)}m {call.duration_secs % 60}s
+            </span>
+          )}
+        </div>
+      </div>
+
+      <span style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)", flexShrink: 0, marginLeft: 12, marginTop: 2 }}>
+        {timeAgo(call.started_at ?? call.created_at)}
+      </span>
+    </Link>
+  )
+}
+
+// --- Weekly Chart -------------------------------------------
+
+function WeeklyChart({ data }: { data: { date: string; calls: number }[] }) {
+  if (!data.length) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+      <p style={{ fontSize: 12, color: "#AEAEB2" }}>No data yet</p>
+    </div>
+  )
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data} margin={{ top: 4, right: 0, left: -28, bottom: 0 }}>
+        <XAxis
+          dataKey="date"
+          tickLine={false}
+          axisLine={false}
+          tick={{ fontSize: 10, fill: "#AEAEB2", fontFamily: "'SF Mono', monospace" }}
+          tickMargin={8}
+        />
+        <YAxis
+          tickLine={false}
+          axisLine={false}
+          tick={{ fontSize: 10, fill: "#AEAEB2", fontFamily: "'SF Mono', monospace" }}
+          allowDecimals={false}
+        />
+        <Tooltip
+          cursor={{ fill: "rgba(60,60,67,0.05)", radius: 4 }}
+          content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null
+            return (
+              <div style={{
+                background: "#FFFFFF",
+                borderRadius: 10,
+                padding: "8px 12px",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+              }}>
+                <p style={{ fontSize: 10, color: "#8E8E93", marginBottom: 2, fontFamily: "'SF Mono', monospace" }}>{label}</p>
+                <p style={{ fontSize: 14, fontWeight: 600, color: "#1C1C1E", fontFamily: "'SF Mono', monospace" }}>{payload[0].value} calls</p>
+              </div>
+            )
+          }}
+        />
+        <Bar dataKey="calls" fill="#007AFF" radius={[4, 4, 0, 0]} barSize={18} opacity={0.75} />
+      </BarChart>
+    </ResponsiveContainer>
+  )
 }
 
 // --- Exception Row ------------------------------------------
@@ -354,23 +412,42 @@ function ExceptionRow({ call }: { call: Call }) {
     <Link
       to="/calls/$id"
       params={{ id: call.id }}
-      className="flex items-center gap-3 py-2.5 hover:bg-accent/20 -mx-4 px-4 rounded-lg transition-colors cursor-pointer"
+      className="ios-separator"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "10px 0",
+        textDecoration: "none",
+        cursor: "pointer",
+      }}
     >
-      <AlertTriangle className="size-3.5 text-amber-500 shrink-0" />
-      <div className="min-w-0 flex-1">
-        <p className="text-[13px] truncate">
-          <span className="font-medium">{call.caller_phone ?? "Unknown"}</span>
-          <span className="text-muted-foreground/40 mx-1">—</span>
-          <span className="text-muted-foreground/60">
+      <AlertTriangle style={{ width: 13, height: 13, color: "#FF9500", flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <span style={{ fontWeight: 500, color: "#1C1C1E" }}>{call.caller_phone ?? "Unknown"}</span>
+          <span style={{ color: "#AEAEB2", margin: "0 6px" }}>—</span>
+          <span style={{ color: "#636366" }}>
             {call.status === "transferred" ? "Transferred to owner" : "Call failed"}
           </span>
         </p>
       </div>
-      <span className="text-[11px] text-muted-foreground/40 tabular-nums shrink-0">
+      <span style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)", flexShrink: 0 }}>
         {timeAgo(call.started_at ?? call.created_at)}
       </span>
     </Link>
   )
+}
+
+// --- Greeting -----------------------------------------------
+
+function getGreeting(name: string | null): string {
+  const firstName = name?.split(" ")[0] ?? null
+  const greetings = firstName
+    ? [`Good to see you, ${firstName}`, `Hey ${firstName}`, `Welcome back, ${firstName}`, `Hi ${firstName}`]
+    : ["Welcome back", "Good to see you", "Hey there"]
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000)
+  return greetings[dayOfYear % greetings.length]
 }
 
 // --- Page ---------------------------------------------------
@@ -389,12 +466,31 @@ export default function OverviewPage() {
     queryFn: getWeeklyCallStats,
   })
 
-  if (briefing.isLoading) return <PageSkeleton />
+  if (briefing.isLoading) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+        <div>
+          <div style={{ height: 28, width: 240, background: "rgba(60,60,67,0.08)", borderRadius: 6, marginBottom: 8 }} />
+          <div style={{ height: 14, width: 180, background: "rgba(60,60,67,0.05)", borderRadius: 4 }} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+          <StatSkeleton /><StatSkeleton /><StatSkeleton />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 12 }}>
+          <div className="ios-card" style={{ height: 240 }} />
+          <div className="ios-card" style={{ height: 240 }} />
+        </div>
+      </div>
+    )
+  }
 
   if (briefing.isError) return (
-    <div className="py-24 text-center">
-      <p className="text-[14px] text-destructive">Something went wrong loading your dashboard.</p>
-      <button onClick={() => briefing.refetch()} className="text-[13px] text-muted-foreground/50 hover:text-foreground mt-2 cursor-pointer">
+    <div style={{ padding: "96px 0", textAlign: "center" }}>
+      <p style={{ fontSize: 14, color: "#FF3B30" }}>Something went wrong loading your dashboard.</p>
+      <button
+        onClick={() => briefing.refetch()}
+        style={{ fontSize: 13, color: "#8E8E93", marginTop: 8, border: "none", background: "transparent", cursor: "pointer" }}
+      >
         Try again
       </button>
     </div>
@@ -411,109 +507,107 @@ export default function OverviewPage() {
   const greeting = getGreeting(profile.fullName)
   let statusLine: string
   if (calls === 0) {
-    statusLine = "Orvia is ready and listening. No calls yet today."
+    statusLine = "Orvia is ready. No calls yet today."
   } else {
-    const parts = [`${calls} call${calls !== 1 ? "s" : ""} handled today`]
-    if (appointments > 0) parts.push(`${appointments} appointment${appointments !== 1 ? "s" : ""} booked`)
-    if (leads > 0) parts.push(`${leads} lead${leads !== 1 ? "s" : ""} captured`)
+    const parts = [`${calls} call${calls !== 1 ? "s" : ""} handled`]
+    if (appointments > 0) parts.push(`${appointments} booked`)
+    if (leads > 0) parts.push(`${leads} lead${leads !== 1 ? "s" : ""}`)
     statusLine = parts.join(" · ")
   }
 
   const weeklyData = (weekly.data ?? []).map((d) => ({ date: d.date, calls: d.calls }))
 
   return (
-    <div className="space-y-8">
+    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold tracking-[-0.04em] text-foreground">
+      <div className="animate-fade-up animate-fade-up-1">
+        <h1 style={{ fontSize: 28, fontWeight: 600, letterSpacing: "-0.5px", color: "#1C1C1E", marginBottom: 4 }}>
           {greeting}
         </h1>
-        <p className="text-[13px] text-muted-foreground/60 mt-1">
+        <p style={{ fontSize: 13, color: "#8E8E93" }}>
           {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
-          {" · "}
+          <span style={{ margin: "0 6px", color: "#AEAEB2" }}>·</span>
           {statusLine}
         </p>
       </div>
 
-      {/* Metric cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <MetricCard
-          value={calls}
-          label="Calls handled"
-          sublabel="Today"
-          accent
-          icon={Phone}
-        />
-        <MetricCard
-          value={appointments}
-          label="Appointments"
-          sublabel="Booked today"
-          icon={Calendar}
-        />
-        <MetricCard
-          value={leads}
-          label="Leads captured"
-          sublabel="Awaiting follow-up"
-          icon={TrendingUp}
-        />
+      {/* Stat cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+        <div className="animate-fade-up animate-fade-up-2">
+          <StatCard value={calls} label="Calls handled" sublabel="Today" accentLeft="#34C759" />
+        </div>
+        <div className="animate-fade-up animate-fade-up-3">
+          <StatCard value={appointments} label="Appointments" sublabel="Booked today" accentLeft="#007AFF" />
+        </div>
+        <div className="animate-fade-up animate-fade-up-4">
+          <StatCard value={leads} label="Leads captured" sublabel="Awaiting follow-up" accentLeft="#FF9500" />
+        </div>
       </div>
 
-      {/* Exceptions banner — only when needed */}
+      {/* Exceptions */}
       {exceptions.length > 0 && (
-        <div className="bg-amber-500/8 border border-amber-500/20 rounded-xl px-5 py-4">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="size-3.5 text-amber-600" />
-            <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-amber-700">
+        <div
+          className="ios-card animate-fade-up"
+          style={{
+            padding: "14px 18px",
+            borderLeft: "3px solid #FF9500",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+            <AlertTriangle style={{ width: 12, height: 12, color: "#FF9500" }} />
+            <span style={{
+              fontSize: 11,
+              fontWeight: 500,
+              color: "#FF9500",
+              letterSpacing: "1.2px",
+              textTransform: "uppercase",
+              fontFamily: "var(--font-mono)",
+            }}>
               Needs review ({exceptions.length})
             </span>
           </div>
-          <div>
-            {exceptions.map((call) => (
-              <ExceptionRow key={call.id} call={call} />
-            ))}
-          </div>
+          {exceptions.map((call) => (
+            <ExceptionRow key={call.id} call={call} />
+          ))}
         </div>
       )}
 
-      {/* Two-column */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+      {/* Two-column grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 12 }}>
         {/* Appointments */}
-        <div className="lg:col-span-3">
-          <SectionCard
-            title="Today's appointments"
-            icon={Calendar}
-            count={todaysAppointments.length > 0 ? todaysAppointments.length : undefined}
-          >
-            {todaysAppointments.length === 0 ? (
-              <div className="py-8 flex flex-col items-center gap-2">
-                <Circle className="size-6 text-muted-foreground/15" strokeWidth={1.5} />
-                <p className="text-[13px] text-muted-foreground/40">No appointments scheduled today</p>
-              </div>
-            ) : (
-              (() => {
-                const sorted = [...todaysAppointments].sort(
-                  (a, b) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime()
-                )
-                const now = new Date()
-                const nextIdx = sorted.findIndex(
-                  (a) => new Date(a.scheduled_start) > now && a.status === "confirmed"
-                )
-                return sorted.map((apt, i) => (
-                  <AppointmentRow key={apt.id} apt={apt} isNext={i === nextIdx} />
-                ))
-              })()
-            )}
-          </SectionCard>
-        </div>
+        <SectionCard
+          title="Today's schedule"
+          icon={Calendar}
+          count={todaysAppointments.length > 0 ? todaysAppointments.length : undefined}
+        >
+          {todaysAppointments.length === 0 ? (
+            <div style={{ padding: "28px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+              <Circle style={{ width: 24, height: 24, color: "#AEAEB2" }} strokeWidth={1.5} />
+              <p style={{ fontSize: 13, color: "#AEAEB2" }}>No appointments today</p>
+            </div>
+          ) : (
+            (() => {
+              const sorted = [...todaysAppointments].sort(
+                (a, b) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime()
+              )
+              const now = new Date()
+              const nextIdx = sorted.findIndex(
+                (a) => new Date(a.scheduled_start) > now && a.status === "confirmed"
+              )
+              return sorted.map((apt, i) => (
+                <AppointmentRow key={apt.id} apt={apt} isNext={i === nextIdx} />
+              ))
+            })()
+          )}
+        </SectionCard>
 
         {/* Weekly chart */}
-        <div className="lg:col-span-2">
-          <SectionCard title="This week" icon={TrendingUp} className="h-full">
-            <div className="h-[160px]">
-              <WeeklyChart data={weeklyData} />
-            </div>
-          </SectionCard>
-        </div>
+        <SectionCard title="This week" icon={TrendingUp} style={{ height: "100%" }}>
+          <div style={{ height: 156 }}>
+            <WeeklyChart data={weeklyData} />
+          </div>
+        </SectionCard>
       </div>
 
       {/* Recent calls */}
@@ -524,32 +618,43 @@ export default function OverviewPage() {
           recentCalls.length > 0 ? (
             <Link
               to="/calls"
-              className="text-[11px] font-medium text-muted-foreground/50 hover:text-foreground transition-colors inline-flex items-center gap-1 cursor-pointer"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                fontSize: 11,
+                fontWeight: 500,
+                color: "#007AFF",
+                textDecoration: "none",
+              }}
             >
               View all
-              <ArrowRight className="size-3" />
+              <ArrowRight style={{ width: 11, height: 11 }} />
             </Link>
           ) : undefined
         }
       >
         {recentCalls.length === 0 ? (
-          <div className="py-8 flex flex-col items-center gap-2">
-            <Phone className="size-6 text-muted-foreground/15" strokeWidth={1.5} />
-            <p className="text-[13px] text-muted-foreground/40">No calls yet</p>
+          <div style={{ padding: "28px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+            <Phone style={{ width: 24, height: 24, color: "#AEAEB2" }} strokeWidth={1.5} />
+            <p style={{ fontSize: 13, color: "#AEAEB2" }}>No calls yet</p>
           </div>
         ) : (
           <div>
-            {recentCalls.map((call) => (
-              <ActivityRow key={call.id} call={call} />
+            {recentCalls.map((call, i) => (
+              <ActivityRow key={call.id} call={call} delay={i * 50} />
             ))}
           </div>
         )}
       </SectionCard>
 
-      {/* Status footer */}
-      <div className="flex items-center gap-2 pb-2">
-        <CheckCircle2 className="size-3.5 text-emerald-500" />
-        <span className="text-[11px] text-muted-foreground/40">
+      {/* Status line */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 8 }}>
+        <span
+          className="animate-live-pulse"
+          style={{ width: 6, height: 6, borderRadius: "50%", background: "#34C759", flexShrink: 0 }}
+        />
+        <span style={{ fontSize: 11, color: "#8E8E93", fontFamily: "var(--font-mono)" }}>
           Orvia is active and answering calls
         </span>
       </div>
