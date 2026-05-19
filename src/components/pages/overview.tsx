@@ -7,17 +7,13 @@ import {
   AlertTriangle,
   TrendingUp,
   ArrowRight,
-  Circle,
-  PhoneCall,
   X,
 } from "lucide-react"
 
 import {
   getBriefing,
-  getMissedCallQueue,
   getMissedCallHeatmap,
   getLiveCallStatus,
-  markCallHandled,
   markLeadContacted,
   getFollowUpQueue,
 } from "@/lib/api"
@@ -55,12 +51,6 @@ function formatElapsed(iso: string): string {
   const m = Math.floor(secs / 60)
   const s = secs % 60
   return `${m}m ${String(s).padStart(2, "0")}s`
-}
-
-function maskPhone(phone: string | null): string {
-  if (!phone) return "Unknown"
-  const digits = phone.replace(/\D/g, "")
-  return `••• ${digits.slice(-4)}`
 }
 
 function formatHour(h: number): string {
@@ -305,118 +295,9 @@ function FollowUpDoneButton({ leadId }: { leadId: string }) {
   )
 }
 
-// ─── Feature 1: Missed Call Queue ─────────────────────────
-
-function MissedCallQueue() {
-  const queryClient = useQueryClient()
-  const { data: queue = [], isLoading } = useQuery({
-    queryKey: ["missed-queue"],
-    queryFn: getMissedCallQueue,
-    refetchInterval: 30_000,
-  })
-
-  const dismiss = useMutation({
-    mutationFn: markCallHandled,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["missed-queue"] })
-      queryClient.invalidateQueries({ queryKey: ["briefing"] })
-    },
-  })
-
-  if (isLoading) return null
-  if (queue.length === 0) {
-    return (
-      <div className="ios-card animate-fade-up" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#34C759", flexShrink: 0 }} />
-        <span style={{ fontSize: 13, color: "#8E8E93" }}>All caught up. No missed calls in the last 48 hours.</span>
-      </div>
-    )
-  }
-
-  return (
-    <SectionCard
-      title="Needs Attention"
-      icon={PhoneCall}
-      count={queue.length}
-      accentLeft="#FF3B30"
-    >
-      {queue.map((call) => (
-        <div
-          key={call.id}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            padding: "11px 18px",
-            borderBottom: "0.5px solid rgba(60,60,67,0.08)",
-          }}
-          className="last:border-b-0"
-        >
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ fontSize: 14, fontWeight: 500, color: "#1C1C1E", fontFamily: "var(--font-mono)" }}>
-              {maskPhone(call.caller_phone)}
-            </p>
-            <p style={{ fontSize: 12, color: "#8E8E93", marginTop: 2 }}>
-              {timeAgo(call.started_at ?? call.created_at)}
-            </p>
-          </div>
-          <a
-            href={`tel:${call.caller_phone}`}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 5,
-              fontSize: 12,
-              fontWeight: 500,
-              color: "#007AFF",
-              textDecoration: "none",
-              padding: "5px 12px",
-              borderRadius: 8,
-              background: "rgba(0,122,255,0.08)",
-              flexShrink: 0,
-            }}
-          >
-            <Phone style={{ width: 11, height: 11 }} />
-            Call back
-          </a>
-          <button
-            onClick={() => dismiss.mutate(call.id)}
-            disabled={dismiss.isPending}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 28,
-              height: 28,
-              borderRadius: 8,
-              border: "none",
-              background: "rgba(60,60,67,0.06)",
-              color: "#8E8E93",
-              cursor: "pointer",
-              flexShrink: 0,
-            }}
-            title="Dismiss"
-          >
-            <X style={{ width: 13, height: 13 }} />
-          </button>
-        </div>
-      ))}
-    </SectionCard>
-  )
-}
-
 // ─── Feature 2: Today's Schedule Timeline ─────────────────
 
 function ScheduleTimeline({ appointments }: { appointments: Appointment[] }) {
-  if (appointments.length === 0) {
-    return (
-      <div style={{ padding: "28px 18px", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-        <Circle style={{ width: 24, height: 24, color: "#AEAEB2" }} strokeWidth={1.5} />
-        <p style={{ fontSize: 13, color: "#AEAEB2" }}>No appointments today</p>
-      </div>
-    )
-  }
-
   const sorted = [...appointments].sort(
     (a, b) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime()
   )
@@ -487,38 +368,12 @@ function ScheduleTimeline({ appointments }: { appointments: Appointment[] }) {
 
 // ─── Feature 4: Missed Call Heatmap ──────────────────────
 
-function MissedCallHeatmap() {
-  const { data: rows = [], isLoading } = useQuery({
-    queryKey: ["missed-heatmap"],
-    queryFn: getMissedCallHeatmap,
-  })
-
+function MissedCallHeatmap({ rows }: { rows: { hour: number; count: number }[] }) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => {
     const t = setTimeout(() => setMounted(true), 50)
     return () => clearTimeout(t)
   }, [])
-
-  if (isLoading) return (
-    <div style={{ padding: "18px" }}>
-      {[...Array(4)].map((_, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-          <div style={{ width: 44, height: 11, background: "rgba(60,60,67,0.07)", borderRadius: 4 }} />
-          <div style={{ flex: 1, height: 8, background: "rgba(60,60,67,0.06)", borderRadius: 4 }} />
-          <div style={{ width: 36, height: 11, background: "rgba(60,60,67,0.05)", borderRadius: 4 }} />
-        </div>
-      ))}
-    </div>
-  )
-
-  if (rows.length === 0) {
-    return (
-      <div style={{ padding: "28px 18px", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-        <TrendingUp style={{ width: 24, height: 24, color: "#AEAEB2" }} strokeWidth={1.5} />
-        <p style={{ fontSize: 13, color: "#AEAEB2", textAlign: "center" }}>No missed calls recorded yet</p>
-      </div>
-    )
-  }
 
   const maxCount = Math.max(...rows.map((r) => r.count))
 
@@ -723,6 +578,11 @@ export default function OverviewPage() {
     refetchInterval: 30_000,
   })
 
+  const heatmapQuery = useQuery({
+    queryKey: ["missed-heatmap"],
+    queryFn: getMissedCallHeatmap,
+  })
+
   if (briefing.isLoading) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
@@ -799,9 +659,6 @@ export default function OverviewPage() {
       {/* Follow-up queue */}
       <FollowUpQueue />
 
-      {/* Feature 1: Missed call queue */}
-      <MissedCallQueue />
-
       {/* Exceptions */}
       {exceptions.length > 0 && (
         <div className="ios-card animate-fade-up" style={{ padding: 0, overflow: "hidden", borderLeft: "3px solid #FF9500" }}>
@@ -815,25 +672,35 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* Two-column: schedule + heatmap */}
-      <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 12 }}>
-        {/* Feature 2: Timeline */}
-        <SectionCard
-          title="Today's schedule"
-          icon={Calendar}
-          count={todaysAppointments.length > 0 ? todaysAppointments.length : undefined}
-        >
-          <ScheduleTimeline appointments={todaysAppointments} />
-        </SectionCard>
+      {/* Two-column: schedule + heatmap — only rendered when there is data */}
+      {(todaysAppointments.length > 0 || (heatmapQuery.data ?? []).length > 0) && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: todaysAppointments.length > 0 && (heatmapQuery.data ?? []).length > 0
+            ? "3fr 2fr"
+            : "1fr",
+          gap: 12,
+        }}>
+          {todaysAppointments.length > 0 && (
+            <SectionCard
+              title="Today's schedule"
+              icon={Calendar}
+              count={todaysAppointments.length}
+            >
+              <ScheduleTimeline appointments={todaysAppointments} />
+            </SectionCard>
+          )}
 
-        {/* Feature 4: Missed call heatmap */}
-        <SectionCard title="When you miss calls" icon={TrendingUp} style={{ height: "100%" }}>
-          <div style={{ padding: "4px 0" }}>
-            <p style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)", padding: "0 18px 10px" }}>Last 30 days</p>
-            <MissedCallHeatmap />
-          </div>
-        </SectionCard>
-      </div>
+          {(heatmapQuery.data ?? []).length > 0 && (
+            <SectionCard title="When you miss calls" icon={TrendingUp} style={{ height: "100%" }}>
+              <div style={{ padding: "4px 0" }}>
+                <p style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)", padding: "0 18px 10px" }}>Last 30 days</p>
+                <MissedCallHeatmap rows={heatmapQuery.data!} />
+              </div>
+            </SectionCard>
+          )}
+        </div>
+      )}
 
       {/* Feature 3 + 5: Recent calls with outcome badges + repeat flag */}
       <SectionCard
