@@ -150,11 +150,7 @@ export async function getWeeklyCallStats() {
           .gte("created_at", start.toISOString())
           .lte("created_at", end.toISOString()),
       ]).then(([callsRes, leadsRes, apptsRes]) => ({
-        date: d.toLocaleDateString("en-IN", {
-          weekday: "short",
-          month: "short",
-          day: "numeric",
-        }),
+        date: d.toLocaleDateString("en-US", { weekday: "short" }),
         calls: callsRes.count ?? 0,
         leads: leadsRes.count ?? 0,
         appointments: apptsRes.count ?? 0,
@@ -205,6 +201,56 @@ export async function getClinicSettings(): Promise<Clinic | null> {
     .single();
 
   return (clinic as Clinic) ?? null;
+}
+
+// ─── Missed Call Queue ───────────────────────────────────
+
+export async function getMissedCallQueue(): Promise<Call[]> {
+  const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const { data } = await supabase
+    .from("calls")
+    .select("*")
+    .eq("status", "missed")
+    .gte("created_at", cutoff)
+    .order("created_at", { ascending: false });
+  return (data as Call[]) ?? [];
+}
+
+// ─── Missed Call Heatmap ─────────────────────────────────
+
+export async function getMissedCallHeatmap(): Promise<{ hour: number; count: number }[]> {
+  const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const { data } = await supabase
+    .from("calls")
+    .select("created_at")
+    .eq("status", "missed")
+    .gte("created_at", cutoff);
+
+  if (!data || data.length === 0) return [];
+
+  const counts: Record<number, number> = {};
+  for (const row of data as { created_at: string }[]) {
+    const hour = new Date(row.created_at).getHours();
+    counts[hour] = (counts[hour] ?? 0) + 1;
+  }
+
+  return Object.entries(counts)
+    .map(([hour, count]) => ({ hour: Number(hour), count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+}
+
+// ─── Live Call Status ─────────────────────────────────────
+
+export async function getLiveCallStatus(): Promise<Call | null> {
+  const { data } = await supabase
+    .from("calls")
+    .select("*")
+    .eq("status", "in_progress")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as Call) ?? null;
 }
 
 // ─── Briefing (Home Page) ────────────────────────────────
@@ -263,13 +309,25 @@ export async function getBriefing() {
       .limit(8),
   ]);
 
+  const rawRecent = (recentRes.data as Call[]) ?? [];
+
+  // Derive is_repeat_caller: phone appears more than once across all recent calls
+  const phoneCounts: Record<string, number> = {};
+  for (const c of rawRecent) {
+    if (c.caller_phone) phoneCounts[c.caller_phone] = (phoneCounts[c.caller_phone] ?? 0) + 1;
+  }
+  const recentCalls = rawRecent.map((c) => ({
+    ...c,
+    is_repeat_caller: c.caller_phone ? (phoneCounts[c.caller_phone] ?? 0) > 1 : false,
+  }));
+
   return {
     callsToday: callsRes.count ?? 0,
     leadsToday: leadsRes.count ?? 0,
     appointmentsToday: appointmentsCountRes.count ?? 0,
     todaysAppointments: (appointmentsRes.data as Appointment[]) ?? [],
     exceptionCalls: (exceptionsRes.data as Call[]) ?? [],
-    recentCalls: (recentRes.data as Call[]) ?? [],
+    recentCalls,
   };
 }
 

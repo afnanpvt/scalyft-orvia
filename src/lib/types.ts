@@ -107,6 +107,7 @@ export interface Call {
     | null;
   cost_cents: number;
   created_at: string;
+  is_repeat_caller?: boolean;
 }
 
 export interface TranscriptTurn {
