@@ -8,6 +8,9 @@ import {
   Play,
   Pause,
   FileText,
+  Phone,
+  Clock,
+  Calendar,
 } from "lucide-react"
 
 import {
@@ -18,7 +21,7 @@ import {
 } from "@/lib/api"
 import type { TranscriptTurn } from "@/lib/types"
 
-// ─── Helpers ────────────────────────────────────────────
+// --- Helpers ------------------------------------------------
 
 function formatDuration(secs: number | null): string {
   if (secs == null) return "--"
@@ -29,7 +32,7 @@ function formatDuration(secs: number | null): string {
 
 function formatDateTime(iso: string | null): string {
   if (!iso) return "--"
-  return new Date(iso).toLocaleString("en-IN", {
+  return new Date(iso).toLocaleString("en-US", {
     dateStyle: "medium",
     timeStyle: "short",
   })
@@ -41,11 +44,11 @@ function formatLabel(value: string | null | undefined): string {
 }
 
 const outcomeStyles: Record<string, string> = {
-  appointment_booked: "bg-emerald-500/10 text-emerald-700",
-  lead_captured: "bg-blue-500/10 text-blue-700",
-  info_given: "bg-muted text-muted-foreground",
-  transferred: "bg-amber-500/10 text-amber-700",
-  missed: "bg-red-500/10 text-red-700",
+  appointment_booked: "bg-emerald-500/10 text-emerald-700 border border-emerald-500/20",
+  lead_captured: "bg-blue-500/10 text-blue-700 border border-blue-500/20",
+  info_given: "bg-muted text-muted-foreground border border-transparent",
+  transferred: "bg-amber-500/10 text-amber-700 border border-amber-500/20",
+  missed: "bg-red-500/10 text-red-700 border border-red-500/20",
 }
 
 const statusStyles: Record<string, string> = {
@@ -57,64 +60,46 @@ const statusStyles: Record<string, string> = {
 }
 
 const urgencyStyles: Record<string, string> = {
-  emergency: "bg-red-500/10 text-red-700",
-  urgent: "bg-amber-500/10 text-amber-700",
-  routine: "bg-muted text-muted-foreground",
-  inquiry: "bg-blue-500/10 text-blue-700",
+  emergency: "bg-red-500/10 text-red-700 border border-red-500/20",
+  urgent: "bg-amber-500/10 text-amber-700 border border-amber-500/20",
+  routine: "bg-muted text-muted-foreground border border-transparent",
+  inquiry: "bg-blue-500/10 text-blue-700 border border-blue-500/20",
 }
 
-// ─── Skeletons ──────────────────────────────────────────
+// --- Skeletons ----------------------------------------------
 
 function HeroSkeleton() {
   return (
-    <div className="space-y-4">
+    <div className="bg-card border border-border/60 rounded-xl p-6 space-y-4">
       <div className="flex items-center gap-3">
         <div className="h-6 w-36 bg-muted/50 animate-pulse rounded-lg" />
-        <div className="h-5 w-20 bg-muted/50 animate-pulse rounded-full" />
-        <div className="h-5 w-16 bg-muted/50 animate-pulse rounded-full" />
+        <div className="h-5 w-20 bg-muted/40 animate-pulse rounded-full" />
       </div>
-      <div className="h-2.5 w-48 bg-muted/40 animate-pulse rounded-lg" />
-      <div className="h-4 w-full max-w-md bg-muted/40 animate-pulse rounded-lg mt-4" />
-      <div className="h-4 w-3/4 max-w-sm bg-muted/40 animate-pulse rounded-lg" />
+      <div className="h-3 w-48 bg-muted/30 animate-pulse rounded-lg" />
+      <div className="h-4 w-full max-w-lg bg-muted/30 animate-pulse rounded-lg" />
     </div>
   )
 }
 
-function TranscriptSkeleton() {
+function CardSkeleton({ rows = 3 }: { rows?: number }) {
   return (
-    <div className="space-y-5">
-      <div className="h-3 w-24 bg-muted/40 animate-pulse rounded-lg" />
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className={`flex ${i % 2 === 0 ? "justify-start" : "justify-end"}`}>
-          <div className="space-y-2 max-w-[70%]">
-            <div className="h-2 w-12 bg-muted/40 animate-pulse rounded-lg" />
-            <div className="h-16 w-64 bg-muted/40 animate-pulse rounded-2xl" />
+    <div className="bg-card border border-border/60 rounded-xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-border/40">
+        <div className="h-3 w-20 bg-muted/40 animate-pulse rounded-lg" />
+      </div>
+      <div className="px-5 py-4 space-y-4">
+        {Array.from({ length: rows }).map((_, i) => (
+          <div key={i} className="space-y-1.5">
+            <div className="h-2.5 w-12 bg-muted/30 animate-pulse rounded-lg" />
+            <div className="h-3.5 w-32 bg-muted/50 animate-pulse rounded-lg" />
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }
 
-function SidebarSkeleton() {
-  return (
-    <div className="space-y-6">
-      {[1, 2].map((n) => (
-        <div key={n} className="space-y-4">
-          <div className="h-2.5 w-16 bg-muted/40 animate-pulse rounded-lg" />
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="space-y-1.5">
-              <div className="h-2 w-12 bg-muted/40 animate-pulse rounded-lg" />
-              <div className="h-3 w-32 bg-muted/50 animate-pulse rounded-lg" />
-            </div>
-          ))}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// ─── Audio Player ────────────────────────────────────────
+// --- Audio Player -------------------------------------------
 
 function AudioPlayer({ src }: { src: string }) {
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -125,11 +110,7 @@ function AudioPlayer({ src }: { src: string }) {
   function toggle() {
     const el = audioRef.current
     if (!el) return
-    if (playing) {
-      el.pause()
-    } else {
-      el.play()
-    }
+    if (playing) { el.pause() } else { el.play() }
     setPlaying(!playing)
   }
 
@@ -165,16 +146,16 @@ function AudioPlayer({ src }: { src: string }) {
       />
       <button
         onClick={toggle}
-        className="flex items-center justify-center size-8 rounded-full bg-foreground text-background hover:opacity-90 transition-opacity cursor-pointer shrink-0"
+        className="flex items-center justify-center size-8 rounded-full bg-foreground text-background hover:opacity-85 transition-opacity cursor-pointer shrink-0"
       >
         {playing ? <Pause className="size-3.5" /> : <Play className="size-3.5 ml-0.5" />}
       </button>
       <div
-        className="flex-1 h-1 bg-border/40 rounded-full cursor-pointer relative"
+        className="flex-1 h-1.5 bg-border/60 rounded-full cursor-pointer relative"
         onClick={handleSeek}
       >
         <div
-          className="absolute inset-y-0 left-0 bg-foreground/60 rounded-full transition-[width] duration-100"
+          className="absolute inset-y-0 left-0 bg-foreground/70 rounded-full transition-[width] duration-100"
           style={{ width: `${progress * 100}%` }}
         />
       </div>
@@ -187,28 +168,27 @@ function AudioPlayer({ src }: { src: string }) {
   )
 }
 
-// ─── Transcript Bubble ──────────────────────────────────
+// --- Chat Bubble --------------------------------------------
 
 function ChatBubble({ turn }: { turn: TranscriptTurn }) {
   const isAI = turn.role === "assistant"
-
   return (
     <div className={`flex ${isAI ? "justify-start" : "justify-end"}`}>
       <div className="max-w-[80%] space-y-1">
-        <p className={`text-[10px] font-medium text-muted-foreground/30 ${isAI ? "" : "text-right"}`}>
+        <p className={`text-[10px] font-medium text-muted-foreground/40 ${isAI ? "" : "text-right"}`}>
           {isAI ? "Orvia" : "Caller"}
         </p>
         <div
-          className={`px-4 py-3 text-[13px] leading-relaxed ${
+          className={`px-4 py-3 text-[13px] leading-relaxed rounded-2xl ${
             isAI
-              ? "bg-accent/30 rounded-2xl rounded-tl-sm"
-              : "bg-card ring-1 ring-border/10 rounded-2xl rounded-tr-sm"
+              ? "bg-muted/50 rounded-tl-sm"
+              : "bg-card border border-border/50 rounded-tr-sm"
           }`}
         >
           {turn.content}
         </div>
         {turn.timestamp != null && (
-          <p className={`text-[10px] tabular-nums text-muted-foreground/20 ${isAI ? "" : "text-right"}`}>
+          <p className={`text-[10px] tabular-nums text-muted-foreground/25 ${isAI ? "" : "text-right"}`}>
             {Math.floor(turn.timestamp / 60)}:{String(Math.floor(turn.timestamp % 60)).padStart(2, "0")}
           </p>
         )}
@@ -217,28 +197,36 @@ function ChatBubble({ turn }: { turn: TranscriptTurn }) {
   )
 }
 
-// ─── Whisper Section Label ──────────────────────────────
+// --- Detail Card Section ------------------------------------
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function DetailCard({ title, icon: Icon, children }: {
+  title: string
+  icon?: React.ElementType
+  children: React.ReactNode
+}) {
   return (
-    <h3 className="text-[11px] font-medium uppercase tracking-[0.06em] text-muted-foreground/40">
-      {children}
-    </h3>
-  )
-}
-
-// ─── Info Item ──────────────────────────────────────────
-
-function InfoItem({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="text-[11px] text-muted-foreground/40">{label}</p>
-      <div className="text-[13px] text-foreground mt-0.5">{children}</div>
+    <div className="bg-card border border-border/60 rounded-xl overflow-hidden">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-border/40">
+        {Icon && <Icon className="size-3.5 text-muted-foreground/50" />}
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/60">
+          {title}
+        </h3>
+      </div>
+      <div className="px-5 py-4">{children}</div>
     </div>
   )
 }
 
-// ─── Page ───────────────────────────────────────────────
+function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-2.5 border-b border-border/30 last:border-0">
+      <span className="text-[11px] text-muted-foreground/50 shrink-0">{label}</span>
+      <div className="text-[13px] text-foreground text-right">{children}</div>
+    </div>
+  )
+}
+
+// --- Page ---------------------------------------------------
 
 export default function CallDetailPage() {
   const { id } = useParams({ from: "/_dashboard/calls_/$id" })
@@ -276,228 +264,204 @@ export default function CallDetailPage() {
   const isLoading = callQuery.isLoading
 
   const extracted = call?.extracted_data ?? {}
-  const extractedEntries = Object.entries(extracted).filter(
-    ([, v]) => v != null && v !== ""
-  )
+  const extractedEntries = Object.entries(extracted).filter(([, v]) => v != null && v !== "")
 
   return (
-    <div className="space-y-8">
-      {/* Back navigation */}
+    <div className="space-y-6">
+      {/* Back */}
       <Link
         to="/calls"
-        className="inline-flex items-center gap-1 text-[13px] text-muted-foreground/40 hover:text-foreground transition-colors duration-150 cursor-pointer"
+        className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground/50 hover:text-foreground transition-colors cursor-pointer"
       >
         <ChevronLeft className="size-3.5" />
-        Calls
+        Back to Calls
       </Link>
 
-      {/* Not found state */}
+      {/* Not found */}
       {!isLoading && !call && (
-        <div className="flex flex-col items-center justify-center py-24 gap-4">
-          <AlertCircle className="size-10 text-muted-foreground/15" strokeWidth={1.5} />
+        <div className="flex flex-col items-center justify-center py-24 gap-3">
+          <AlertCircle className="size-8 text-muted-foreground/15" strokeWidth={1.5} />
           <p className="text-[14px] text-muted-foreground/40">Call not found</p>
         </div>
       )}
 
-      {/* Main content */}
       {(isLoading || call) && (
-        <div className="space-y-8">
-          {/* Hero section */}
+        <>
+          {/* Hero card */}
           {isLoading ? (
             <HeroSkeleton />
           ) : call ? (
-            <div>
-              {/* Phone + inline badges */}
-              <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-xl font-semibold tracking-[-0.03em]">
-                  {call.caller_phone ?? "Unknown caller"}
-                </h1>
-                {call.outcome && (
-                  <span
-                    className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${
-                      outcomeStyles[call.outcome] ?? "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {formatLabel(call.outcome)}
-                  </span>
-                )}
-                <span
-                  className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${
-                    statusStyles[call.status] ?? "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {formatLabel(call.status)}
-                </span>
-              </div>
+            <div className="bg-card border border-border/60 rounded-xl p-6">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <h1 className="text-xl font-semibold tracking-[-0.04em]">
+                      {call.caller_phone ?? "Unknown caller"}
+                    </h1>
+                    {call.outcome && (
+                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${outcomeStyles[call.outcome] ?? "bg-muted text-muted-foreground"}`}>
+                        {formatLabel(call.outcome)}
+                      </span>
+                    )}
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${statusStyles[call.status] ?? "bg-muted text-muted-foreground"}`}>
+                      {formatLabel(call.status)}
+                    </span>
+                  </div>
 
-              {/* Meta line */}
-              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground/30 mt-2">
-                <span className="tabular-nums">{formatDuration(call.duration_secs)}</span>
-                <span>&middot;</span>
-                <span>{call.language_detected === "hi" ? "Hindi" : "English"}</span>
-                <span>&middot;</span>
-                <span className="tabular-nums">{formatDateTime(call.started_at ?? call.created_at)}</span>
-              </div>
+                  <div className="flex items-center gap-3 mt-2 text-[12px] text-muted-foreground/45">
+                    <span className="flex items-center gap-1.5">
+                      <Clock className="size-3" />
+                      <span className="tabular-nums">{formatDuration(call.duration_secs)}</span>
+                    </span>
+                    <span>·</span>
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="size-3" />
+                      <span className="tabular-nums">{formatDateTime(call.started_at ?? call.created_at)}</span>
+                    </span>
+                    {call.language_detected && (
+                      <>
+                        <span>·</span>
+                        <span>{call.language_detected === "hi" ? "Hindi" : "English"}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
 
-              {/* AI summary */}
-              {call.summary && (
-                <p className="text-[14px] text-muted-foreground/60 leading-relaxed mt-4 max-w-2xl">
-                  {call.summary}
-                </p>
-              )}
-
-              {/* Mark as handled */}
-              {call.status !== "completed" && (
-                <div className="flex items-center gap-3 mt-5">
+                {call.status !== "completed" && (
                   <button
                     onClick={() => handleMutation.mutate()}
                     disabled={handleMutation.isPending}
-                    className="inline-flex items-center gap-2 bg-foreground text-background rounded-xl h-9 px-5 text-[13px] font-medium cursor-pointer hover:opacity-85 transition-opacity disabled:opacity-50"
+                    className="inline-flex items-center gap-2 bg-foreground text-background rounded-lg h-9 px-4 text-[13px] font-medium cursor-pointer hover:opacity-85 transition-opacity disabled:opacity-50 shrink-0"
                   >
                     <CheckCircle2 className="size-3.5" />
-                    {handleMutation.isPending ? "Marking\u2026" : "Mark as handled"}
+                    {handleMutation.isPending ? "Marking..." : "Mark handled"}
                   </button>
-                  {handleMutation.isSuccess && (
-                    <span className="text-[12px] text-emerald-700">Done</span>
-                  )}
-                </div>
+                )}
+                {handleMutation.isSuccess && (
+                  <span className="text-[12px] text-emerald-700 font-medium">Marked as handled</span>
+                )}
+              </div>
+
+              {call.summary && (
+                <p className="text-[14px] text-muted-foreground/65 leading-relaxed mt-4 max-w-2xl border-t border-border/40 pt-4">
+                  {call.summary}
+                </p>
               )}
             </div>
           ) : null}
 
           {/* Two-column layout */}
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_300px]">
-            {/* Left column — Transcript */}
-            <div className="space-y-5">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
+            {/* Transcript */}
+            <div>
               {isLoading ? (
-                <TranscriptSkeleton />
+                <CardSkeleton rows={4} />
               ) : call?.transcript && call.transcript.length > 0 ? (
-                <>
-                  <SectionLabel>Conversation</SectionLabel>
+                <DetailCard title="Conversation" icon={Phone}>
                   <div className="space-y-4">
                     {call.transcript.map((turn: TranscriptTurn, i: number) => (
                       <ChatBubble key={i} turn={turn} />
                     ))}
                   </div>
-                </>
+                </DetailCard>
               ) : !isLoading && call ? (
-                <>
-                  <SectionLabel>Conversation</SectionLabel>
-                  <div className="flex flex-col items-center py-16 gap-4">
-                    <FileText className="size-10 text-muted-foreground/15" strokeWidth={1.5} />
-                    <p className="text-[13px] text-muted-foreground/30">No transcript available</p>
+                <DetailCard title="Conversation" icon={Phone}>
+                  <div className="flex flex-col items-center py-12 gap-3">
+                    <FileText className="size-8 text-muted-foreground/15" strokeWidth={1.5} />
+                    <p className="text-[13px] text-muted-foreground/35">No transcript available</p>
                   </div>
-                </>
+                </DetailCard>
               ) : null}
             </div>
 
-            {/* Right column — Details sidebar */}
-            <div className="space-y-8">
+            {/* Sidebar */}
+            <div className="space-y-4">
               {isLoading ? (
-                <SidebarSkeleton />
+                <>
+                  <CardSkeleton rows={3} />
+                  <CardSkeleton rows={3} />
+                </>
               ) : (
                 <>
                   {/* Extracted data */}
                   {extractedEntries.length > 0 && (
-                    <div className="space-y-4">
-                      <SectionLabel>Details</SectionLabel>
-                      <div className="space-y-3">
-                        {extractedEntries.map(([key, value]) => (
-                          <InfoItem key={key} label={formatLabel(key)}>
-                            {String(value)}
-                          </InfoItem>
-                        ))}
-                      </div>
-                    </div>
+                    <DetailCard title="Call details">
+                      {extractedEntries.map(([key, value]) => (
+                        <InfoRow key={key} label={formatLabel(key)}>
+                          {String(value)}
+                        </InfoRow>
+                      ))}
+                    </DetailCard>
                   )}
 
-                  {/* Patient section */}
+                  {/* Caller / lead */}
                   {leadQuery.isLoading ? (
-                    <div className="space-y-3">
-                      <div className="h-2.5 w-14 bg-muted/40 animate-pulse rounded-lg" />
-                      <div className="h-3 w-28 bg-muted/50 animate-pulse rounded-lg" />
-                      <div className="h-3 w-24 bg-muted/50 animate-pulse rounded-lg" />
-                    </div>
+                    <CardSkeleton rows={3} />
                   ) : lead ? (
-                    <div className="space-y-4">
-                      <SectionLabel>Patient</SectionLabel>
-                      <div className="space-y-3">
-                        <InfoItem label="Name">{lead.name ?? "Unknown"}</InfoItem>
-                        <InfoItem label="Phone">
-                          <span className="tabular-nums">{lead.phone}</span>
-                        </InfoItem>
-                        {lead.service_needed && (
-                          <InfoItem label="Service needed">{lead.service_needed}</InfoItem>
-                        )}
-                        <InfoItem label="Urgency">
-                          <span
-                            className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${
-                              urgencyStyles[lead.urgency] ?? "bg-muted text-muted-foreground"
-                            }`}
-                          >
-                            {lead.urgency}
-                          </span>
-                        </InfoItem>
-                        {lead.notes && (
-                          <InfoItem label="Notes">
-                            <span className="text-muted-foreground/60">{lead.notes}</span>
-                          </InfoItem>
-                        )}
-                      </div>
-                    </div>
+                    <DetailCard title="Caller" icon={Phone}>
+                      <InfoRow label="Name">{lead.name ?? "Unknown"}</InfoRow>
+                      <InfoRow label="Phone">
+                        <a href={`tel:${lead.phone}`} className="tabular-nums hover:text-foreground/70 transition-colors">
+                          {lead.phone}
+                        </a>
+                      </InfoRow>
+                      {lead.service_needed && (
+                        <InfoRow label="Service">{lead.service_needed}</InfoRow>
+                      )}
+                      <InfoRow label="Urgency">
+                        <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${urgencyStyles[lead.urgency] ?? "bg-muted text-muted-foreground"}`}>
+                          {lead.urgency}
+                        </span>
+                      </InfoRow>
+                      {lead.notes && (
+                        <InfoRow label="Notes">
+                          <span className="text-muted-foreground/60 text-right">{lead.notes}</span>
+                        </InfoRow>
+                      )}
+                    </DetailCard>
                   ) : null}
 
-                  {/* Appointment section */}
+                  {/* Appointment */}
                   {appointmentQuery.isLoading ? (
-                    <div className="space-y-3">
-                      <div className="h-2.5 w-20 bg-muted/40 animate-pulse rounded-lg" />
-                      <div className="h-3 w-32 bg-muted/50 animate-pulse rounded-lg" />
-                      <div className="h-3 w-28 bg-muted/50 animate-pulse rounded-lg" />
-                    </div>
+                    <CardSkeleton rows={3} />
                   ) : appointment ? (
-                    <div className="space-y-4">
-                      <SectionLabel>Appointment</SectionLabel>
-                      <div className="space-y-3">
-                        {appointment.service_type && (
-                          <InfoItem label="Service">{appointment.service_type}</InfoItem>
-                        )}
-                        <InfoItem label="Date / Time">
-                          <span className="tabular-nums">{formatDateTime(appointment.scheduled_start)}</span>
-                        </InfoItem>
-                        <InfoItem label="Status">
-                          <span
-                            className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${
-                              appointment.status === "confirmed"
-                                ? "bg-emerald-500/10 text-emerald-700"
-                                : appointment.status === "cancelled" || appointment.status === "no_show"
-                                  ? "bg-red-500/10 text-red-700"
-                                  : "bg-muted text-muted-foreground"
-                            }`}
-                          >
-                            {formatLabel(appointment.status)}
-                          </span>
-                        </InfoItem>
-                        {appointment.notes && (
-                          <InfoItem label="Notes">
-                            <span className="text-muted-foreground/60">{appointment.notes}</span>
-                          </InfoItem>
-                        )}
-                      </div>
-                    </div>
+                    <DetailCard title="Appointment" icon={Calendar}>
+                      {appointment.service_type && (
+                        <InfoRow label="Service">{appointment.service_type}</InfoRow>
+                      )}
+                      <InfoRow label="Time">
+                        <span className="tabular-nums">{formatDateTime(appointment.scheduled_start)}</span>
+                      </InfoRow>
+                      <InfoRow label="Status">
+                        <span className={`inline-block text-[10px] font-medium px-2 py-0.5 rounded-full capitalize ${
+                          appointment.status === "confirmed"
+                            ? "bg-emerald-500/10 text-emerald-700"
+                            : appointment.status === "cancelled" || appointment.status === "no_show"
+                              ? "bg-red-500/10 text-red-700"
+                              : "bg-muted text-muted-foreground"
+                        }`}>
+                          {formatLabel(appointment.status)}
+                        </span>
+                      </InfoRow>
+                      {appointment.notes && (
+                        <InfoRow label="Notes">
+                          <span className="text-muted-foreground/60 text-right">{appointment.notes}</span>
+                        </InfoRow>
+                      )}
+                    </DetailCard>
                   ) : null}
 
-                  {/* Audio player */}
+                  {/* Recording */}
                   {call?.recording_url && (
-                    <div className="space-y-4">
-                      <SectionLabel>Recording</SectionLabel>
+                    <DetailCard title="Recording">
                       <AudioPlayer src={call.recording_url} />
-                    </div>
+                    </DetailCard>
                   )}
                 </>
               )}
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   )

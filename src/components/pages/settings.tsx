@@ -7,7 +7,7 @@ import type { Clinic, ClinicSettings as ClinicSettingsType, ClinicService, Clini
 
 // ─── Constants ─────────────────────────────────────────
 
-const TABS = ["Clinic Info", "Services", "AI Assistant", "Account"] as const
+const TABS = ["Business Info", "Services", "AI Assistant", "Account"] as const
 type Tab = (typeof TABS)[number]
 
 const DAY_ORDER = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const
@@ -258,18 +258,18 @@ function ClinicInfoTab({
         <SectionHeading>General</SectionHeading>
         <div className="space-y-5">
           <div>
-            <label className={LABEL_CLASS}>Doctor Name</label>
+            <label className={LABEL_CLASS}>Owner / Manager Name</label>
             <input
               type="text"
               value={settings.doctor_name ?? ""}
               onChange={(e) => onSettingsChange({ doctor_name: e.target.value })}
-              placeholder="Dr. Sharma"
+              placeholder="John Smith"
               className={INPUT_CLASS}
             />
           </div>
 
           <div>
-            <label className={LABEL_CLASS}>Clinic Name</label>
+            <label className={LABEL_CLASS}>Business Name</label>
             <div className="h-10 flex items-center text-[14px] text-muted-foreground/50 border-b border-border/20">
               {clinic.name}
             </div>
@@ -284,7 +284,7 @@ function ClinicInfoTab({
               placeholder="123 Main St"
               className={INPUT_CLASS}
             />
-            <p className={HINT_CLASS}>Patients will hear this when asking for directions</p>
+            <p className={HINT_CLASS}>Callers will hear this when asking for directions</p>
           </div>
 
           <div>
@@ -293,10 +293,10 @@ function ClinicInfoTab({
               type="text"
               value={settings.landmark ?? ""}
               onChange={(e) => onSettingsChange({ landmark: e.target.value })}
-              placeholder="Near City Mall"
+              placeholder="Next to Walmart on 5th Ave"
               className={INPUT_CLASS}
             />
-            <p className={HINT_CLASS}>Helps patients find your clinic more easily</p>
+            <p className={HINT_CLASS}>Helps callers find your location more easily</p>
           </div>
 
           <div>
@@ -305,7 +305,7 @@ function ClinicInfoTab({
               type="text"
               value={settings.city ?? ""}
               onChange={(e) => onSettingsChange({ city: e.target.value })}
-              placeholder="Mumbai"
+              placeholder="Austin, TX"
               className={INPUT_CLASS}
             />
           </div>
@@ -316,10 +316,10 @@ function ClinicInfoTab({
               type="text"
               value={phoneDisplay}
               onChange={(e) => onPhoneDisplayChange(e.target.value)}
-              placeholder="+91 98765 43210"
+              placeholder="+1 (512) 555-1234"
               className={INPUT_CLASS}
             />
-            <p className={HINT_CLASS}>The number patients see when Orvia calls them back</p>
+            <p className={HINT_CLASS}>The number callers see when Orvia calls them back</p>
           </div>
         </div>
       </div>
@@ -428,7 +428,7 @@ function ServicesTab({
                     type="text"
                     value={svc.name}
                     onChange={(e) => updateService(i, { name: e.target.value })}
-                    placeholder="Teeth Cleaning"
+                    placeholder="Drain Cleaning"
                     className={INPUT_CLASS}
                   />
                 </div>
@@ -452,7 +452,7 @@ function ServicesTab({
                     placeholder="500-1500"
                     className={INPUT_CLASS}
                   />
-                  <p className={HINT_CLASS}>Orvia mentions this range when patients ask about cost</p>
+                  <p className={HINT_CLASS}>Orvia mentions this range when callers ask about cost</p>
                 </div>
               </div>
 
@@ -481,8 +481,8 @@ function ServicesTab({
                 </label>
                 <p className={HINT_CLASS}>
                   {svc.can_book_directly
-                    ? "Patients can book this treatment directly over the phone"
-                    : "When OFF, Orvia will book a consultation instead of the treatment"}
+                    ? "Callers can book this service directly over the phone"
+                    : "When OFF, Orvia will book a consultation instead of the service"}
                 </p>
 
                 {!svc.can_book_directly && (
@@ -492,7 +492,7 @@ function ServicesTab({
                       type="text"
                       value={svc.note ?? ""}
                       onChange={(e) => updateService(i, { note: e.target.value })}
-                      placeholder="Please visit for a consultation first"
+                      placeholder="We need to assess the job in person before booking"
                       className={INPUT_CLASS}
                     />
                   </div>
@@ -566,7 +566,7 @@ function AIAssistantTab({
               placeholder="Orvia"
               className={INPUT_CLASS}
             />
-            <p className={HINT_CLASS}>The name your AI assistant uses when greeting patients</p>
+            <p className={HINT_CLASS}>The name your AI assistant uses when answering calls</p>
           </div>
 
           <div>
@@ -610,7 +610,7 @@ function AIAssistantTab({
             const lines = e.target.value.split("\n")
             onSettingsChange({ special_instructions: lines })
           }}
-          placeholder={"Always greet the patient by name\nNever discuss pricing over the phone\nOffer to schedule a callback if busy"}
+          placeholder={"Always ask for the caller's ZIP code first\nNever give exact prices, always say 'starting from'\nOffer to schedule a callback if lines are busy"}
           className={TEXTAREA_CLASS}
           rows={4}
         />
@@ -620,7 +620,7 @@ function AIAssistantTab({
       {/* Emergency Protocol */}
       <div>
         <SectionHeading>Emergency Protocol</SectionHeading>
-        <p className={`${HINT_CLASS} mb-4`}>What should Orvia do when a patient reports an emergency?</p>
+        <p className={`${HINT_CLASS} mb-4`}>What should Orvia do when a caller reports an emergency?</p>
         <div className="space-y-5">
           <div>
             <label className={LABEL_CLASS}>During Hours</label>
@@ -631,7 +631,7 @@ function AIAssistantTab({
                   emergency_protocol: { ...emergency, during_hours: e.target.value },
                 })
               }
-              placeholder="Transfer to doctor immediately, take patient name and symptoms"
+              placeholder="Dispatch someone immediately, take caller's name and address"
               className={TEXTAREA_CLASS}
               rows={2}
             />
@@ -645,7 +645,7 @@ function AIAssistantTab({
                   emergency_protocol: { ...emergency, after_hours: e.target.value },
                 })
               }
-              placeholder="Advise to visit nearest emergency room, send SMS to doctor"
+              placeholder="Take their info and assure them someone will call back within 30 min"
               className={TEXTAREA_CLASS}
               rows={2}
             />
@@ -744,7 +744,7 @@ function tabIsDirty(
   if (!original) return false
 
   switch (tab) {
-    case "Clinic Info": {
+    case "Business Info": {
       const clinicFields = ["doctor_name", "address", "landmark", "city", "operating_hours"] as const
       for (const field of clinicFields) {
         if (JSON.stringify(editSettings[field]) !== JSON.stringify(original[field])) return true
@@ -909,7 +909,7 @@ export default function SettingsPage() {
       <div className="pb-1">
         <h1 className="text-xl font-semibold tracking-[-0.03em]">Settings</h1>
         <p className="text-[12px] text-muted-foreground/30 mt-1">
-          Configure your clinic and AI assistant
+          Configure your business and AI assistant
         </p>
       </div>
 
@@ -948,7 +948,7 @@ export default function SettingsPage() {
         </div>
       ) : (
         <>
-          {activeTab === "Clinic Info" && (
+          {activeTab === "Business Info" && (
             <ClinicInfoTab
               clinic={clinic}
               settings={editSettings}

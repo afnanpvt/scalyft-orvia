@@ -4,14 +4,17 @@ import {
   Phone,
   Calendar,
   AlertTriangle,
-  ChevronRight,
+  TrendingUp,
   ArrowRight,
+  CheckCircle2,
+  Circle,
 } from "lucide-react"
 import {
   Bar,
   BarChart,
   ResponsiveContainer,
   XAxis,
+  YAxis,
   Tooltip,
 } from "recharts"
 
@@ -32,8 +35,8 @@ function timeAgo(iso: string): string {
 }
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-IN", {
-    hour: "2-digit",
+  return new Date(iso).toLocaleTimeString("en-US", {
+    hour: "numeric",
     minute: "2-digit",
   })
 }
@@ -47,7 +50,7 @@ function buildCallSummary(call: Call): string {
     appointment_booked: "Appointment booked",
     lead_captured: "Lead captured",
     info_given: "Information provided",
-    transferred: "Transferred to clinic",
+    transferred: "Transferred to owner",
     missed: "Missed",
   }
   const outcome = call.outcome ? outcomeMap[call.outcome] ?? call.outcome.replace(/_/g, " ") : ""
@@ -65,120 +68,136 @@ function outcomeDot(outcome: Call["outcome"]): string {
   }
 }
 
+function outcomeBg(outcome: Call["outcome"]): string {
+  switch (outcome) {
+    case "appointment_booked": return "text-emerald-700"
+    case "lead_captured": return "text-blue-600"
+    case "transferred": return "text-amber-700"
+    case "missed": return "text-red-600"
+    default: return "text-muted-foreground/60"
+  }
+}
+
 // --- Skeletons ----------------------------------------------
 
 function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`bg-muted/30 animate-pulse rounded ${className}`} />
+  return <div className={`bg-muted/40 animate-pulse rounded-lg ${className}`} />
 }
 
 function PageSkeleton() {
   return (
-    <div className="space-y-10">
-      <div className="space-y-1">
-        <Skeleton className="h-5 w-96" />
-        <Skeleton className="h-3 w-48 mt-2" />
+    <div className="space-y-8">
+      <div className="space-y-2">
+        <Skeleton className="h-7 w-72" />
+        <Skeleton className="h-4 w-52" />
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <Skeleton className="h-24 rounded-2xl" />
-        <Skeleton className="h-24 rounded-2xl" />
-        <Skeleton className="h-24 rounded-2xl" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Skeleton className="h-28 rounded-xl" />
+        <Skeleton className="h-28 rounded-xl" />
+        <Skeleton className="h-28 rounded-xl" />
       </div>
-      <div className="space-y-3">
-        <Skeleton className="h-2 w-20" />
-        {[1, 2, 3, 4].map((i) => (
-          <Skeleton key={i} className="h-14 rounded-xl" />
-        ))}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <Skeleton className="lg:col-span-3 h-64 rounded-xl" />
+        <Skeleton className="lg:col-span-2 h-64 rounded-xl" />
       </div>
     </div>
   )
 }
 
-// --- Confidence Metrics -------------------------------------
+// --- Metric Card --------------------------------------------
 
-function MetricBlock({
+function MetricCard({
   value,
   label,
+  sublabel,
   accent,
+  icon: Icon,
 }: {
   value: number | string
   label: string
+  sublabel?: string
   accent?: boolean
+  icon?: React.ElementType
 }) {
   return (
     <div
-      className={`rounded-2xl px-6 py-5 ${
+      className={`rounded-xl px-5 py-5 border ${
         accent
-          ? "bg-foreground text-background"
-          : "bg-card ring-1 ring-border/10"
+          ? "bg-foreground text-background border-foreground"
+          : "bg-card border-border/60"
       }`}
     >
+      {Icon && (
+        <div className={`mb-3 ${accent ? "text-background/60" : "text-muted-foreground/40"}`}>
+          <Icon className="size-4" />
+        </div>
+      )}
       <p
-        className={`text-4xl font-light tracking-[-0.04em] tabular-nums ${
+        className={`text-4xl font-light tracking-[-0.05em] tabular-nums leading-none ${
           accent ? "text-background" : "text-foreground"
         }`}
       >
         {value}
       </p>
       <p
-        className={`text-[10px] font-medium uppercase tracking-[0.12em] mt-1 ${
-          accent ? "text-background/70" : "text-muted-foreground/65"
+        className={`text-[11px] font-semibold uppercase tracking-[0.1em] mt-2 ${
+          accent ? "text-background/60" : "text-muted-foreground/50"
         }`}
       >
         {label}
       </p>
+      {sublabel && (
+        <p className={`text-[11px] mt-1 ${accent ? "text-background/40" : "text-muted-foreground/35"}`}>
+          {sublabel}
+        </p>
+      )}
     </div>
   )
 }
 
-// --- Today's Appointments -----------------------------------
+// --- Appointment Row ----------------------------------------
 
 function AppointmentRow({ apt, isNext }: { apt: Appointment; isNext?: boolean }) {
   const isPast = new Date(apt.scheduled_start) < new Date()
 
   return (
     <div
-      className={`flex items-center gap-4 py-3.5 border-b border-border/10 last:border-0 ${
-        isNext ? "bg-accent/30 -mx-3 px-3 rounded-lg" : ""
+      className={`flex items-center gap-4 py-3 border-b border-border/40 last:border-0 ${
+        isNext ? "bg-emerald-500/5 -mx-4 px-4 rounded-lg" : ""
       } ${isPast ? "opacity-40" : ""}`}
     >
-      {/* Time */}
-      <div className="w-16 shrink-0">
-        <span className="text-[13px] font-medium tabular-nums">
-          {formatTime(apt.scheduled_start)}
-        </span>
+      <div className="w-14 shrink-0 text-right">
+        <span className="text-[13px] font-medium tabular-nums">{formatTime(apt.scheduled_start)}</span>
         {isNext && (
-          <span className="block text-[9px] font-medium uppercase tracking-[0.1em] text-emerald-600 mt-0.5">
+          <span className="block text-[9px] font-semibold uppercase tracking-[0.1em] text-emerald-600 mt-0.5">
             Next
           </span>
         )}
       </div>
 
-      {/* Patient info */}
+      <div className={`size-1.5 rounded-full shrink-0 ${
+        apt.status === "confirmed" ? "bg-emerald-500" :
+        apt.status === "completed" ? "bg-muted-foreground/30" :
+        apt.status === "no_show" ? "bg-red-500" : "bg-amber-500"
+      }`} />
+
       <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium truncate">
-          {apt.patient_name}
-        </p>
-        <div className="flex items-center gap-2 mt-0.5">
-          {apt.service_type && (
-            <span className="text-[11px] text-muted-foreground/60 truncate">
-              {apt.service_type}
-            </span>
-          )}
-        </div>
+        <p className="text-[13px] font-medium truncate leading-tight">{apt.patient_name}</p>
+        {apt.service_type && (
+          <p className="text-[11px] text-muted-foreground/50 truncate mt-0.5">{apt.service_type}</p>
+        )}
       </div>
 
-      {/* Contact — so doctor can call if patient is late */}
       {apt.patient_phone && (
         <a
           href={`tel:${apt.patient_phone}`}
-          className="text-[11px] tabular-nums text-muted-foreground/60 hover:text-foreground transition-colors cursor-pointer shrink-0"
+          className="text-[11px] tabular-nums text-muted-foreground/40 hover:text-foreground transition-colors shrink-0"
           onClick={(e) => e.stopPropagation()}
         >
           {apt.patient_phone}
         </a>
       )}
 
-      {/* Status */}
       <span
         className={`text-[10px] font-medium px-2 py-0.5 rounded-full capitalize shrink-0 ${
           apt.status === "confirmed"
@@ -196,73 +215,7 @@ function AppointmentRow({ apt, isNext }: { apt: Appointment; isNext?: boolean })
   )
 }
 
-// --- Exception Call Row -------------------------------------
-
-function ExceptionRow({ call }: { call: Call }) {
-  return (
-    <Link
-      to="/calls/$id"
-      params={{ id: call.id }}
-      className="flex items-center gap-3 py-3 border-b border-border/10 last:border-0 hover:bg-accent/20 -mx-1 px-1 rounded-lg transition-colors cursor-pointer"
-    >
-      <AlertTriangle className="size-3.5 text-amber-500 shrink-0" />
-      <div className="min-w-0 flex-1">
-        <p className="text-[13px] truncate">
-          <span className="font-medium">{call.caller_phone ?? "Unknown"}</span>
-          <span className="text-muted-foreground/65"> — </span>
-          <span className="text-muted-foreground/50">
-            {call.status === "transferred"
-              ? "Transferred to clinic"
-              : "Call failed"}
-          </span>
-        </p>
-      </div>
-      <span className="text-[11px] text-muted-foreground/55 tabular-nums shrink-0">
-        {timeAgo(call.started_at ?? call.created_at)}
-      </span>
-    </Link>
-  )
-}
-
-// --- Mini Weekly Chart (supporting context) -----------------
-
-function WeeklyMiniChart({ data }: { data: { date: string; calls: number }[] }) {
-  if (!data.length) return null
-
-  return (
-    <div>
-      <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/55 mb-3">
-        This week
-      </p>
-      <ResponsiveContainer width="100%" height={100}>
-        <BarChart data={data} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-          <XAxis
-            dataKey="date"
-            tickLine={false}
-            axisLine={false}
-            tick={{ fontSize: 10, fill: "var(--muted-foreground)", opacity: 0.25 }}
-            tickMargin={8}
-          />
-          <Tooltip
-            cursor={{ fill: "var(--accent)", opacity: 0.15 }}
-            content={({ active, payload, label }) => {
-              if (!active || !payload?.length) return null
-              return (
-                <div className="bg-popover border border-border/40 rounded-lg px-3 py-2 shadow-sm">
-                  <p className="text-[10px] text-muted-foreground/50 mb-1">{label}</p>
-                  <p className="text-[12px] font-medium tabular-nums">{payload[0].value} calls</p>
-                </div>
-              )
-            }}
-          />
-          <Bar dataKey="calls" fill="var(--foreground)" radius={[3, 3, 0, 0]} barSize={16} opacity={0.15} />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  )
-}
-
-// --- Recent Activity Row ------------------------------------
+// --- Activity Row -------------------------------------------
 
 function ActivityRow({ call }: { call: Call }) {
   const summary = buildCallSummary(call)
@@ -273,21 +226,147 @@ function ActivityRow({ call }: { call: Call }) {
     <Link
       to="/calls/$id"
       params={{ id: call.id }}
-      className="flex items-center gap-3 py-2.5 group hover:bg-accent/15 -mx-1 px-1 rounded-lg transition-colors cursor-pointer"
+      className="flex items-start gap-3 py-2.5 hover:bg-accent/20 -mx-4 px-4 rounded-lg transition-colors cursor-pointer group"
     >
-      <span className={`size-1.5 rounded-full shrink-0 ${outcomeDot(call.outcome)}`} />
-      <p className="text-[12px] min-w-0 flex-1 truncate">
-        {hasArrow ? (
-          <>
-            <span className="font-medium text-foreground">{parts[0].trim()}</span>
-            <span className="text-muted-foreground/55"> → </span>
-            <span className="text-muted-foreground/65">{parts.slice(1).join("→").trim()}</span>
-          </>
-        ) : (
-          <span className="text-muted-foreground/50">{summary}</span>
-        )}
-      </p>
-      <span className="text-[10px] text-muted-foreground/50 tabular-nums shrink-0">
+      <span className={`size-2 rounded-full shrink-0 mt-1.5 ${outcomeDot(call.outcome)}`} />
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] leading-snug">
+          {hasArrow ? (
+            <>
+              <span className="text-foreground/80">{parts[0].trim()}</span>
+              <span className="text-muted-foreground/40 mx-1">→</span>
+              <span className={`font-medium ${outcomeBg(call.outcome)}`}>{parts.slice(1).join("→").trim()}</span>
+            </>
+          ) : (
+            <span className="text-muted-foreground/60">{summary}</span>
+          )}
+        </p>
+      </div>
+      <span className="text-[11px] text-muted-foreground/40 tabular-nums shrink-0 mt-0.5">
+        {timeAgo(call.started_at ?? call.created_at)}
+      </span>
+    </Link>
+  )
+}
+
+// --- Weekly Chart -------------------------------------------
+
+function WeeklyChart({ data }: { data: { date: string; calls: number }[] }) {
+  if (!data.length) return (
+    <div className="flex items-center justify-center h-full">
+      <p className="text-[12px] text-muted-foreground/30">No data yet</p>
+    </div>
+  )
+
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data} margin={{ top: 4, right: 0, left: -24, bottom: 0 }}>
+        <XAxis
+          dataKey="date"
+          tickLine={false}
+          axisLine={false}
+          tick={{ fontSize: 10, fill: "var(--muted-foreground)", opacity: 0.4 }}
+          tickMargin={8}
+        />
+        <YAxis
+          tickLine={false}
+          axisLine={false}
+          tick={{ fontSize: 10, fill: "var(--muted-foreground)", opacity: 0.4 }}
+          allowDecimals={false}
+        />
+        <Tooltip
+          cursor={{ fill: "var(--accent)", opacity: 0.2, radius: 4 }}
+          content={({ active, payload, label }) => {
+            if (!active || !payload?.length) return null
+            return (
+              <div className="bg-popover border border-border rounded-lg px-3 py-2 shadow-lg shadow-black/8">
+                <p className="text-[10px] text-muted-foreground/50 mb-0.5">{label}</p>
+                <p className="text-[13px] font-semibold tabular-nums">{payload[0].value} calls</p>
+              </div>
+            )
+          }}
+        />
+        <Bar dataKey="calls" fill="var(--foreground)" radius={[4, 4, 0, 0]} barSize={20} opacity={0.8} />
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+// --- Section Card -------------------------------------------
+
+function SectionCard({
+  title,
+  icon: Icon,
+  count,
+  action,
+  children,
+  className = "",
+}: {
+  title: string
+  icon?: React.ElementType
+  count?: number
+  action?: React.ReactNode
+  children: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className={`bg-card border border-border/60 rounded-xl overflow-hidden ${className}`}>
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border/40">
+        <div className="flex items-center gap-2">
+          {Icon && <Icon className="size-3.5 text-muted-foreground/50" />}
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/60">
+            {title}
+          </h3>
+          {count != null && (
+            <span className="text-[11px] tabular-nums text-muted-foreground/40">{count}</span>
+          )}
+        </div>
+        {action}
+      </div>
+      <div className="px-4 py-3">{children}</div>
+    </div>
+  )
+}
+
+// --- Greeting -----------------------------------------------
+
+function getGreeting(name: string | null): string {
+  const firstName = name?.split(" ")[0] ?? null
+  const greetings = firstName
+    ? [
+        `Good to see you, ${firstName}`,
+        `Hey ${firstName}`,
+        `Welcome back, ${firstName}`,
+        `Hi ${firstName}`,
+      ]
+    : ["Welcome back", "Good to see you", "Hey there"]
+
+  const dayOfYear = Math.floor(
+    (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
+  )
+  return greetings[dayOfYear % greetings.length]
+}
+
+// --- Exception Row ------------------------------------------
+
+function ExceptionRow({ call }: { call: Call }) {
+  return (
+    <Link
+      to="/calls/$id"
+      params={{ id: call.id }}
+      className="flex items-center gap-3 py-2.5 hover:bg-accent/20 -mx-4 px-4 rounded-lg transition-colors cursor-pointer"
+    >
+      <AlertTriangle className="size-3.5 text-amber-500 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="text-[13px] truncate">
+          <span className="font-medium">{call.caller_phone ?? "Unknown"}</span>
+          <span className="text-muted-foreground/40 mx-1">—</span>
+          <span className="text-muted-foreground/60">
+            {call.status === "transferred" ? "Transferred to owner" : "Call failed"}
+          </span>
+        </p>
+      </div>
+      <span className="text-[11px] text-muted-foreground/40 tabular-nums shrink-0">
         {timeAgo(call.started_at ?? call.created_at)}
       </span>
     </Link>
@@ -295,33 +374,6 @@ function ActivityRow({ call }: { call: Call }) {
 }
 
 // --- Page ---------------------------------------------------
-
-function getGreeting(name: string | null): string {
-  const firstName = name?.split(" ")[0] ?? null
-
-  // Neutral, warm greetings that work any time of day
-  const greetings = firstName
-    ? [
-        `Welcome back, ${firstName}`,
-        `Hey ${firstName}, here's your update`,
-        `Hi ${firstName}, here's what's happening`,
-        `${firstName}, here's your overview`,
-        `Here's your day, ${firstName}`,
-      ]
-    : [
-        "Welcome back",
-        "Here's your update",
-        "Here's what's happening",
-        "Your overview",
-        "Here's your day",
-      ]
-
-  // Pick based on day of year so it changes daily but stays consistent within a day
-  const dayOfYear = Math.floor(
-    (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
-  )
-  return greetings[dayOfYear % greetings.length]
-}
 
 export default function OverviewPage() {
   const { profile } = useAuth()
@@ -356,70 +408,92 @@ export default function OverviewPage() {
   const exceptions = d?.exceptionCalls ?? []
   const recentCalls = d?.recentCalls ?? []
 
-  // Personalized greeting + status
   const greeting = getGreeting(profile.fullName)
-  let status: string
+  let statusLine: string
   if (calls === 0) {
-    status = "No calls yet today. Orvia is ready and listening."
+    statusLine = "Orvia is ready and listening. No calls yet today."
   } else {
-    const parts = [`Orvia handled ${calls} call${calls !== 1 ? "s" : ""} today`]
+    const parts = [`${calls} call${calls !== 1 ? "s" : ""} handled today`]
     if (appointments > 0) parts.push(`${appointments} appointment${appointments !== 1 ? "s" : ""} booked`)
-    status = parts.join(". ") + "."
+    if (leads > 0) parts.push(`${leads} lead${leads !== 1 ? "s" : ""} captured`)
+    statusLine = parts.join(" · ")
   }
 
+  const weeklyData = (weekly.data ?? []).map((d) => ({ date: d.date, calls: d.calls }))
+
   return (
-    <div className="space-y-10">
-      {/* Personalized greeting + briefing */}
+    <div className="space-y-8">
+      {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold tracking-[-0.03em]">
+        <h1 className="text-2xl font-semibold tracking-[-0.04em] text-foreground">
           {greeting}
         </h1>
-        <p className="text-[14px] text-muted-foreground/50 leading-relaxed mt-2 tabular-nums">
-          {status}
-        </p>
-        <p className="text-[11px] text-muted-foreground/50 mt-1">
-          {new Date().toLocaleDateString("en-IN", {
-            weekday: "long",
-            month: "long",
-            day: "numeric",
-          })}
+        <p className="text-[13px] text-muted-foreground/60 mt-1">
+          {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+          {" · "}
+          {statusLine}
         </p>
       </div>
 
-      {/* Confidence metrics */}
+      {/* Metric cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <MetricBlock value={calls} label="Calls handled" accent />
-        <MetricBlock value={appointments} label="Appointments" />
-        <MetricBlock value={leads} label="Leads captured" />
+        <MetricCard
+          value={calls}
+          label="Calls handled"
+          sublabel="Today"
+          accent
+          icon={Phone}
+        />
+        <MetricCard
+          value={appointments}
+          label="Appointments"
+          sublabel="Booked today"
+          icon={Calendar}
+        />
+        <MetricCard
+          value={leads}
+          label="Leads captured"
+          sublabel="Awaiting follow-up"
+          icon={TrendingUp}
+        />
       </div>
 
-      {/* Two-column: Appointments + Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-        {/* Left: Today's appointments (3 cols) */}
-        <div className="lg:col-span-3">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/55">
-              <Calendar className="size-3 inline-block mr-1.5 -mt-px" />
-              Today's appointments
-            </p>
-            {todaysAppointments.length > 0 && (
-              <span className="text-[11px] tabular-nums text-muted-foreground/55">
-                {todaysAppointments.length}
-              </span>
-            )}
+      {/* Exceptions banner — only when needed */}
+      {exceptions.length > 0 && (
+        <div className="bg-amber-500/8 border border-amber-500/20 rounded-xl px-5 py-4">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="size-3.5 text-amber-600" />
+            <span className="text-[11px] font-semibold uppercase tracking-[0.1em] text-amber-700">
+              Needs review ({exceptions.length})
+            </span>
           </div>
-          {todaysAppointments.length === 0 ? (
-            <p className="text-[13px] text-muted-foreground/55 py-6">
-              No appointments scheduled today.
-            </p>
-          ) : (
-            <div>
-              {(() => {
-                // Sort by scheduled time (earliest first) — safety net
+          <div>
+            {exceptions.map((call) => (
+              <ExceptionRow key={call.id} call={call} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Two-column */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
+        {/* Appointments */}
+        <div className="lg:col-span-3">
+          <SectionCard
+            title="Today's appointments"
+            icon={Calendar}
+            count={todaysAppointments.length > 0 ? todaysAppointments.length : undefined}
+          >
+            {todaysAppointments.length === 0 ? (
+              <div className="py-8 flex flex-col items-center gap-2">
+                <Circle className="size-6 text-muted-foreground/15" strokeWidth={1.5} />
+                <p className="text-[13px] text-muted-foreground/40">No appointments scheduled today</p>
+              </div>
+            ) : (
+              (() => {
                 const sorted = [...todaysAppointments].sort(
                   (a, b) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime()
                 )
-                // Find next upcoming appointment (first confirmed one in the future)
                 const now = new Date()
                 const nextIdx = sorted.findIndex(
                   (a) => new Date(a.scheduled_start) > now && a.status === "confirmed"
@@ -427,55 +501,42 @@ export default function OverviewPage() {
                 return sorted.map((apt, i) => (
                   <AppointmentRow key={apt.id} apt={apt} isNext={i === nextIdx} />
                 ))
-              })()}
-            </div>
-          )}
+              })()
+            )}
+          </SectionCard>
         </div>
 
-        {/* Right: Weekly mini chart (2 cols) */}
+        {/* Weekly chart */}
         <div className="lg:col-span-2">
-          <WeeklyMiniChart
-            data={(weekly.data ?? []).map((d) => ({ date: d.date, calls: d.calls }))}
-          />
+          <SectionCard title="This week" icon={TrendingUp} className="h-full">
+            <div className="h-[160px]">
+              <WeeklyChart data={weeklyData} />
+            </div>
+          </SectionCard>
         </div>
       </div>
 
-      {/* Exceptions — only show if there are any */}
-      {exceptions.length > 0 && (
-        <section>
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-amber-600/60 mb-2">
-            <AlertTriangle className="size-3 inline-block mr-1.5 -mt-px" />
-            Needs review ({exceptions.length})
-          </p>
-          <div>
-            {exceptions.map((call) => (
-              <ExceptionRow key={call.id} call={call} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Recent activity feed */}
-      <section>
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/55">
-            <Phone className="size-3 inline-block mr-1.5 -mt-px" />
-            Recent calls
-          </p>
-          {recentCalls.length > 0 && (
+      {/* Recent calls */}
+      <SectionCard
+        title="Recent calls"
+        icon={Phone}
+        action={
+          recentCalls.length > 0 ? (
             <Link
               to="/calls"
-              className="text-[11px] text-muted-foreground/55 hover:text-foreground transition-colors inline-flex items-center gap-1 cursor-pointer"
+              className="text-[11px] font-medium text-muted-foreground/50 hover:text-foreground transition-colors inline-flex items-center gap-1 cursor-pointer"
             >
               View all
               <ArrowRight className="size-3" />
             </Link>
-          )}
-        </div>
+          ) : undefined
+        }
+      >
         {recentCalls.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground/55 py-4">
-            No recent calls.
-          </p>
+          <div className="py-8 flex flex-col items-center gap-2">
+            <Phone className="size-6 text-muted-foreground/15" strokeWidth={1.5} />
+            <p className="text-[13px] text-muted-foreground/40">No calls yet</p>
+          </div>
         ) : (
           <div>
             {recentCalls.map((call) => (
@@ -483,7 +544,15 @@ export default function OverviewPage() {
             ))}
           </div>
         )}
-      </section>
+      </SectionCard>
+
+      {/* Status footer */}
+      <div className="flex items-center gap-2 pb-2">
+        <CheckCircle2 className="size-3.5 text-emerald-500" />
+        <span className="text-[11px] text-muted-foreground/40">
+          Orvia is active and answering calls
+        </span>
+      </div>
     </div>
   )
 }

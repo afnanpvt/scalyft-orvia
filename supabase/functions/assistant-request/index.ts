@@ -45,6 +45,7 @@ interface ClinicSettings {
   slot_duration_default?: number;
   buffer_between_appointments?: number;
   max_appointments_per_day?: number;
+  service_area_zips?: string[];
 }
 
 interface Clinic {
@@ -149,16 +150,21 @@ You are warm, professional, and efficient. You sound like a real person who work
     sections.push(`# Location\n${clinic.name} is located at: ${settings.address}${settings.landmark ? ` (${settings.landmark})` : ""}.`);
   }
 
+  if (settings.service_area_zips?.length) {
+    sections.push(`# Service Area\nWe only serve these ZIP codes in the Austin, TX area: ${settings.service_area_zips.join(", ")}.\n\nAlways ask for the caller's ZIP code early in the conversation. If their ZIP is NOT in this list, say: "I'm sorry, we don't currently serve that area - we're focused on the Austin metro area. I hope you find someone quickly!" Do not book or capture a lead for out-of-area callers.`);
+  }
+
   sections.push(`# How to Handle Calls
 
 ## Caller wants to book a service
-1. Ask what service they need (if not already mentioned)
-2. Ask their preferred date and time
-3. Use the check_availability tool to find open slots
-4. Offer available slots to the caller
-5. Once they pick a slot, ask for their name and phone number
-6. Use the book_appointment tool to confirm
-7. Confirm the booking: "You're all set - [service] on [date] at [time]. We'll see you then."
+1. Ask their ZIP code first to confirm we serve their area
+2. Ask what service they need (if not already mentioned)
+3. Ask their preferred date and time
+4. Use the check_availability tool to find open slots
+5. Offer available slots to the caller
+6. Once they pick a slot, ask for their name and phone number
+7. Use the book_appointment tool to confirm
+8. Confirm the booking: "You're all set - [service] on [date] at [time]. We'll see you then."
 
 ## Caller asking about services or pricing
 - Share the price RANGE, never an exact price. Say "typically ranges from" or "starts from".
@@ -192,7 +198,7 @@ Capture their information using capture_lead, and assure them someone will call 
   return sections.join("\n\n");
 }
 
-function buildTools(clinic: Clinic, n8nBaseUrl: string, webhookSecret: string, supabaseUrl: string) {
+function buildTools(clinic: Clinic, supabaseUrl: string) {
   const { settings } = clinic;
   const edgeFnBase = `${supabaseUrl}/functions/v1`;
 
@@ -218,7 +224,7 @@ function buildTools(clinic: Clinic, n8nBaseUrl: string, webhookSecret: string, s
           required: ["name", "service_needed", "urgency"],
         },
       },
-      server: { url: `${n8nBaseUrl}/webhook/capture-lead`, secret: webhookSecret },
+      server: { url: `${edgeFnBase}/capture-lead?clinic_id=${clinic.id}` },
     },
     {
       type: "function",
@@ -234,7 +240,7 @@ function buildTools(clinic: Clinic, n8nBaseUrl: string, webhookSecret: string, s
           required: ["date"],
         },
       },
-      server: { url: `${edgeFnBase}/check-availability?clinic_id=${clinic.id}`, secret: webhookSecret },
+      server: { url: `${edgeFnBase}/check-availability?clinic_id=${clinic.id}` },
     },
     {
       type: "function",
@@ -253,7 +259,7 @@ function buildTools(clinic: Clinic, n8nBaseUrl: string, webhookSecret: string, s
           required: ["patient_name", "patient_phone", "service_type", "slot"],
         },
       },
-      server: { url: `${n8nBaseUrl}/webhook/book-appointment`, secret: webhookSecret },
+      server: { url: `${edgeFnBase}/book-appointment?clinic_id=${clinic.id}` },
     },
   ];
 
@@ -274,7 +280,8 @@ function buildTools(clinic: Clinic, n8nBaseUrl: string, webhookSecret: string, s
   return tools;
 }
 
-function buildAssistantConfig(clinic: Clinic, n8nBaseUrl: string, webhookSecret: string, supabaseUrl: string) {
+function buildAssistantConfig(clinic: Clinic, supabaseUrl: string) {
+  const edgeFnBase = `${supabaseUrl}/functions/v1`;
   return {
     model: {
       provider: "openai",
@@ -287,9 +294,9 @@ function buildAssistantConfig(clinic: Clinic, n8nBaseUrl: string, webhookSecret:
       voiceId: "rachel",
     },
     firstMessage: buildGreeting(clinic),
-    tools: buildTools(clinic, n8nBaseUrl, webhookSecret, supabaseUrl),
+    tools: buildTools(clinic, supabaseUrl),
     endCallPhrases: ["goodbye", "bye", "thank you", "thanks", "that's all", "no more questions"],
-    serverUrl: `${n8nBaseUrl}/webhook/vapi-events`,
+    serverUrl: `${edgeFnBase}/vapi-events`,
     silenceTimeoutSeconds: 15,
     maxDurationSeconds: 300,
     backgroundSound: "off",
@@ -305,8 +312,6 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const n8nBaseUrl = Deno.env.get("N8N_BASE_URL") ?? "";
-  const webhookSecret = Deno.env.get("N8N_WEBHOOK_SECRET") ?? "";
 
   if (!supabaseUrl || !serviceRoleKey) {
     return new Response(
@@ -325,10 +330,13 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  // Vapi sends phoneNumberId in the assistant-request payload
+  // Vapi sends: { message: { type: "assistant-request", call: { phoneNumberId, ... } } }
+  const msg = body.message as Record<string, unknown> | undefined;
+  const callObj = (msg?.call ?? body.call) as Record<string, unknown> | undefined;
   const phoneNumberId =
-    (body.phoneNumberId as string) ??
-    ((body.call as Record<string, unknown>)?.phoneNumberId as string);
+    (msg?.phoneNumberId as string) ??
+    (callObj?.phoneNumberId as string) ??
+    (body.phoneNumberId as string);
 
   if (!phoneNumberId) {
     return new Response(
@@ -356,7 +364,7 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const assistantConfig = buildAssistantConfig(clinic as Clinic, n8nBaseUrl, webhookSecret, supabaseUrl);
+  const assistantConfig = buildAssistantConfig(clinic as Clinic, supabaseUrl);
 
   return new Response(
     JSON.stringify({ assistant: assistantConfig }),
