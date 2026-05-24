@@ -20,6 +20,7 @@ interface ClinicFAQ {
 interface ClinicSettings {
   greeting?: string;
   doctor_name?: string;
+  business_owner?: string;
   tagline?: string;
   address?: string;
   landmark?: string;
@@ -37,7 +38,11 @@ interface ClinicSettings {
   language_preference?: "english" | "hindi" | "bilingual";
   special_instructions?: string[];
   emergency_number?: string;
-  emergency_protocol?: { during_hours: string; after_hours: string };
+  emergency_protocol?: {
+    during_hours?: string;
+    after_hours?: string;
+    emergency_contact?: string;
+  };
   transfer_number?: string;
   notification_phone?: string;
   calendar_id?: string;
@@ -70,130 +75,179 @@ function capitalize(s: string): string {
 
 function buildGreeting(clinic: Clinic): string {
   const name = clinic.settings.receptionist_name || "Orvia";
-  return `Thank you for calling ${clinic.name}. This is ${name}, how can I help you today?`;
+  return `Hi, ${name} here with ${clinic.name}. How can I help?`;
 }
 
-function buildServiceSection(services: ClinicService[]): string {
+function buildServicesNarrative(services: ClinicService[]): string {
   return services
     .map((s) => {
-      let line = `- **${s.name}**: ${s.description}. Duration: ~${s.duration_minutes} min. Price range: ${s.price_range}.`;
-      if (!s.can_book_directly) {
-        line += ` ${s.note || "Requires consultation first - book a consultation appointment."}`;
-      }
-      if (s.priority === "high") {
-        line += ` Priority: try to book same-day or next available.`;
-      }
-      return line;
+      const price = s.price_range ? `Prices typically range from ${s.price_range} dollars.` : "";
+      const directBook = s.can_book_directly
+        ? "You can book this directly."
+        : `This one needs a tech to take a look first, so book a free estimate. ${s.note ?? ""}`.trim();
+      const priority = s.priority === "high" ? "This is high priority, try to get them in same day or next available." : "";
+      return [`${s.name}: ${s.description}`, `Takes about ${s.duration_minutes} minutes.`, price, directBook, priority]
+        .filter(Boolean)
+        .join(" ");
     })
-    .join("\n");
+    .join("\n\n");
 }
 
-function buildFAQSection(faqs: ClinicFAQ[]): string {
-  return faqs.map((f) => `Q: "${f.question}"\nA: ${f.answer}`).join("\n\n");
+function buildFAQNarrative(faqs: ClinicFAQ[]): string {
+  return faqs.map((f) => `If they ask "${f.question}" — answer with: ${f.answer}`).join("\n");
 }
 
-function buildHoursSection(clinic: Clinic): string {
+function buildHoursNarrative(clinic: Clinic): string {
   const { settings } = clinic;
-  if (settings.operating_hours) {
-    const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
-    const lines = days.map((day) => {
-      const h = settings.operating_hours?.[day];
-      if (!h || h.closed) return `- ${capitalize(day)}: Closed`;
-      let line = `- ${capitalize(day)}: ${h.open} - ${h.close}`;
-      if (h.lunch_break) line += ` (lunch break: ${h.lunch_break})`;
-      return line;
-    });
-    return lines.join("\n");
+  if (!settings.operating_hours) {
+    return settings.hours ?? "We're open Monday through Saturday, seven a.m. to seven p.m. Closed Sundays.";
   }
-  return `Business hours: ${settings.hours || "Mon-Sat 7am-7pm, closed Sunday"}.`;
+  const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+  const open: string[] = [];
+  const closed: string[] = [];
+  for (const day of days) {
+    const h = settings.operating_hours[day];
+    const label = capitalize(day);
+    if (!h || h.closed) {
+      closed.push(label);
+    } else {
+      open.push(`${label}: ${h.open} to ${h.close}${h.lunch_break ? `, with a lunch break ${h.lunch_break}` : ""}`);
+    }
+  }
+  const closedLine = closed.length > 0 ? ` Closed on ${closed.join(", ")}.` : "";
+  return `${open.join(". ")}.${closedLine}`;
 }
 
 function buildSystemPrompt(clinic: Clinic): string {
   const { settings } = clinic;
-  const name = settings.receptionist_name || "Orvia";
+  const agentName = settings.receptionist_name || "Orvia";
+  const businessName = clinic.name;
+  const timezone = clinic.timezone ?? "America/Chicago";
   const sections: string[] = [];
 
-  sections.push(`# Who You Are
-You are ${name}, the AI receptionist for ${clinic.name}.
-${settings.doctor_name ? `The business is run by ${settings.doctor_name}.` : ""}
-${settings.tagline ? `Their motto: "${settings.tagline}"` : ""}
-You are warm, professional, and efficient. You sound like a real person who works here - not a robot, not a call center agent.`);
+  // ─── 0. Right now (so the model resolves "tomorrow" / "next Monday" correctly) ─
+  const now = new Date();
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const todayLabel = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(now);
+  const timeLabel = new Intl.DateTimeFormat("en-US", { timeZone: timezone, hour: "numeric", minute: "2-digit", hour12: true }).format(now);
+  sections.push(`## 0. Right Now
+Today is ${todayLabel}. The current local time is ${timeLabel} (${timezone}). Today's date in YYYY-MM-DD format is ${today}.
+When the caller says "tomorrow", "next Monday", "this Friday", or any other relative date, compute the absolute date from this. ALWAYS pass dates to tools in YYYY-MM-DD format using the CURRENT year (${today.slice(0, 4)}). Never use a past year.`);
 
-  sections.push(`# How You Speak
-- Speak naturally in English. Use simple, clear sentences.
-- Be conversational - use "sure", "absolutely", "of course", "no problem" naturally.
-- Be empathetic - if someone mentions pain or discomfort, acknowledge it before moving to booking.
-- Never sound scripted. Vary your phrasing.
-- Keep responses SHORT - 1-2 sentences max per turn. Real receptionists don't give speeches.
-- Ask ONE question at a time. Never stack multiple questions.
-- Use the caller's name once you have it - "Sure Rahul, let me check that for you."
-- If you don't understand something, say "Sorry, could you repeat that?" - not "I didn't comprehend your input."
-- Mention this call may be recorded at the start.`);
+  // ─── 1. Identity & Personality ─────────────────────────────────────────
+  const identityLines = [
+    `You are ${agentName}, the front-desk receptionist for ${businessName}.`,
+    settings.business_owner ? `The business is owned by ${settings.business_owner}.` : "",
+    settings.tagline ? `Their motto is "${settings.tagline}".` : "",
+    `You sound like a real person who works at the front desk — warm, calm, efficient. Never robotic. Never a call center agent. You are local, you know the business, and you genuinely want to help.`,
+    settings.tone ? `Tone: ${settings.tone}.` : "",
+  ].filter(Boolean);
+  sections.push(`## 1. Identity\n${identityLines.join(" ")}`);
 
-  if (settings.special_instructions?.length) {
-    sections.push(`# Special Instructions from the Owner\n${settings.special_instructions.map((i) => `- ${i}`).join("\n")}`);
-  }
+  // ─── 2. Response Guidelines (voice-formatted) ──────────────────────────
+  sections.push(`## 2. Response Style
+Keep every reply to one or two short sentences. Real receptionists don't make speeches.
+Ask ONE question at a time. Never stack questions.
+Use contractions naturally — "I'll", "you're", "we've", "don't".
+Use the caller's first name once you have it. "Sure John, let me check that."
+If you mishear, say "Sorry, could you repeat that?" — never "I didn't understand your input."
+Numbers, prices, and phone numbers should sound natural when spoken. Never read out symbols like dollar signs or hashtags.
+If a caller is upset or in pain, acknowledge it first before moving to logistics. "That sounds frustrating. Let's get someone out there."
+Mention near the start that the call may be recorded.`);
+
+  // ─── 3. Guardrails ─────────────────────────────────────────────────────
+  sections.push(`## 3. Guardrails — what you must NOT do
+Never quote exact prices. Always give a range, or say a technician will provide a free on-site estimate.
+Never share another customer's information.
+Never argue. If a caller is upset and you can't resolve it, offer to have the owner call them back.
+Never promise something the business may not deliver (specific arrival times, free work, guaranteed fixes).
+Never book or capture a lead for someone outside the service area.
+Never invent services, prices, or hours that aren't listed below.
+Never tell the caller something "failed" — if a tool doesn't work, smoothly offer a callback.`);
+
+  // ─── 4. Context (business data) ────────────────────────────────────────
+  const contextParts: string[] = [];
 
   if (settings.service_details?.length) {
-    sections.push(`# Services Offered\n${buildServiceSection(settings.service_details)}`);
+    contextParts.push(`### Services\n${buildServicesNarrative(settings.service_details)}`);
   } else if (settings.services?.length) {
-    sections.push(`# Services Offered\n${clinic.name} offers: ${settings.services.join(", ")}.`);
+    contextParts.push(`### Services\nWe offer: ${settings.services.join(", ")}.`);
   }
 
-  if (settings.faq?.length) {
-    sections.push(`# Common Questions\n${buildFAQSection(settings.faq)}`);
-  }
-
-  sections.push(`# Business Hours\n${buildHoursSection(clinic)}`);
+  contextParts.push(`### Hours\n${buildHoursNarrative(clinic)}`);
 
   if (settings.address) {
-    sections.push(`# Location\n${clinic.name} is located at: ${settings.address}${settings.landmark ? ` (${settings.landmark})` : ""}.`);
+    const landmark = settings.landmark ? ` It's ${settings.landmark}.` : "";
+    contextParts.push(`### Location\nWe're at ${settings.address}.${landmark}`);
   }
 
   if (settings.service_area_zips?.length) {
-    sections.push(`# Service Area\nWe only serve these ZIP codes in the Austin, TX area: ${settings.service_area_zips.join(", ")}.\n\nAlways ask for the caller's ZIP code early in the conversation. If their ZIP is NOT in this list, say: "I'm sorry, we don't currently serve that area - we're focused on the Austin metro area. I hope you find someone quickly!" Do not book or capture a lead for out-of-area callers.`);
+    const city = settings.city ?? "our service area";
+    const zips = settings.service_area_zips.join(", ");
+    contextParts.push(`### Service area
+We only serve these ZIP codes in ${city}: ${zips}.
+Always ask for the caller's ZIP code early. If their ZIP is not in that list, politely say: "I'm sorry, we don't currently serve that area — we're focused on ${city}. I hope you find someone quickly." Then end the call. Do NOT book and do NOT capture a lead for out-of-area callers.`);
   }
 
-  sections.push(`# How to Handle Calls
+  if (settings.faq?.length) {
+    contextParts.push(`### Common questions\n${buildFAQNarrative(settings.faq)}`);
+  }
 
-## Caller wants to book a service
-1. Ask their ZIP code first to confirm we serve their area
-2. Ask what service they need (if not already mentioned)
-3. Ask their preferred date and time
-4. Use the check_availability tool to find open slots
-5. Offer available slots to the caller
-6. Once they pick a slot, ask for their name and phone number
-7. Use the book_appointment tool to confirm
-8. Confirm the booking: "You're all set - [service] on [date] at [time]. We'll see you then."
+  if (settings.special_instructions?.length) {
+    contextParts.push(`### Owner's standing instructions\n${settings.special_instructions.map((i) => `- ${i}`).join("\n")}`);
+  }
 
-## Caller asking about services or pricing
-- Share the price RANGE, never an exact price. Say "typically ranges from" or "starts from".
-- For jobs requiring an on-site look, suggest booking a free estimate first.
+  sections.push(`## 4. Business Context\n${contextParts.join("\n\n")}`);
 
-## Emergency call
-${settings.emergency_protocol?.during_hours
-  ? `During hours: ${settings.emergency_protocol.during_hours}`
-  : "During hours: Try to dispatch someone same day."}
-${settings.emergency_protocol?.after_hours
-  ? `After hours: ${settings.emergency_protocol.after_hours}`
-  : "After hours: Take their details, assure them someone will call back within 30 minutes."}
-${settings.emergency_number ? `For emergencies, transfer to: ${settings.emergency_number}` : ""}
+  // ─── 5. Workflows ──────────────────────────────────────────────────────
+  const emergencyDuring = settings.emergency_protocol?.during_hours ?? "Dispatch a technician same day. Prioritize over routine calls.";
+  const emergencyAfter = settings.emergency_protocol?.after_hours ?? "Take their name, phone, address, and the nature of the emergency. Tell them the on-call tech will call back within 30 minutes.";
+  const emergencyContact = settings.emergency_protocol?.emergency_contact ?? settings.emergency_number;
 
-## Caller wants to speak to the owner or manager
-Say they are currently unavailable. Offer to book a callback or take a message.
+  sections.push(`## 5. Workflows
 
-## Non-customer calls (vendors, sales, etc.)
-Politely take a message. Do not book a job for non-customers.
+### Booking a service
+Step 1. Ask their ZIP code first. Confirm we serve their area before doing anything else.
+Step 2. Ask what service they need.
+Step 3. Ask their preferred date and time window.
+Step 4. Call the check_availability tool to find open slots.
+Step 5. Offer two or three available times in plain English. "I have ten in the morning, or two in the afternoon — which works?"
+Step 6. Once they pick a slot, get their full name and a callback phone number.
+Step 7. Call the book_appointment tool to confirm.
+Step 8. Read it back: "You're all set — drain cleaning, Tuesday at two p.m. We'll see you then."
 
-## You can't complete a booking (no slots, system error)
-Capture their information using capture_lead, and assure them someone will call back within 30 minutes.`);
+### Questions about services or pricing
+Give a price range, never a fixed number. "Drain cleaning typically runs ninety-five to two-fifty, depending on what we find."
+For anything that needs an on-site look — panel upgrades, water heater replacement — suggest booking a free estimate.
 
-  sections.push(`# What You Must NOT Do
-- Never guarantee exact prices - always give ranges or say a technician will provide a free on-site estimate.
-- Never share other customers' information.
-- Never argue with a caller. If they're upset, empathize and offer to have the owner call them back.
-- Never make promises the business can't keep.
-- Never confirm a booking outside the service area.`);
+### Emergencies (burst pipe, gas smell, flooding, no hot water, no heat in winter)
+${emergencyDuring}
+After hours: ${emergencyAfter}
+${emergencyContact ? `Emergency dispatch contact: ${emergencyContact}.` : ""}
+
+### Caller asks to speak to the owner or manager
+Say they're currently unavailable, then offer to take a message or schedule a callback.
+
+### Non-customer calls (vendors, sales, telemarketers)
+Politely take a message. Never book a job for a non-customer.
+
+### Booking can't complete (no slots, tool error, caller can't commit)
+Call capture_lead with whatever info you have. Tell the caller someone will call them back within 30 minutes.`);
+
+  // ─── 6. Few-shot examples ─────────────────────────────────────────────
+  sections.push(`## 6. Examples
+
+Caller: "Hi, my kitchen sink is completely blocked."
+You: "Oh no — let's get that taken care of. First, what's your ZIP code so I can make sure we serve your area?"
+
+Caller: "Seven eight seven oh four."
+You: "Perfect, we're there. So this is the kitchen sink — when would you like a tech to come out?"
+
+Caller: "How much does a water heater cost?"
+You: "Repairs typically run two hundred to four hundred. A full replacement can be anywhere from a thousand to eighteen hundred, depending on the unit. Want me to send a tech out for a free estimate?"
+
+Caller: "I smell gas in my house right now."
+You: "That's an emergency — please stay safe. I'm flagging this as urgent right now. Can I get your name, address, and a callback number? Someone will be in touch within minutes."`);
 
   return sections.join("\n\n");
 }
@@ -282,24 +336,104 @@ function buildTools(clinic: Clinic, supabaseUrl: string) {
 
 function buildAssistantConfig(clinic: Clinic, supabaseUrl: string) {
   const edgeFnBase = `${supabaseUrl}/functions/v1`;
+  const businessName = clinic.name;
   return {
+    // ─── LLM ──────────────────────────────────────────────────────────────
     model: {
       provider: "openai",
       model: "gpt-4o-mini",
-      systemPrompt: buildSystemPrompt(clinic),
+      messages: [{ role: "system", content: buildSystemPrompt(clinic) }],
       temperature: 0.3,
+      maxTokens: 250,
+      tools: buildTools(clinic, supabaseUrl),
     },
+
+    // ─── Voice ────────────────────────────────────────────────────────────
     voice: {
-      provider: "11labs",
-      voiceId: "rachel",
+      provider: "vapi",
+      voiceId: "Savannah",
     },
+
+    // ─── Transcriber ──────────────────────────────────────────────────────
+    transcriber: {
+      provider: "deepgram",
+      model: "nova-3",
+      language: "en",
+      smartFormat: true,
+      endpointing: 200,
+    },
+
+    // ─── First impression ────────────────────────────────────────────────
     firstMessage: buildGreeting(clinic),
-    tools: buildTools(clinic, supabaseUrl),
-    endCallPhrases: ["goodbye", "bye", "thank you", "thanks", "that's all", "no more questions"],
-    serverUrl: `${edgeFnBase}/vapi-events`,
-    silenceTimeoutSeconds: 15,
-    maxDurationSeconds: 300,
+    firstMessageInterruptionsEnabled: false,
+
+    // ─── Endings ──────────────────────────────────────────────────────────
+    endCallMessage: `Thanks for calling ${businessName}. Have a great day.`,
+    endCallPhrases: ["talk to you later", "have a good day", "have a great day"],
+    voicemailMessage: `Hi, this is Orvia from ${businessName}. Please call us back when you have a moment so we can help. Thanks.`,
+
+    // ─── Conversation flow tuning ─────────────────────────────────────────
+    startSpeakingPlan: {
+      waitSeconds: 0.5,
+      smartEndpointingPlan: { provider: "livekit" },
+    },
+    stopSpeakingPlan: {
+      numWords: 2,
+      voiceSeconds: 0.3,
+      backoffSeconds: 1,
+    },
+
+    // ─── Quality ──────────────────────────────────────────────────────────
+    backgroundDenoisingEnabled: true,
     backgroundSound: "off",
+    modelOutputInMessagesEnabled: true,
+
+    // ─── Limits ───────────────────────────────────────────────────────────
+    silenceTimeoutSeconds: 20,
+    maxDurationSeconds: 600,
+
+    // ─── Analysis ─────────────────────────────────────────────────────────
+    analysisPlan: {
+      summaryPlan: {
+        enabled: true,
+        timeoutSeconds: 30,
+      },
+      structuredDataPlan: {
+        enabled: true,
+        timeoutSeconds: 30,
+        schema: {
+          type: "object",
+          properties: {
+            caller_name: { type: "string", description: "Caller's name if mentioned" },
+            caller_zip: { type: "string", description: "ZIP code if provided" },
+            service_requested: { type: "string", description: "Service the caller asked about" },
+            urgency: {
+              type: "string",
+              enum: ["emergency", "urgent", "routine", "inquiry"],
+              description: "How urgent the request is",
+            },
+            booked: { type: "boolean", description: "Whether an appointment was booked" },
+            lead_captured: { type: "boolean", description: "Whether a lead was captured" },
+            out_of_area: { type: "boolean", description: "Whether the caller was outside service area" },
+          },
+        },
+      },
+      successEvaluationPlan: {
+        enabled: true,
+        timeoutSeconds: 30,
+        rubric: "PassFail",
+      },
+    },
+
+    // ─── Webhooks ─────────────────────────────────────────────────────────
+    serverUrl: `${edgeFnBase}/vapi-events`,
+    serverMessages: [
+      "end-of-call-report",
+      "status-update",
+      "hang",
+      "tool-calls",
+    ],
+    clientMessages: [],
   };
 }
 

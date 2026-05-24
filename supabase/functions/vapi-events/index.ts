@@ -75,9 +75,10 @@ function inferOutcome(
   analysis: VapiMessage["analysis"]
 ): string | null {
   const v = vars ?? {};
-  if (v.appointment_booked || v.appointmentBooked) return "appointment_booked";
-  if (v.lead_captured || v.leadCaptured) return "lead_captured";
+  // "booked" wins over "lead_captured" — VAPI's analysis often sets both when an appointment was made
+  if (v.booked || v.appointment_booked || v.appointmentBooked) return "appointment_booked";
   if (v.transferred) return "transferred";
+  if (v.lead_captured || v.leadCaptured) return "lead_captured";
 
   const text = ((summary ?? "") + " " + (analysis?.summary ?? "")).toLowerCase();
   if (text.includes("appointment booked") || text.includes("booked") || text.includes("scheduled")) return "appointment_booked";
@@ -255,7 +256,8 @@ Deno.serve(async (req: Request) => {
     const transcriptTurns = parseTranscript(msg.transcript);
     const costRaw = msg.cost ?? msg.call?.cost ?? 0;
     const costCents = costRaw ? Math.round(costRaw * 100) : 0;
-    const durationSecs = msg.durationSeconds ?? null;
+    const durationRaw = msg.durationSeconds;
+    const durationSecs = typeof durationRaw === "number" ? Math.round(durationRaw) : null;
     const summary = msg.summary ?? msg.analysis?.summary ?? null;
     const extractedVars = msg.extractedVariables ?? msg.analysis?.structuredData ?? {};
 

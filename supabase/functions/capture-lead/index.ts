@@ -16,10 +16,19 @@ interface LeadArgs {
 
 interface VapiToolCall {
   id: string;
-  function: {
-    name: string;
-    arguments: string; // JSON string
-  };
+  name?: string;
+  arguments?: Record<string, unknown>;
+  function?: { name: string; arguments: string | Record<string, unknown> };
+}
+
+function vapiResponse(toolCallId: string | null, result: unknown, status = 200): Response {
+  const body = toolCallId
+    ? { results: [{ toolCallId, name: "capture_lead", result: typeof result === "string" ? result : JSON.stringify(result) }] }
+    : (result as object);
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -106,40 +115,47 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // Parse Vapi tool call format
-  // Vapi sends: { message: { toolCalls: [{ id, function: { name, arguments } }], call: { id } } }
-  // arguments is a JSON string
-  let args: LeadArgs;
+  // Parse Vapi tool call format (current: toolCallList with object args, legacy: toolCalls with JSON string args)
+  let args: LeadArgs = {} as LeadArgs;
+  let toolCallId: string | null = null;
   let vapiCallId: string | null = null;
   let callerPhone: string | null = null;
 
   try {
     const msg = rawBody.message as Record<string, unknown> | undefined;
-    const toolCalls = (msg?.toolCalls ?? rawBody.toolCalls) as VapiToolCall[] | undefined;
-    const tc = toolCalls?.[0];
+    const list =
+      (msg?.toolCallList as VapiToolCall[] | undefined) ??
+      (msg?.toolCalls as VapiToolCall[] | undefined) ??
+      (rawBody.toolCallList as VapiToolCall[] | undefined) ??
+      (rawBody.toolCalls as VapiToolCall[] | undefined);
 
-    if (tc?.function?.arguments) {
-      args = JSON.parse(tc.function.arguments) as LeadArgs;
+    const tc = list?.[0];
+
+    if (tc) {
+      toolCallId = tc.id ?? null;
+      const fnArgs = tc.function?.arguments;
+      if (fnArgs && typeof fnArgs === "object") {
+        args = fnArgs as unknown as LeadArgs;
+      } else if (typeof fnArgs === "string") {
+        args = JSON.parse(fnArgs) as LeadArgs;
+      } else if (tc.arguments && typeof tc.arguments === "object") {
+        args = tc.arguments as unknown as LeadArgs;
+      }
     } else {
-      // Direct call format (fallback)
       args = rawBody as unknown as LeadArgs;
     }
 
     const call = msg?.call as Record<string, unknown> | undefined;
     vapiCallId = (call?.id as string) ?? null;
     callerPhone = ((call as Record<string, unknown> | undefined)?.customer as Record<string, unknown> | undefined)?.number as string ?? null;
-  } catch (e) {
-    return new Response(JSON.stringify({ error: "Failed to parse tool arguments" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+  } catch (_e) {
+    return vapiResponse(toolCallId, { error: "Failed to parse tool arguments" }, 200);
   }
 
+  console.log("capture-lead called:", { toolCallId, name: args.name, service: args.service_needed, urgency: args.urgency });
+
   if (!args.name || !args.service_needed || !args.urgency) {
-    return new Response(JSON.stringify({ error: "Missing required fields: name, service_needed, urgency" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+    return vapiResponse(toolCallId, { error: "Need name, service, and urgency to save the lead." }, 200);
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -187,18 +203,25 @@ Deno.serve(async (req: Request) => {
 
   if (leadError) {
     console.error("capture-lead insert error:", leadError.message);
-    return new Response(JSON.stringify({ error: "Failed to save lead" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return vapiResponse(toolCallId, { error: "Couldn't save the lead, please try again." }, 200);
   }
 
-  // Update call outcome to lead_captured
+  // Set call outcome (don't overwrite if already booked)
   if (vapiCallId) {
-    await supabase
+    const { data: existing } = await supabase
       .from("calls")
-      .update({ outcome: "lead_captured" })
-      .eq("vapi_call_id", vapiCallId);
+      .select("outcome")
+      .eq("vapi_call_id", vapiCallId)
+      .maybeSingle();
+
+    if (existing?.outcome !== "appointment_booked") {
+      await supabase
+        .from("calls")
+        .upsert(
+          { vapi_call_id: vapiCallId, clinic_id: clinicId, outcome: "lead_captured" },
+          { onConflict: "vapi_call_id" }
+        );
+    }
   }
 
   // SMS owner - always for emergency/urgent, only during hours for routine/inquiry
@@ -230,12 +253,9 @@ Deno.serve(async (req: Request) => {
 
   console.log("capture-lead: saved lead", lead?.id, "for clinic", clinicId, "urgency:", args.urgency);
 
-  return new Response(
-    JSON.stringify({
-      success: true,
-      lead_id: lead?.id,
-      message: "Got it. Someone will call you back shortly.",
-    }),
-    { status: 200, headers: { "Content-Type": "application/json" } }
-  );
+  return vapiResponse(toolCallId, {
+    success: true,
+    lead_id: lead?.id,
+    message: "Got it. Someone will call you back shortly.",
+  });
 });

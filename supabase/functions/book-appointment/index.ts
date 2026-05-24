@@ -16,10 +16,19 @@ interface AppointmentArgs {
 
 interface VapiToolCall {
   id: string;
-  function: {
-    name: string;
-    arguments: string;
-  };
+  name?: string;
+  arguments?: Record<string, unknown>;
+  function?: { name: string; arguments: string | Record<string, unknown> };
+}
+
+function vapiResponse(toolCallId: string | null, result: unknown, status = 200): Response {
+  const body = toolCallId
+    ? { results: [{ toolCallId, name: "book_appointment", result: typeof result === "string" ? result : JSON.stringify(result) }] }
+    : (result as object);
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -104,16 +113,30 @@ Deno.serve(async (req: Request) => {
   }
 
   // Parse Vapi tool call format
-  let args: AppointmentArgs;
+  let args: AppointmentArgs = {} as AppointmentArgs;
+  let toolCallId: string | null = null;
   let vapiCallId: string | null = null;
 
   try {
     const msg = rawBody.message as Record<string, unknown> | undefined;
-    const toolCalls = (msg?.toolCalls ?? rawBody.toolCalls) as VapiToolCall[] | undefined;
-    const tc = toolCalls?.[0];
+    const list =
+      (msg?.toolCallList as VapiToolCall[] | undefined) ??
+      (msg?.toolCalls as VapiToolCall[] | undefined) ??
+      (rawBody.toolCallList as VapiToolCall[] | undefined) ??
+      (rawBody.toolCalls as VapiToolCall[] | undefined);
 
-    if (tc?.function?.arguments) {
-      args = JSON.parse(tc.function.arguments) as AppointmentArgs;
+    const tc = list?.[0];
+
+    if (tc) {
+      toolCallId = tc.id ?? null;
+      const fnArgs = tc.function?.arguments;
+      if (fnArgs && typeof fnArgs === "object") {
+        args = fnArgs as unknown as AppointmentArgs;
+      } else if (typeof fnArgs === "string") {
+        args = JSON.parse(fnArgs) as AppointmentArgs;
+      } else if (tc.arguments && typeof tc.arguments === "object") {
+        args = tc.arguments as unknown as AppointmentArgs;
+      }
     } else {
       args = rawBody as unknown as AppointmentArgs;
     }
@@ -121,17 +144,13 @@ Deno.serve(async (req: Request) => {
     const call = msg?.call as Record<string, unknown> | undefined;
     vapiCallId = (call?.id as string) ?? null;
   } catch {
-    return new Response(JSON.stringify({ error: "Failed to parse tool arguments" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json" },
-    });
+    return vapiResponse(toolCallId, { error: "Failed to parse tool arguments" });
   }
 
+  console.log("book-appointment called:", { toolCallId, patient_name: args.patient_name, slot: args.slot });
+
   if (!args.patient_name || !args.patient_phone || !args.service_type || !args.slot) {
-    return new Response(
-      JSON.stringify({ error: "Missing required fields: patient_name, patient_phone, service_type, slot" }),
-      { status: 400, headers: { "Content-Type": "application/json" } }
-    );
+    return vapiResponse(toolCallId, { error: "Need name, phone, service, and time to book." });
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
@@ -184,18 +203,17 @@ Deno.serve(async (req: Request) => {
 
   if (aptError) {
     console.error("book-appointment insert error:", aptError.message);
-    return new Response(JSON.stringify({ error: "Failed to book appointment" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return vapiResponse(toolCallId, { error: "Couldn't confirm that slot, please try a different time." });
   }
 
-  // Update call outcome
+  // Set call outcome (upsert so it works even if call.started hasn't fired)
   if (vapiCallId) {
     await supabase
       .from("calls")
-      .update({ outcome: "appointment_booked" })
-      .eq("vapi_call_id", vapiCallId);
+      .upsert(
+        { vapi_call_id: vapiCallId, clinic_id: clinicId, outcome: "appointment_booked" },
+        { onConflict: "vapi_call_id" }
+      );
   }
 
   const formattedSlot = formatSlot(args.slot, timezone);
@@ -222,12 +240,9 @@ Deno.serve(async (req: Request) => {
 
   console.log("book-appointment: booked", appointment?.id, "for clinic", clinicId, "at", args.slot);
 
-  return new Response(
-    JSON.stringify({
-      success: true,
-      appointment_id: appointment?.id,
-      message: `You're all set! ${args.service_type} confirmed for ${formattedSlot}. You'll receive a confirmation text shortly.`,
-    }),
-    { status: 200, headers: { "Content-Type": "application/json" } }
-  );
+  return vapiResponse(toolCallId, {
+    success: true,
+    appointment_id: appointment?.id,
+    message: `Booked! ${args.service_type} for ${formattedSlot}.`,
+  });
 });

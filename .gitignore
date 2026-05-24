@@ -49,3 +49,16 @@ next-env.d.ts
 
 # supabase CLI temp files
 supabase/.temp/
+
+# local secrets
+.env.secrets
+
+# local working files
+/call.json
+/payload.json
+/asst.json
+/review-*.png
+/review-*.jpg
+/s1-*.png
+/section-*.png
+/system prompt/

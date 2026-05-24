@@ -1,18 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Returns available appointment slots for a given date.
-// Called by Vapi tool mid-call via n8n webhook proxy or directly.
-//
-// Request body: { clinic_id: string, date: string (YYYY-MM-DD), service_type?: string }
-// Response: { slots: string[] } - ISO 8601 datetimes of free slots
-
-interface RequestBody {
-  clinic_id?: string;
-  date?: string;
-  service_type?: string;
-  // Vapi also passes these when tool args are spread directly
-  toolCallId?: string;
-}
+// Vapi tool: check_availability
+// Vapi sends: { message: { toolCallList: [{ id, name, arguments: {...} }] } }
+// Returns:    { results: [{ toolCallId, name, result }] }
 
 interface OperatingHours {
   open?: string;
@@ -21,8 +11,7 @@ interface OperatingHours {
   closed?: boolean;
 }
 
-function parseTime(timeStr: string, baseDate: Date): Date {
-  // Parses "9am", "9:30am", "14:00" etc. relative to baseDate
+function parseTimeOfDay(timeStr: string): { hours: number; minutes: number } {
   const t = timeStr.trim().toLowerCase();
   let hours = 0;
   let minutes = 0;
@@ -40,10 +29,47 @@ function parseTime(timeStr: string, baseDate: Date): Date {
       minutes = parseInt(hhmm[2]);
     }
   }
+  return { hours, minutes };
+}
 
-  const result = new Date(baseDate);
-  result.setHours(hours, minutes, 0, 0);
-  return result;
+// Compute the UTC offset (in minutes) for a given timezone at a given moment.
+// Positive for east of UTC (e.g. +120 for CEST), negative for west (e.g. -300 for CDT).
+function tzOffsetMinutes(date: Date, timezone: string): number {
+  // Format the same instant in the target TZ and in UTC, then diff.
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const parts = dtf.formatToParts(date).reduce<Record<string, string>>((acc, p) => {
+    if (p.type !== "literal") acc[p.type] = p.value;
+    return acc;
+  }, {});
+  const asUtc = Date.UTC(
+    parseInt(parts.year),
+    parseInt(parts.month) - 1,
+    parseInt(parts.day),
+    parseInt(parts.hour === "24" ? "0" : parts.hour),
+    parseInt(parts.minute),
+    parseInt(parts.second)
+  );
+  return (asUtc - date.getTime()) / 60000;
+}
+
+// Build a real UTC Date for a wall-clock time in the given timezone on the given calendar date.
+// `dateStr` is YYYY-MM-DD (interpreted in the clinic's local calendar).
+function zonedDateTimeToUtc(dateStr: string, hours: number, minutes: number, timezone: string): Date {
+  const [y, m, d] = dateStr.split("-").map((n) => parseInt(n));
+  // First guess: treat the wall-clock as if it were UTC
+  const guess = new Date(Date.UTC(y, m - 1, d, hours, minutes, 0));
+  // Then correct by the TZ offset at that instant
+  const offset = tzOffsetMinutes(guess, timezone);
+  return new Date(guess.getTime() - offset * 60000);
 }
 
 function generateSlots(
@@ -61,13 +87,11 @@ function generateSlots(
     const slotEnd = new Date(cursor.getTime() + slotDuration * 60000);
     if (slotEnd > close) break;
 
-    // Skip past slots
     if (cursor <= now) {
       cursor = new Date(cursor.getTime() + slotDuration * 60000);
       continue;
     }
 
-    // Check no overlap with booked appointments
     const overlaps = bookedRanges.some(
       (b) => cursor < b.end && slotEnd > b.start
     );
@@ -82,6 +106,89 @@ function generateSlots(
   return slots;
 }
 
+// Format a Date into a short, voice-friendly time slot like "10:00 AM" in clinic timezone.
+function formatSlotForVoice(d: Date, timezone: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(d);
+  } catch {
+    return d.toISOString();
+  }
+}
+
+// Format a Date as "Monday May 26" in clinic timezone.
+function formatDayLabel(d: Date, timezone: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+    }).format(d);
+  } catch {
+    return d.toISOString().slice(0, 10);
+  }
+}
+
+interface VapiToolCall {
+  id: string;
+  name?: string;
+  arguments?: Record<string, unknown>;
+  function?: { name: string; arguments: string | Record<string, unknown> };
+}
+
+function extractArgs(body: Record<string, unknown>): {
+  toolCallId: string | null;
+  args: Record<string, unknown>;
+} {
+  const msg = body.message as Record<string, unknown> | undefined;
+  const list =
+    (msg?.toolCallList as VapiToolCall[] | undefined) ??
+    (msg?.toolCalls as VapiToolCall[] | undefined) ??
+    (body.toolCallList as VapiToolCall[] | undefined) ??
+    (body.toolCalls as VapiToolCall[] | undefined);
+
+  const tc = list?.[0];
+
+  if (tc) {
+    // VAPI sends args nested at function.arguments (object or JSON string)
+    // or at the top level as `arguments`
+    const fnArgs = tc.function?.arguments;
+    if (fnArgs && typeof fnArgs === "object") {
+      return { toolCallId: tc.id, args: fnArgs as Record<string, unknown> };
+    }
+    if (typeof fnArgs === "string") {
+      try {
+        return { toolCallId: tc.id, args: JSON.parse(fnArgs) };
+      } catch {
+        return { toolCallId: tc.id, args: {} };
+      }
+    }
+    if (tc.arguments && typeof tc.arguments === "object") {
+      return { toolCallId: tc.id, args: tc.arguments };
+    }
+    return { toolCallId: tc.id, args: {} };
+  }
+
+  // Direct invocation (manual testing)
+  return { toolCallId: null, args: body };
+}
+
+function vapiResponse(toolCallId: string | null, result: unknown): Response {
+  const body = toolCallId
+    ? { results: [{ toolCallId, name: "check_availability", result: typeof result === "string" ? result : JSON.stringify(result) }] }
+    : (result as object);
+
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") {
     return new Response("Method Not Allowed", { status: 405 });
@@ -91,48 +198,48 @@ Deno.serve(async (req: Request) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!supabaseUrl || !serviceRoleKey) {
-    return new Response(
-      JSON.stringify({ error: "Missing Supabase credentials" }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: "Missing Supabase credentials" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
-  let body: RequestBody;
+  let rawBody: Record<string, unknown>;
   try {
-    body = await req.json();
+    rawBody = await req.json();
   } catch {
-    return new Response(
-      JSON.stringify({ error: "Invalid JSON body" }),
-      { status: 400, headers: { "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
-  // clinic_id can come from the request body OR the query string
-  // (assistant-request embeds clinic_id as ?clinic_id= in the tool server URL)
+  console.log("check-availability RAW BODY:", JSON.stringify(rawBody).slice(0, 2000));
+
+  const { toolCallId, args } = extractArgs(rawBody);
+
   const url = new URL(req.url);
-  const clinic_id = body.clinic_id ?? url.searchParams.get("clinic_id") ?? undefined;
-  const { date } = body;
+  const clinic_id = (args.clinic_id as string | undefined) ?? url.searchParams.get("clinic_id") ?? undefined;
+  const date = args.date as string | undefined;
+  const service_type = args.service_type as string | undefined;
 
-  if (!clinic_id || !date) {
-    return new Response(
-      JSON.stringify({ error: "Missing clinic_id or date" }),
-      { status: 400, headers: { "Content-Type": "application/json" } }
-    );
+  console.log("check-availability PARSED:", { toolCallId, clinic_id, date, service_type, argsKeys: Object.keys(args) });
+
+  if (!clinic_id) {
+    return vapiResponse(toolCallId, { error: "I'm having trouble identifying the clinic. Let me take your details instead." });
+  }
+  if (!date) {
+    return vapiResponse(toolCallId, { error: "What date would you like me to check?" });
   }
 
-  // Validate date format
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return new Response(
-      JSON.stringify({ error: "date must be YYYY-MM-DD" }),
-      { status: 400, headers: { "Content-Type": "application/json" } }
-    );
+    return vapiResponse(toolCallId, { error: "Please use a valid date." });
   }
 
   const supabase = createClient(supabaseUrl, serviceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Load clinic settings for hours and slot config
   const { data: clinic, error: clinicErr } = await supabase
     .from("clinics")
     .select("settings, timezone")
@@ -140,20 +247,21 @@ Deno.serve(async (req: Request) => {
     .single();
 
   if (clinicErr || !clinic) {
-    return new Response(
-      JSON.stringify({ error: "Clinic not found" }),
-      { status: 404, headers: { "Content-Type": "application/json" } }
-    );
+    return vapiResponse(toolCallId, { error: "Clinic not found" });
   }
 
   const settings = clinic.settings ?? {};
-  const timezone = clinic.timezone ?? "Asia/Kolkata";
-  const slotDuration = settings.slot_duration_default ?? 30;
+  const timezone = clinic.timezone ?? "America/Chicago";
+  const slotDuration = settings.slot_duration_default ?? 60;
   const buffer = settings.buffer_between_appointments ?? 5;
 
-  // Determine open/close for the requested date
-  const requestedDate = new Date(`${date}T00:00:00`);
-  const dayName = requestedDate.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
+  // Day-of-week in the clinic's timezone (NOT in UTC)
+  const dayName = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    weekday: "long",
+  })
+    .format(new Date(`${date}T12:00:00Z`))
+    .toLowerCase();
 
   let openTime: Date | null = null;
   let closeTime: Date | null = null;
@@ -161,47 +269,42 @@ Deno.serve(async (req: Request) => {
   if (settings.operating_hours?.[dayName]) {
     const dayHours: OperatingHours = settings.operating_hours[dayName];
     if (dayHours.closed) {
-      return new Response(
-        JSON.stringify({ slots: [], message: "Clinic is closed on this day" }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
+      return vapiResponse(toolCallId, { slots: [], message: "We're closed on that day." });
     }
     if (dayHours.open && dayHours.close) {
-      openTime = parseTime(dayHours.open, requestedDate);
-      closeTime = parseTime(dayHours.close, requestedDate);
+      const o = parseTimeOfDay(dayHours.open);
+      const c = parseTimeOfDay(dayHours.close);
+      openTime = zonedDateTimeToUtc(date, o.hours, o.minutes, timezone);
+      closeTime = zonedDateTimeToUtc(date, c.hours, c.minutes, timezone);
     }
   } else if (settings.hours) {
-    // Fallback: parse simple "10am-7pm Mon-Sat" format
     const match = settings.hours.match(/(\d+(?::\d+)?(?:am|pm)?)\s*[-–]\s*(\d+(?::\d+)?(?:am|pm)?)/i);
     if (match) {
-      openTime = parseTime(match[1], requestedDate);
-      closeTime = parseTime(match[2], requestedDate);
+      const o = parseTimeOfDay(match[1]);
+      const c = parseTimeOfDay(match[2]);
+      openTime = zonedDateTimeToUtc(date, o.hours, o.minutes, timezone);
+      closeTime = zonedDateTimeToUtc(date, c.hours, c.minutes, timezone);
     }
-    // Check if day is in range (e.g., Mon-Sat = not Sunday)
     if (dayName === "sunday" && settings.hours.toLowerCase().includes("mon-sat")) {
-      return new Response(
-        JSON.stringify({ slots: [], message: "Clinic is closed on Sundays" }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
+      return vapiResponse(toolCallId, { slots: [], message: "We're closed on Sundays." });
     }
   }
 
-  // Default hours if none configured
   if (!openTime || !closeTime) {
-    openTime = parseTime("10:00", requestedDate);
-    closeTime = parseTime("19:00", requestedDate);
+    openTime = zonedDateTimeToUtc(date, 10, 0, timezone);
+    closeTime = zonedDateTimeToUtc(date, 19, 0, timezone);
   }
 
-  // Load existing appointments for the day
-  const dayStart = `${date}T00:00:00`;
-  const dayEnd = `${date}T23:59:59`;
+  // Search appointments using TZ-aware day bounds
+  const dayStartUtc = zonedDateTimeToUtc(date, 0, 0, timezone).toISOString();
+  const dayEndUtc = zonedDateTimeToUtc(date, 23, 59, timezone).toISOString();
 
   const { data: appointments } = await supabase
     .from("appointments")
     .select("scheduled_start, scheduled_end")
     .eq("clinic_id", clinic_id)
-    .gte("scheduled_start", dayStart)
-    .lte("scheduled_start", dayEnd)
+    .gte("scheduled_start", dayStartUtc)
+    .lte("scheduled_start", dayEndUtc)
     .in("status", ["confirmed", "rescheduled"]);
 
   const bookedRanges = (appointments ?? []).map((a) => ({
@@ -213,15 +316,20 @@ Deno.serve(async (req: Request) => {
 
   const availableSlots = generateSlots(openTime, closeTime, slotDuration, buffer, bookedRanges);
 
-  // Return ISO strings with timezone offset hint
-  const slotStrings = availableSlots.map((s) => s.toISOString());
+  if (availableSlots.length === 0) {
+    return vapiResponse(toolCallId, { slots: [], message: "No openings on that date." });
+  }
 
-  return new Response(
-    JSON.stringify({
-      slots: slotStrings,
-      timezone,
-      slot_duration_minutes: slotDuration,
-    }),
-    { status: 200, headers: { "Content-Type": "application/json" } }
-  );
+  // Limit to first 4 slots so the LLM has clean options to offer
+  const top = availableSlots.slice(0, 4);
+  const voiceFriendly = top.map((s) => formatSlotForVoice(s, timezone));
+  const iso = top.map((s) => s.toISOString());
+  const dayLabel = formatDayLabel(top[0], timezone);
+
+  return vapiResponse(toolCallId, {
+    day: dayLabel,
+    slots_voice: voiceFriendly,
+    slots_iso: iso,
+    timezone,
+  });
 });
