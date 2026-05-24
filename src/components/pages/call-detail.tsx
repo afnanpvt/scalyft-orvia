@@ -21,7 +21,7 @@ import {
 } from "@/lib/api"
 import type { TranscriptTurn } from "@/lib/types"
 
-// --- Helpers ------------------------------------------------
+// ─── Helpers ──────────────────────────────────────────────
 
 function formatDuration(secs: number | null): string {
   if (secs == null) return "--"
@@ -40,47 +40,59 @@ function formatLabel(value: string | null | undefined): string {
   return value.replace(/_/g, " ")
 }
 
-function outcomeColor(outcome: string | null | undefined): { text: string; bg: string } {
+function outcomeStyle(outcome: string | null | undefined): { text: string; bg: string; border: string } {
   switch (outcome) {
-    case "appointment_booked": return { text: "#34C759", bg: "rgba(52,199,89,0.1)" }
-    case "lead_captured": return { text: "#007AFF", bg: "rgba(0,122,255,0.1)" }
-    case "info_given": return { text: "#8E8E93", bg: "rgba(142,142,147,0.1)" }
-    case "transferred": return { text: "#FF9500", bg: "rgba(255,149,0,0.1)" }
-    case "missed": return { text: "#FF3B30", bg: "rgba(255,59,48,0.1)" }
-    default: return { text: "#8E8E93", bg: "rgba(142,142,147,0.1)" }
+    case "appointment_booked": return { text: "#10B981", bg: "#D1FAE5",                border: "rgba(16,185,129,0.25)" }
+    case "lead_captured":      return { text: "#4338CA", bg: "rgba(99,102,241,0.12)",  border: "rgba(99,102,241,0.25)" }
+    case "info_given":         return { text: "var(--muted-foreground)", bg: "var(--muted)", border: "var(--border)" }
+    case "transferred":        return { text: "#D97706", bg: "rgba(245,158,11,0.12)",  border: "rgba(245,158,11,0.25)" }
+    case "missed":             return { text: "#E5484D", bg: "rgba(229,72,77,0.12)",   border: "rgba(229,72,77,0.25)" }
+    default:                   return { text: "var(--muted-foreground)", bg: "var(--muted)", border: "var(--border)" }
   }
 }
 
-function statusColor(status: string | null | undefined): { text: string; bg: string } {
+function statusStyle(status: string | null | undefined): { text: string; bg: string; border: string } {
   switch (status) {
-    case "completed": return { text: "#34C759", bg: "rgba(52,199,89,0.1)" }
-    case "in_progress": return { text: "#007AFF", bg: "rgba(0,122,255,0.1)" }
-    case "missed": return { text: "#FF3B30", bg: "rgba(255,59,48,0.1)" }
-    case "failed": return { text: "#FF3B30", bg: "rgba(255,59,48,0.1)" }
-    default: return { text: "#8E8E93", bg: "rgba(142,142,147,0.1)" }
+    case "completed":   return { text: "#10B981", bg: "#D1FAE5",                border: "rgba(16,185,129,0.25)" }
+    case "in_progress": return { text: "#007AFF", bg: "rgba(0,122,255,0.12)",   border: "rgba(0,122,255,0.25)" }
+    case "missed":
+    case "failed":      return { text: "#E5484D", bg: "rgba(229,72,77,0.12)",   border: "rgba(229,72,77,0.25)" }
+    default:            return { text: "var(--muted-foreground)", bg: "var(--muted)", border: "var(--border)" }
   }
 }
 
-function urgencyColor(urgency: string): { text: string; bg: string } {
+function urgencyStyle(urgency: string): { text: string; bg: string; border: string } {
   switch (urgency) {
-    case "emergency": return { text: "#FF3B30", bg: "rgba(255,59,48,0.1)" }
-    case "urgent": return { text: "#FF9500", bg: "rgba(255,149,0,0.1)" }
-    case "routine": return { text: "#8E8E93", bg: "rgba(142,142,147,0.1)" }
-    case "inquiry": return { text: "#007AFF", bg: "rgba(0,122,255,0.1)" }
-    default: return { text: "#8E8E93", bg: "rgba(142,142,147,0.1)" }
+    case "emergency": return { text: "#E5484D", bg: "rgba(229,72,77,0.12)",  border: "rgba(229,72,77,0.25)" }
+    case "urgent":    return { text: "#D97706", bg: "rgba(245,158,11,0.12)", border: "rgba(245,158,11,0.25)" }
+    case "routine":   return { text: "var(--muted-foreground)", bg: "var(--muted)", border: "var(--border)" }
+    case "inquiry":   return { text: "#007AFF", bg: "rgba(0,122,255,0.12)", border: "rgba(0,122,255,0.25)" }
+    default:          return { text: "var(--muted-foreground)", bg: "var(--muted)", border: "var(--border)" }
   }
 }
 
-// --- Skeletons ----------------------------------------------
+function Pill({ text, style: s }: { text: string; style: { text: string; bg: string; border: string } }) {
+  return (
+    <span style={{
+      fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999,
+      color: s.text, background: s.bg, border: `1px solid ${s.border}`,
+      textTransform: "capitalize", letterSpacing: "0.01em", whiteSpace: "nowrap",
+    }}>
+      {text}
+    </span>
+  )
+}
+
+// ─── Skeletons ────────────────────────────────────────────
 
 function HeroSkeleton() {
   return (
     <div className="ios-card" style={{ padding: "20px 24px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-        <div style={{ height: 22, width: 140, background: "rgba(60,60,67,0.08)", borderRadius: 5 }} />
-        <div style={{ height: 20, width: 80, background: "rgba(60,60,67,0.06)", borderRadius: 6 }} />
+        <div className="skeleton" style={{ height: 22, width: 140, borderRadius: 5 }} />
+        <div className="skeleton" style={{ height: 22, width: 80, borderRadius: 999 }} />
       </div>
-      <div style={{ height: 12, width: 200, background: "rgba(60,60,67,0.05)", borderRadius: 4 }} />
+      <div className="skeleton" style={{ height: 12, width: 200, borderRadius: 4 }} />
     </div>
   )
 }
@@ -88,14 +100,14 @@ function HeroSkeleton() {
 function CardSkeleton({ rows = 3 }: { rows?: number }) {
   return (
     <div className="ios-card" style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ padding: "12px 18px", borderBottom: "0.5px solid rgba(60,60,67,0.08)" }}>
-        <div style={{ height: 11, width: 80, background: "rgba(60,60,67,0.08)", borderRadius: 4 }} />
+      <div style={{ padding: "12px 18px", borderBottom: "1px solid var(--border)" }}>
+        <div className="skeleton" style={{ height: 11, width: 80, borderRadius: 4 }} />
       </div>
       <div style={{ padding: "12px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
         {Array.from({ length: rows }).map((_, i) => (
           <div key={i}>
-            <div style={{ height: 10, width: 48, background: "rgba(60,60,67,0.05)", borderRadius: 3, marginBottom: 5 }} />
-            <div style={{ height: 13, width: 120, background: "rgba(60,60,67,0.08)", borderRadius: 4 }} />
+            <div className="skeleton" style={{ height: 10, width: 48, borderRadius: 3, marginBottom: 5 }} />
+            <div className="skeleton" style={{ height: 13, width: 120, borderRadius: 4 }} />
           </div>
         ))}
       </div>
@@ -103,7 +115,7 @@ function CardSkeleton({ rows = 3 }: { rows?: number }) {
   )
 }
 
-// --- Audio Player -------------------------------------------
+// ─── Audio Player ─────────────────────────────────────────
 
 function AudioPlayer({ src }: { src: string }) {
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -151,18 +163,10 @@ function AudioPlayer({ src }: { src: string }) {
       <button
         onClick={toggle}
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 32,
-          height: 32,
-          borderRadius: "50%",
-          background: "#1C1C1E",
-          color: "#FFFFFF",
-          border: "none",
-          cursor: "pointer",
-          flexShrink: 0,
-          transition: "opacity 0.15s",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          width: 32, height: 32, borderRadius: "50%",
+          background: "var(--foreground)", color: "var(--background)",
+          border: "none", cursor: "pointer", flexShrink: 0, transition: "opacity 0.15s",
         }}
         onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.opacity = "0.8"}
         onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.opacity = "1"}
@@ -174,28 +178,20 @@ function AudioPlayer({ src }: { src: string }) {
       </button>
       <div
         style={{
-          flex: 1,
-          height: 4,
-          background: "rgba(60,60,67,0.12)",
-          borderRadius: 2,
-          cursor: "pointer",
-          position: "relative",
+          flex: 1, height: 4, background: "var(--muted)", borderRadius: 2,
+          cursor: "pointer", position: "relative", border: "1px solid var(--border)",
         }}
         onClick={handleSeek}
       >
         <div style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          bottom: 0,
+          position: "absolute", top: 0, left: 0, bottom: 0,
           width: `${progress * 100}%`,
-          background: "#1C1C1E",
-          borderRadius: 2,
+          background: "var(--foreground)", borderRadius: 2,
           transition: "width 0.1s linear",
         }} />
       </div>
       {duration > 0 && (
-        <span style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)", flexShrink: 0 }}>
+        <span style={{ fontSize: 11, color: "var(--muted-foreground)", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
           {fmt(progress * duration)} / {fmt(duration)}
         </span>
       )}
@@ -203,7 +199,7 @@ function AudioPlayer({ src }: { src: string }) {
   )
 }
 
-// --- Chat Bubble --------------------------------------------
+// ─── Chat Bubble ──────────────────────────────────────────
 
 function ChatBubble({ turn }: { turn: TranscriptTurn }) {
   const isAI = turn.role === "assistant"
@@ -211,34 +207,26 @@ function ChatBubble({ turn }: { turn: TranscriptTurn }) {
     <div style={{ display: "flex", justifyContent: isAI ? "flex-start" : "flex-end" }}>
       <div style={{ maxWidth: "80%" }}>
         <p style={{
-          fontSize: 10,
-          fontWeight: 500,
-          color: "#AEAEB2",
-          marginBottom: 4,
-          textAlign: isAI ? "left" : "right",
-          fontFamily: "var(--font-mono)",
-          textTransform: "uppercase",
-          letterSpacing: "0.5px",
+          fontSize: 10, fontWeight: 600, color: "var(--muted-foreground)",
+          marginBottom: 4, textAlign: isAI ? "left" : "right",
+          textTransform: "uppercase", letterSpacing: "0.06em",
         }}>
           {isAI ? "Orvia" : "Caller"}
         </p>
         <div style={{
-          padding: "10px 14px",
-          fontSize: 13,
-          lineHeight: 1.55,
+          padding: "10px 14px", fontSize: 13, lineHeight: 1.6,
           borderRadius: isAI ? "4px 14px 14px 14px" : "14px 4px 14px 14px",
-          background: isAI ? "#F2F2F7" : "#1C1C1E",
-          color: isAI ? "#1C1C1E" : "#FFFFFF",
+          background: isAI ? "var(--muted)" : "var(--foreground)",
+          color: isAI ? "var(--foreground)" : "var(--background)",
+          border: `1px solid var(--border)`,
         }}>
           {turn.content}
         </div>
         {turn.timestamp != null && (
           <p style={{
-            fontSize: 10,
-            color: "#AEAEB2",
-            marginTop: 3,
-            textAlign: isAI ? "left" : "right",
-            fontFamily: "var(--font-mono)",
+            fontSize: 10, color: "var(--muted-foreground)", opacity: 0.6,
+            marginTop: 3, textAlign: isAI ? "left" : "right",
+            fontVariantNumeric: "tabular-nums",
           }}>
             {Math.floor(turn.timestamp / 60)}:{String(Math.floor(turn.timestamp % 60)).padStart(2, "0")}
           </p>
@@ -248,7 +236,7 @@ function ChatBubble({ turn }: { turn: TranscriptTurn }) {
   )
 }
 
-// --- Detail Card -------------------------------------------
+// ─── Detail Card ──────────────────────────────────────────
 
 function DetailCard({ title, icon: Icon, children }: {
   title: string
@@ -258,20 +246,14 @@ function DetailCard({ title, icon: Icon, children }: {
   return (
     <div className="ios-card" style={{ padding: 0, overflow: "hidden" }}>
       <div style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 7,
-        padding: "12px 18px",
-        borderBottom: "0.5px solid rgba(60,60,67,0.08)",
+        display: "flex", alignItems: "center", gap: 7,
+        padding: "11px 18px", borderBottom: "1px solid var(--border)",
+        background: "var(--muted)",
       }}>
-        {Icon && <Icon style={{ width: 13, height: 13, color: "#8E8E93" }} />}
+        {Icon && <Icon style={{ width: 13, height: 13, color: "var(--muted-foreground)" }} strokeWidth={1.5} />}
         <span style={{
-          fontSize: 11,
-          fontWeight: 500,
-          color: "#8E8E93",
-          letterSpacing: "1.2px",
-          textTransform: "uppercase",
-          fontFamily: "var(--font-mono)",
+          fontSize: 10.5, fontWeight: 600, color: "var(--muted-foreground)",
+          letterSpacing: "0.08em", textTransform: "uppercase",
         }}>
           {title}
         </span>
@@ -284,44 +266,26 @@ function DetailCard({ title, icon: Icon, children }: {
 function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{
-      display: "flex",
-      alignItems: "flex-start",
-      justifyContent: "space-between",
-      gap: 16,
-      padding: "9px 0",
-      borderBottom: "0.5px solid rgba(60,60,67,0.08)",
+      display: "flex", alignItems: "flex-start", justifyContent: "space-between",
+      gap: 16, padding: "9px 0", borderBottom: "1px solid var(--border)",
     }}
     className="last:border-0"
     >
-      <span style={{ fontSize: 11, color: "#8E8E93", flexShrink: 0, fontFamily: "var(--font-mono)" }}>{label}</span>
-      <div style={{ fontSize: 13, color: "#1C1C1E", textAlign: "right" }}>{children}</div>
+      <span style={{ fontSize: 11, color: "var(--muted-foreground)", flexShrink: 0 }}>{label}</span>
+      <div style={{ fontSize: 13, color: "var(--foreground)", textAlign: "right" }}>{children}</div>
     </div>
   )
 }
 
-// --- Page ---------------------------------------------------
+// ─── Page ─────────────────────────────────────────────────
 
 export default function CallDetailPage() {
   const { id } = useParams({ from: "/_dashboard/calls_/$id" })
   const queryClient = useQueryClient()
 
-  const callQuery = useQuery({
-    queryKey: ["call", id],
-    queryFn: () => getCallById(id),
-    enabled: !!id,
-  })
-
-  const leadQuery = useQuery({
-    queryKey: ["lead-by-call", id],
-    queryFn: () => getLeadByCallId(id),
-    enabled: !!id,
-  })
-
-  const appointmentQuery = useQuery({
-    queryKey: ["appointment-by-call", id],
-    queryFn: () => getAppointmentByCallId(id),
-    enabled: !!id,
-  })
+  const callQuery = useQuery({ queryKey: ["call", id], queryFn: () => getCallById(id), enabled: !!id })
+  const leadQuery = useQuery({ queryKey: ["lead-by-call", id], queryFn: () => getLeadByCallId(id), enabled: !!id })
+  const appointmentQuery = useQuery({ queryKey: ["appointment-by-call", id], queryFn: () => getAppointmentByCallId(id), enabled: !!id })
 
   const handleMutation = useMutation({
     mutationFn: () => markCallHandled(id),
@@ -336,8 +300,55 @@ export default function CallDetailPage() {
   const appointment = appointmentQuery.data
   const isLoading = callQuery.isLoading
 
-  const extracted = call?.extracted_data ?? {}
-  const extractedEntries = Object.entries(extracted).filter(([, v]) => v != null && v !== "")
+  const extracted = (call?.extracted_data ?? {}) as Record<string, unknown>
+
+  // Curated, ordered view of the call's structured analysis.
+  // - Hide noisy false booleans (e.g. out_of_area: false is not interesting)
+  // - Don't show lead_captured when booked is true — VAPI's analysis sets both
+  // - Render booleans as "Yes"/"No" instead of "true"/"false"
+  // - Use a stable, sensible order rather than whatever order keys arrived in
+  const orderedKeys = [
+    "caller_name",
+    "caller_zip",
+    "service_requested",
+    "urgency",
+    "booked",
+    "lead_captured",
+    "out_of_area",
+  ] as const
+
+  const labelMap: Record<string, string> = {
+    caller_name: "Caller name",
+    caller_zip: "ZIP code",
+    service_requested: "Service",
+    urgency: "Urgency",
+    booked: "Booked",
+    lead_captured: "Lead captured",
+    out_of_area: "Out of area",
+  }
+
+  const isMeaningful = (key: string, value: unknown): boolean => {
+    if (value == null || value === "") return false
+    if (key === "out_of_area" && value === false) return false
+    if (key === "lead_captured" && (value === false || extracted.booked === true)) return false
+    if (key === "booked" && value === false) return false
+    return true
+  }
+
+  const formatValue = (value: unknown): string => {
+    if (typeof value === "boolean") return value ? "Yes" : "No"
+    return String(value)
+  }
+
+  const extractedEntries = orderedKeys
+    .map((k) => [k, extracted[k]] as const)
+    .filter(([k, v]) => isMeaningful(k, v))
+    .concat(
+      // Append any other fields VAPI sent that we don't have a hardcoded label for
+      Object.entries(extracted).filter(
+        ([k, v]) => !orderedKeys.includes(k as typeof orderedKeys[number]) && isMeaningful(k, v),
+      ),
+    )
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -347,26 +358,21 @@ export default function CallDetailPage() {
         to="/calls"
         className="animate-fade-up animate-fade-up-1"
         style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 4,
-          fontSize: 13,
-          color: "#007AFF",
-          textDecoration: "none",
-          transition: "opacity 0.15s",
+          display: "inline-flex", alignItems: "center", gap: 4,
+          fontSize: 13, color: "var(--muted-foreground)", textDecoration: "none",
+          transition: "color 0.15s",
         }}
-        onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.opacity = "0.7"}
-        onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.opacity = "1"}
+        onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.color = "var(--foreground)"}
+        onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.color = "var(--muted-foreground)"}
       >
-        <ChevronLeft style={{ width: 14, height: 14 }} />
+        <ChevronLeft style={{ width: 14, height: 14 }} strokeWidth={1.5} />
         Calls
       </Link>
 
-      {/* Not found */}
       {!isLoading && !call && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "96px 0", gap: 10 }}>
-          <AlertCircle style={{ width: 32, height: 32, color: "#AEAEB2" }} strokeWidth={1.5} />
-          <p style={{ fontSize: 14, color: "#AEAEB2" }}>Call not found</p>
+          <AlertCircle style={{ width: 32, height: 32, color: "var(--muted-foreground)" }} strokeWidth={1.5} />
+          <p style={{ fontSize: 14, color: "var(--muted-foreground)" }}>Call not found</p>
         </div>
       )}
 
@@ -376,60 +382,25 @@ export default function CallDetailPage() {
           {isLoading ? (
             <HeroSkeleton />
           ) : call ? (
-            <div
-              className="ios-card animate-fade-up animate-fade-up-2"
-              style={{ padding: "20px 24px" }}
-            >
+            <div className="ios-card animate-fade-up animate-fade-up-2" style={{ padding: "20px 24px" }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                    <h1 style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-0.3px", color: "#1C1C1E" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.3px", color: "var(--foreground)" }}>
                       {call.caller_phone ?? "Unknown caller"}
                     </h1>
-                    {call.outcome && (() => {
-                      const c = outcomeColor(call.outcome)
-                      return (
-                        <span style={{
-                          fontSize: 11,
-                          fontWeight: 500,
-                          padding: "2px 9px",
-                          borderRadius: 6,
-                          color: c.text,
-                          background: c.bg,
-                          fontFamily: "var(--font-mono)",
-                          textTransform: "capitalize",
-                        }}>
-                          {formatLabel(call.outcome)}
-                        </span>
-                      )
-                    })()}
-                    {(() => {
-                      const c = statusColor(call.status)
-                      return (
-                        <span style={{
-                          fontSize: 11,
-                          fontWeight: 500,
-                          padding: "2px 9px",
-                          borderRadius: 6,
-                          color: c.text,
-                          background: c.bg,
-                          fontFamily: "var(--font-mono)",
-                          textTransform: "capitalize",
-                        }}>
-                          {formatLabel(call.status)}
-                        </span>
-                      )
-                    })()}
+                    {call.outcome && <Pill text={formatLabel(call.outcome)} style={outcomeStyle(call.outcome)} />}
+                    <Pill text={formatLabel(call.status)} style={statusStyle(call.status)} />
                   </div>
 
                   <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8 }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#8E8E93", fontFamily: "var(--font-mono)" }}>
-                      <Clock style={{ width: 11, height: 11 }} />
+                    <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--muted-foreground)", fontVariantNumeric: "tabular-nums" }}>
+                      <Clock style={{ width: 11, height: 11 }} strokeWidth={1.5} />
                       {formatDuration(call.duration_secs)}
                     </span>
-                    <span style={{ color: "#AEAEB2", fontSize: 11 }}>·</span>
-                    <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "#8E8E93", fontFamily: "var(--font-mono)" }}>
-                      <Calendar style={{ width: 11, height: 11 }} />
+                    <span style={{ color: "var(--border)", fontSize: 11 }}>·</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--muted-foreground)" }}>
+                      <Calendar style={{ width: 11, height: 11 }} strokeWidth={1.5} />
                       {formatDateTime(call.started_at ?? call.created_at)}
                     </span>
                   </div>
@@ -440,43 +411,28 @@ export default function CallDetailPage() {
                     onClick={() => handleMutation.mutate()}
                     disabled={handleMutation.isPending}
                     style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 7,
-                      background: "#1C1C1E",
-                      color: "#FFFFFF",
-                      border: "none",
-                      borderRadius: 10,
-                      height: 36,
-                      padding: "0 16px",
-                      fontSize: 13,
-                      fontWeight: 500,
-                      cursor: handleMutation.isPending ? "not-allowed" : "pointer",
-                      opacity: handleMutation.isPending ? 0.6 : 1,
-                      transition: "opacity 0.15s",
-                      flexShrink: 0,
+                      display: "inline-flex", alignItems: "center", gap: 7,
+                      background: "var(--foreground)", color: "var(--background)",
+                      border: "none", borderRadius: 10, height: 36, padding: "0 16px",
+                      fontSize: 13, fontWeight: 600, cursor: handleMutation.isPending ? "not-allowed" : "pointer",
+                      opacity: handleMutation.isPending ? 0.6 : 1, transition: "opacity 0.15s", flexShrink: 0,
                     }}
                     onMouseEnter={(e) => { if (!handleMutation.isPending) (e.currentTarget as HTMLElement).style.opacity = "0.8" }}
                     onMouseLeave={(e) => { if (!handleMutation.isPending) (e.currentTarget as HTMLElement).style.opacity = "1" }}
                   >
-                    <CheckCircle2 style={{ width: 13, height: 13 }} />
+                    <CheckCircle2 style={{ width: 13, height: 13 }} strokeWidth={2} />
                     {handleMutation.isPending ? "Marking..." : "Mark handled"}
                   </button>
                 )}
                 {handleMutation.isSuccess && (
-                  <span style={{ fontSize: 12, color: "#34C759", fontWeight: 500 }}>Marked as handled</span>
+                  <span style={{ fontSize: 12, color: "#10B981", fontWeight: 500 }}>Marked as handled</span>
                 )}
               </div>
 
               {call.summary && (
                 <p style={{
-                  fontSize: 14,
-                  color: "#636366",
-                  lineHeight: 1.6,
-                  marginTop: 16,
-                  paddingTop: 16,
-                  borderTop: "0.5px solid rgba(60,60,67,0.08)",
-                  maxWidth: 640,
+                  fontSize: 14, color: "var(--muted-foreground)", lineHeight: 1.6,
+                  marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--border)", maxWidth: 640,
                 }}>
                   {call.summary}
                 </p>
@@ -503,17 +459,15 @@ export default function CallDetailPage() {
               ) : !isLoading && call ? (
                 <DetailCard title="Conversation" icon={Phone}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 10 }}>
-                    <FileText style={{ width: 28, height: 28, color: "#AEAEB2" }} strokeWidth={1.5} />
-                    <p style={{ fontSize: 13, color: "#AEAEB2" }}>No transcript available</p>
+                    <FileText style={{ width: 28, height: 28, color: "var(--muted-foreground)" }} strokeWidth={1.5} />
+                    <p style={{ fontSize: 13, color: "var(--muted-foreground)" }}>No transcript available</p>
                   </div>
                 </DetailCard>
               ) : null}
             </div>
 
             {/* Sidebar */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}
-              className="animate-fade-up animate-fade-up-4"
-            >
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }} className="animate-fade-up animate-fade-up-4">
               {isLoading ? (
                 <><CardSkeleton rows={3} /><CardSkeleton rows={3} /></>
               ) : (
@@ -521,8 +475,8 @@ export default function CallDetailPage() {
                   {extractedEntries.length > 0 && (
                     <DetailCard title="Call details">
                       {extractedEntries.map(([key, value]) => (
-                        <InfoRow key={key} label={formatLabel(key)}>
-                          {String(value)}
+                        <InfoRow key={key} label={labelMap[key] ?? formatLabel(key)}>
+                          {formatValue(value)}
                         </InfoRow>
                       ))}
                     </DetailCard>
@@ -534,38 +488,17 @@ export default function CallDetailPage() {
                     <DetailCard title="Caller" icon={Phone}>
                       <InfoRow label="Name">{lead.name ?? "Unknown"}</InfoRow>
                       <InfoRow label="Phone">
-                        <a
-                          href={`tel:${lead.phone}`}
-                          style={{ color: "#007AFF", textDecoration: "none", fontFamily: "var(--font-mono)" }}
-                        >
+                        <a href={`tel:${lead.phone}`} style={{ color: "#007AFF", textDecoration: "none", fontVariantNumeric: "tabular-nums" }}>
                           {lead.phone}
                         </a>
                       </InfoRow>
-                      {lead.service_needed && (
-                        <InfoRow label="Service">{lead.service_needed}</InfoRow>
-                      )}
+                      {lead.service_needed && <InfoRow label="Service">{lead.service_needed}</InfoRow>}
                       <InfoRow label="Urgency">
-                        {(() => {
-                          const c = urgencyColor(lead.urgency)
-                          return (
-                            <span style={{
-                              fontSize: 10,
-                              fontWeight: 500,
-                              padding: "2px 8px",
-                              borderRadius: 6,
-                              color: c.text,
-                              background: c.bg,
-                              fontFamily: "var(--font-mono)",
-                              textTransform: "capitalize",
-                            }}>
-                              {lead.urgency}
-                            </span>
-                          )
-                        })()}
+                        <Pill text={lead.urgency} style={urgencyStyle(lead.urgency)} />
                       </InfoRow>
                       {lead.notes && (
                         <InfoRow label="Notes">
-                          <span style={{ color: "#636366" }}>{lead.notes}</span>
+                          <span style={{ color: "var(--muted-foreground)" }}>{lead.notes}</span>
                         </InfoRow>
                       )}
                     </DetailCard>
@@ -575,38 +508,27 @@ export default function CallDetailPage() {
                     <CardSkeleton rows={3} />
                   ) : appointment ? (
                     <DetailCard title="Appointment" icon={Calendar}>
-                      {appointment.service_type && (
-                        <InfoRow label="Service">{appointment.service_type}</InfoRow>
-                      )}
+                      {appointment.service_type && <InfoRow label="Service">{appointment.service_type}</InfoRow>}
                       <InfoRow label="Time">
-                        <span style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>
+                        <span style={{ fontVariantNumeric: "tabular-nums", fontSize: 12 }}>
                           {formatDateTime(appointment.scheduled_start)}
                         </span>
                       </InfoRow>
                       <InfoRow label="Status">
-                        {(() => {
-                          const color = appointment.status === "confirmed" ? "#34C759"
-                            : appointment.status === "cancelled" || appointment.status === "no_show" ? "#FF3B30"
-                            : "#8E8E93"
-                          return (
-                            <span style={{
-                              fontSize: 10,
-                              fontWeight: 500,
-                              padding: "2px 8px",
-                              borderRadius: 6,
-                              color,
-                              background: `${color}1A`,
-                              fontFamily: "var(--font-mono)",
-                              textTransform: "capitalize",
-                            }}>
-                              {formatLabel(appointment.status)}
-                            </span>
-                          )
-                        })()}
+                        <Pill
+                          text={formatLabel(appointment.status)}
+                          style={
+                            appointment.status === "confirmed"
+                              ? { text: "#10B981", bg: "#D1FAE5", border: "rgba(16,185,129,0.25)" }
+                              : appointment.status === "cancelled" || appointment.status === "no_show"
+                              ? { text: "#E5484D", bg: "rgba(229,72,77,0.12)", border: "rgba(229,72,77,0.25)" }
+                              : { text: "var(--muted-foreground)", bg: "var(--muted)", border: "var(--border)" }
+                          }
+                        />
                       </InfoRow>
                       {appointment.notes && (
                         <InfoRow label="Notes">
-                          <span style={{ color: "#636366" }}>{appointment.notes}</span>
+                          <span style={{ color: "var(--muted-foreground)" }}>{appointment.notes}</span>
                         </InfoRow>
                       )}
                     </DetailCard>

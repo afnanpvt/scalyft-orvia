@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function fetchUserData(userId: string, email: string | null) {
     const { data } = await supabase
       .from("users")
-      .select("clinic_id, full_name, role")
+      .select("clinic_id, full_name, role, theme_preference")
       .eq("id", userId)
       .single();
     setClinicId(data?.clinic_id ?? null);
@@ -72,6 +72,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       role: data?.role ?? null,
     });
+    // Apply saved theme preference
+    if (data?.theme_preference) {
+      localStorage.setItem("orvia-theme", data.theme_preference);
+      const resolved = data.theme_preference === "system"
+        ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+        : data.theme_preference;
+      document.documentElement.classList.toggle("dark", resolved === "dark");
+    }
     setIsLoading(false);
   }
 

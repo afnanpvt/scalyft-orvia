@@ -288,6 +288,7 @@ export async function getBriefing() {
     appointmentsRes,
     exceptionsRes,
     recentRes,
+    clinicRes,
   ] = await Promise.all([
     supabase
       .from("calls")
@@ -297,17 +298,17 @@ export async function getBriefing() {
       .from("leads")
       .select("id", { count: "exact", head: true })
       .gte("created_at", todayISO),
+    // Count of appointments BOOKED today (regardless of when they're scheduled for)
     supabase
       .from("appointments")
       .select("id", { count: "exact", head: true })
-      .gte("scheduled_start", todayISO)
-      .lte("scheduled_start", endOfDayISO),
-    // Today's appointments ONLY (not future days)
+      .gte("created_at", todayISO),
+    // Upcoming appointments — from now forward, sorted by scheduled time
     supabase
       .from("appointments")
       .select("*")
-      .gte("scheduled_start", todayISO)
-      .lte("scheduled_start", endOfDayISO)
+      .gte("scheduled_start", new Date().toISOString())
+      .in("status", ["confirmed", "rescheduled"])
       .order("scheduled_start", { ascending: true })
       .limit(20),
     // Exception calls — transferred or failed (need attention)
@@ -324,6 +325,12 @@ export async function getBriefing() {
       .select("*")
       .order("created_at", { ascending: false })
       .limit(10),
+    // Clinic status for live indicator
+    supabase
+      .from("clinics")
+      .select("status, vapi_phone_id")
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const rawRecent = (recentRes.data as Call[]) ?? [];
@@ -351,10 +358,12 @@ export async function getBriefing() {
     callsToday: callsRes.count ?? 0,
     leadsToday: leadsRes.count ?? 0,
     appointmentsToday: appointmentsCountRes.count ?? 0,
-    todaysAppointments: (appointmentsRes.data as Appointment[]) ?? [],
+    upcomingAppointments: (appointmentsRes.data as Appointment[]) ?? [],
     exceptionCalls: (exceptionsRes.data as Call[]) ?? [],
     recentCalls,
     avgCallSecs,
+    clinicStatus: (clinicRes.data?.status as string) ?? null,
+    clinicHasPhone: !!(clinicRes.data?.vapi_phone_id),
   };
 }
 

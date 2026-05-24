@@ -1,90 +1,142 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
-import { Phone, ChevronLeft, ChevronRight } from "lucide-react"
+import { Phone, ChevronLeft, ChevronRight, PhoneIncoming, PhoneOff, PhoneMissed, PhoneForwarded, Clock, Calendar } from "lucide-react"
 
 import { getCalls } from "@/lib/api"
 import type { Call } from "@/lib/types"
 
-// --- Helpers ------------------------------------------------
+// ─── Helpers ──────────────────────────────────────────────
 
-function formatRelativeTime(dateString: string | null): string {
-  if (!dateString) return "--"
-  const date = new Date(dateString)
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  const diffSecs = Math.floor(diffMs / 1000)
-  const diffMins = Math.floor(diffSecs / 60)
-  const diffHours = Math.floor(diffMins / 60)
-  const diffDays = Math.floor(diffHours / 24)
+function formatDate(dateString: string | null): string {
+  if (!dateString) return ""
+  const d = new Date(dateString)
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(today.getDate() - 1)
 
-  if (diffSecs < 60) return "Just now"
-  if (diffMins < 60) return `${diffMins}m ago`
-  if (diffHours < 24) return `${diffHours}h ago`
-  if (diffDays === 1) return `Yesterday ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`
-  if (diffDays < 7) return `${diffDays}d ago`
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+  if (d.toDateString() === today.toDateString()) return "Today"
+  if (d.toDateString() === yesterday.toDateString()) return "Yesterday"
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+}
+
+function formatTime(dateString: string | null): string {
+  if (!dateString) return ""
+  return new Date(dateString).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
 }
 
 function formatDuration(secs: number | null): string {
-  if (secs == null) return "--"
+  if (secs == null || secs === 0) return ""
   const m = Math.floor(secs / 60)
   const s = secs % 60
   return m > 0 ? `${m}m ${s}s` : `${s}s`
 }
 
-function formatLabel(value: string | null): string {
-  if (!value) return "Unknown"
-  return value.replace(/_/g, " ")
+// ─── Outcome config ───────────────────────────────────────
+
+const OUTCOME: Record<string, { label: string; bg: string; color: string; border: string; icon: React.ElementType }> = {
+  appointment_booked: { label: "Booked",   bg: "#D1FAE5", color: "#065F46", border: "rgba(16,185,129,0.25)",   icon: Calendar },
+  lead_captured:      { label: "Lead",     bg: "#EEF2FF", color: "#4338CA", border: "rgba(99,102,241,0.25)",   icon: PhoneIncoming },
+  info_given:         { label: "Info",     bg: "var(--muted)", color: "var(--muted-foreground)", border: "var(--border)", icon: PhoneIncoming },
+  transferred:        { label: "Transfer", bg: "#FEF3C7", color: "#92400E", border: "rgba(245,158,11,0.25)",   icon: PhoneForwarded },
+  missed:             { label: "Missed",   bg: "#FEE2E2", color: "#991B1B", border: "rgba(229,72,77,0.25)",    icon: PhoneMissed },
+  failed:             { label: "Failed",   bg: "#FEE2E2", color: "#991B1B", border: "rgba(229,72,77,0.25)",    icon: PhoneOff },
 }
 
-// --- Outcome styles -----------------------------------------
-
-function outcomeColor(outcome: string | null): string {
-  switch (outcome) {
-    case "appointment_booked": return "#34C759"
-    case "lead_captured": return "#007AFF"
-    case "transferred": return "#FF9500"
-    case "missed": return "#FF3B30"
-    default: return "#AEAEB2"
+function getOutcome(outcome: string | null) {
+  return OUTCOME[outcome ?? ""] ?? {
+    label: outcome?.replace(/_/g, " ") ?? "Unknown",
+    bg: "var(--muted)", color: "var(--muted-foreground)", border: "var(--border)",
+    icon: PhoneIncoming,
   }
 }
 
-function outcomeBg(outcome: string | null): string {
-  switch (outcome) {
-    case "appointment_booked": return "rgba(52,199,89,0.1)"
-    case "lead_captured": return "rgba(0,122,255,0.1)"
-    case "transferred": return "rgba(255,149,0,0.1)"
-    case "missed": return "rgba(255,59,48,0.1)"
-    default: return "rgba(142,142,147,0.1)"
-  }
-}
-
-// --- Skeleton -----------------------------------------------
+// ─── Skeleton ─────────────────────────────────────────────
 
 function RowSkeleton() {
   return (
-    <div style={{
-      display: "flex",
-      alignItems: "center",
-      gap: 14,
-      padding: "14px 18px",
-      borderBottom: "0.5px solid rgba(60,60,67,0.08)",
-    }}>
-      <div style={{ width: 3, height: 32, borderRadius: 3, background: "rgba(60,60,67,0.08)", flexShrink: 0 }} />
+    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
+      <div className="skeleton" style={{ width: 38, height: 38, borderRadius: 12, flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-          <div style={{ height: 13, width: 120, background: "rgba(60,60,67,0.08)", borderRadius: 4 }} />
-          <div style={{ height: 11, width: 50, background: "rgba(60,60,67,0.05)", borderRadius: 4 }} />
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7 }}>
+          <div className="skeleton" style={{ height: 13, width: 130, borderRadius: 4 }} />
+          <div className="skeleton" style={{ height: 11, width: 48, borderRadius: 4 }} />
         </div>
-        <div style={{ height: 11, width: "65%", background: "rgba(60,60,67,0.05)", borderRadius: 4 }} />
+        <div className="skeleton" style={{ height: 11, width: "55%", borderRadius: 4 }} />
       </div>
-      <div style={{ height: 20, width: 80, background: "rgba(60,60,67,0.06)", borderRadius: 6 }} />
+      <div className="skeleton" style={{ width: 64, height: 24, borderRadius: 8, flexShrink: 0 }} />
     </div>
   )
 }
 
-// --- Page ---------------------------------------------------
+// ─── Call Row ─────────────────────────────────────────────
+
+function CallRow({ call }: { call: Call }) {
+  const o = getOutcome(call.outcome ?? null)
+  const Icon = o.icon
+  const duration = formatDuration(call.duration_secs)
+  const time = formatTime(call.started_at ?? call.created_at)
+  const date = formatDate(call.started_at ?? call.created_at)
+
+  return (
+    <Link
+      to="/calls/$id"
+      params={{ id: call.id }}
+      className="row-hover"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        padding: "14px 20px",
+        borderBottom: "1px solid var(--border)",
+        textDecoration: "none",
+      }}
+    >
+      {/* Icon */}
+      <div style={{
+        width: 38, height: 38, borderRadius: 12,
+        background: o.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        border: `1px solid ${o.border}`,
+      }}>
+        <Icon style={{ width: 16, height: 16, color: o.color }} strokeWidth={1.75} />
+      </div>
+
+      {/* Main */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 3 }}>
+          <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
+            {call.caller_phone ?? "Unknown caller"}
+          </span>
+          <span style={{ fontSize: 11, color: "var(--muted-foreground)", flexShrink: 0, fontVariantNumeric: "tabular-nums", opacity: 0.7 }}>
+            {time && date ? `${time} · ${date}` : date || time}
+          </span>
+        </div>
+        <p style={{ fontSize: 12.5, color: "var(--muted-foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>
+          {call.summary ?? "No summary available"}
+        </p>
+      </div>
+
+      {/* Right */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        {duration && (
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <Clock style={{ width: 11, height: 11, color: "var(--muted-foreground)", opacity: 0.6 }} strokeWidth={1.5} />
+            <span style={{ fontSize: 11, color: "var(--muted-foreground)", fontVariantNumeric: "tabular-nums" }}>{duration}</span>
+          </div>
+        )}
+        <span style={{
+          fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999,
+          background: o.bg, color: o.color, whiteSpace: "nowrap", letterSpacing: "0.01em",
+          border: `1px solid ${o.border}`,
+        }}>
+          {o.label}
+        </span>
+      </div>
+    </Link>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────
 
 export default function CallsPage() {
   const [page, setPage] = useState(1)
@@ -102,174 +154,107 @@ export default function CallsPage() {
   const rangeEnd = Math.min(page * pageSize, total)
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
       {/* Header */}
       <div className="animate-fade-up animate-fade-up-1">
-        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 600, letterSpacing: "-0.5px", color: "#1C1C1E" }}>Calls</h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.5px", color: "var(--foreground)", fontFamily: "Geist, sans-serif" }}>
+            Calls
+          </h1>
           {!isLoading && total > 0 && (
-            <span style={{ fontSize: 14, color: "#AEAEB2", fontFamily: "var(--font-mono)" }}>{total}</span>
+            <span style={{
+              fontSize: 11.5, fontWeight: 700, color: "var(--primary-foreground)",
+              background: "var(--foreground)", padding: "2px 9px", borderRadius: 999,
+              fontFamily: "Geist Mono, monospace", fontVariantNumeric: "tabular-nums",
+              letterSpacing: "0.02em",
+            }}>
+              {total}
+            </span>
           )}
         </div>
-        <p style={{ fontSize: 13, color: "#8E8E93", marginTop: 4 }}>Every call handled by Orvia</p>
+        <p style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 4, letterSpacing: "-0.01em" }}>
+          Every call handled by Orvia
+        </p>
       </div>
 
-      {/* Error */}
       {isError && (
-        <div style={{ padding: "64px 0", textAlign: "center" }}>
-          <p style={{ fontSize: 14, color: "#FF3B30" }}>Something went wrong loading calls.</p>
-          <button
-            onClick={() => refetch()}
-            style={{ fontSize: 13, color: "#8E8E93", marginTop: 8, border: "none", background: "transparent", cursor: "pointer" }}
-          >
+        <div style={{ padding: "48px 0", textAlign: "center" }}>
+          <p style={{ fontSize: 14, color: "#E5484D", fontWeight: 500 }}>Could not load calls</p>
+          <button onClick={() => refetch()} style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit" }}>
             Try again
           </button>
         </div>
       )}
 
-      {/* Card */}
-      <div
-        className="ios-card animate-fade-up animate-fade-up-2"
-        style={{ padding: 0, overflow: "hidden" }}
-      >
+      {/* Table card */}
+      <div className="ios-card animate-fade-up animate-fade-up-2" style={{ padding: 0, overflow: "hidden" }}>
+
+        {/* Column headers */}
+        {!isLoading && calls.length > 0 && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 14, padding: "10px 20px",
+            borderBottom: "1px solid var(--border)",
+            background: "var(--muted)",
+          }}>
+            <div style={{ width: 38, flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <span style={{ fontSize: 10.5, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Caller</span>
+            </div>
+            <span style={{ fontSize: 10.5, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.08em", flexShrink: 0 }}>Outcome</span>
+          </div>
+        )}
+
         {isLoading ? (
-          <>
-            <RowSkeleton /><RowSkeleton /><RowSkeleton />
-            <RowSkeleton /><RowSkeleton /><RowSkeleton />
-          </>
+          <>{Array.from({ length: 8 }).map((_, i) => <RowSkeleton key={i} />)}</>
         ) : calls.length === 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "96px 0", gap: 10 }}>
-            <Phone style={{ width: 32, height: 32, color: "#AEAEB2" }} strokeWidth={1.5} />
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 0", gap: 12 }}>
+            <div style={{ width: 52, height: 52, borderRadius: 16, background: "var(--muted)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid var(--border)" }}>
+              <Phone style={{ width: 22, height: 22, color: "var(--muted-foreground)" }} strokeWidth={1.5} />
+            </div>
             <div style={{ textAlign: "center" }}>
-              <p style={{ fontSize: 14, fontWeight: 500, color: "#AEAEB2" }}>No calls yet</p>
-              <p style={{ fontSize: 12, color: "#C7C7CC", marginTop: 4 }}>Calls appear here when callers reach your Orvia number</p>
+              <p style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)", marginBottom: 4 }}>No calls yet</p>
+              <p style={{ fontSize: 12.5, color: "var(--muted-foreground)", lineHeight: 1.6, maxWidth: 220 }}>
+                Calls will appear here as soon as someone dials your Orvia number.
+              </p>
             </div>
           </div>
         ) : (
-          calls.map((call: Call) => {
-            const color = outcomeColor(call.outcome ?? null)
-            return (
-              <Link
-                key={call.id}
-                to="/calls/$id"
-                params={{ id: call.id }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 14,
-                  padding: "12px 18px",
-                  borderBottom: "0.5px solid rgba(60,60,67,0.08)",
-                  textDecoration: "none",
-                  cursor: "pointer",
-                  transition: "background 0.15s",
-                  minHeight: 56,
-                }}
-                onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = "#F2F2F7"}
-                onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = "transparent"}
-              >
-                {/* Left color strip */}
-                <div style={{ width: 3, alignSelf: "stretch", borderRadius: 3, background: color, flexShrink: 0 }} />
-
-                {/* Main content */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                    <span style={{ fontSize: 14, fontWeight: 500, color: "#1C1C1E", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {call.caller_phone ?? "Unknown caller"}
-                    </span>
-                    <span style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)", flexShrink: 0 }}>
-                      {formatRelativeTime(call.started_at ?? call.created_at)}
-                    </span>
-                  </div>
-                  <p style={{ fontSize: 12, color: "#8E8E93", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>
-                    {call.summary ?? "No summary"}
-                  </p>
-                </div>
-
-                {/* Chips */}
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                  <span style={{
-                    fontSize: 11,
-                    fontWeight: 500,
-                    padding: "2px 8px",
-                    borderRadius: 6,
-                    color: color,
-                    background: outcomeBg(call.outcome ?? null),
-                    fontFamily: "var(--font-mono)",
-                    textTransform: "capitalize",
-                    whiteSpace: "nowrap",
-                  }}>
-                    {formatLabel(call.outcome)}
-                  </span>
-                  <span style={{
-                    fontSize: 11,
-                    color: "#AEAEB2",
-                    fontFamily: "var(--font-mono)",
-                    width: 44,
-                    textAlign: "right",
-                    display: "none",
-                  }}
-                  className="sm:block"
-                  >
-                    {formatDuration(call.duration_secs)}
-                  </span>
-                </div>
-              </Link>
-            )
-          })
+          calls.map((call: Call) => <CallRow key={call.id} call={call} />)
         )}
 
         {/* Pagination */}
         {!isLoading && total > pageSize && (
           <div style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "12px 18px",
-            borderTop: "0.5px solid rgba(60,60,67,0.08)",
-            background: "rgba(242,242,247,0.5)",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "12px 20px", borderTop: "1px solid var(--border)",
+            background: "var(--muted)",
           }}>
-            <span style={{ fontSize: 11, color: "#AEAEB2", fontFamily: "var(--font-mono)" }}>
-              {rangeStart}–{rangeEnd} of {total}
+            <span style={{ fontSize: 12, color: "var(--muted-foreground)", fontVariantNumeric: "tabular-nums" }}>
+              {rangeStart}-{rangeEnd} of {total}
             </span>
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <button
-                onClick={() => { setPage((p) => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: "smooth" }) }}
+                onClick={() => { setPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: "smooth" }) }}
                 disabled={page <= 1}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 28,
-                  height: 28,
-                  borderRadius: 8,
-                  border: "0.5px solid rgba(60,60,67,0.2)",
-                  background: "#FFFFFF",
-                  color: "#636366",
-                  cursor: page <= 1 ? "not-allowed" : "pointer",
-                  opacity: page <= 1 ? 0.35 : 1,
+                  width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border)",
+                  background: "var(--card)", color: "var(--foreground)", cursor: page <= 1 ? "not-allowed" : "pointer",
+                  opacity: page <= 1 ? 0.3 : 1, display: "flex", alignItems: "center", justifyContent: "center",
                 }}
               >
                 <ChevronLeft style={{ width: 14, height: 14 }} />
               </button>
-              <span style={{ fontSize: 11, color: "#8E8E93", fontFamily: "var(--font-mono)", padding: "0 8px" }}>
+              <span style={{ fontSize: 12, color: "var(--muted-foreground)", padding: "0 8px", fontVariantNumeric: "tabular-nums" }}>
                 {page} / {totalPages}
               </span>
               <button
-                onClick={() => { setPage((p) => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: "smooth" }) }}
+                onClick={() => { setPage(p => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: "smooth" }) }}
                 disabled={page >= totalPages}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 28,
-                  height: 28,
-                  borderRadius: 8,
-                  border: "0.5px solid rgba(60,60,67,0.2)",
-                  background: "#FFFFFF",
-                  color: "#636366",
-                  cursor: page >= totalPages ? "not-allowed" : "pointer",
-                  opacity: page >= totalPages ? 0.35 : 1,
+                  width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border)",
+                  background: "var(--card)", color: "var(--foreground)", cursor: page >= totalPages ? "not-allowed" : "pointer",
+                  opacity: page >= totalPages ? 0.3 : 1, display: "flex", alignItems: "center", justifyContent: "center",
                 }}
               >
                 <ChevronRight style={{ width: 14, height: 14 }} />

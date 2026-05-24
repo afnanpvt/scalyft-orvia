@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
@@ -7,9 +8,9 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", ui-sans-serif, sans-serif;
-  --font-mono: "SF Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
-  --font-heading: -apple-system, BlinkMacSystemFont, "SF Pro Display", ui-sans-serif, sans-serif;
+  --font-sans: "Geist", "Inter", -apple-system, BlinkMacSystemFont, ui-sans-serif, sans-serif;
+  --font-mono: "Geist Mono", "SF Mono", "Fira Code", ui-monospace, monospace;
+  --font-heading: "Geist", -apple-system, BlinkMacSystemFont, ui-sans-serif, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -46,86 +47,91 @@
   --radius-2xl: calc(var(--radius) * 2);
 }
 
-/* ─── Custom easing tokens ─── */
 :root {
+  /* Custom easing curves - strong, intentional */
   --ease-out-strong: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
-}
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 
-/* ─── iOS / Apple HIG Light Theme ─── */
-:root {
-  --background: #F2F2F7;
-  --foreground: #1C1C1E;
+  /* Refined palette - zinc neutral, single emerald accent */
+  --background: #F5F5F7;
+  --foreground: #0A0A0B;
 
   --card: #FFFFFF;
-  --card-foreground: #1C1C1E;
+  --card-foreground: #0A0A0B;
 
   --popover: #FFFFFF;
-  --popover-foreground: #1C1C1E;
+  --popover-foreground: #0A0A0B;
 
-  --primary: #1C1C1E;
+  --primary: #0A0A0B;
   --primary-foreground: #FFFFFF;
 
-  --secondary: #F2F2F7;
-  --secondary-foreground: #1C1C1E;
+  --secondary: #F0F0F2;
+  --secondary-foreground: #0A0A0B;
 
-  --muted: #F2F2F7;
-  --muted-foreground: #636366;
+  --muted: #F0F0F2;
+  --muted-foreground: #737378;
 
-  --accent: #F2F2F7;
-  --accent-foreground: #1C1C1E;
+  --accent: #F0F0F2;
+  --accent-foreground: #0A0A0B;
 
-  --destructive: #FF3B30;
+  --destructive: #E5484D;
 
-  --border: rgba(60, 60, 67, 0.1);
-  --input: rgba(60, 60, 67, 0.1);
-  --ring: #007AFF;
+  --border: rgba(0, 0, 0, 0.06);
+  --input: rgba(0, 0, 0, 0.06);
+  --ring: #0A0A0B;
 
-  --chart-1: #34C759;
-  --chart-2: #007AFF;
-  --chart-3: #FF9500;
-  --chart-4: #FF3B30;
-  --chart-5: #8E8E93;
+  /* Accent: single emerald */
+  --accent-emerald: #10B981;
+  --accent-emerald-light: #D1FAE5;
+  --accent-emerald-text: #065F46;
+
+  /* Chart colors */
+  --chart-1: #10B981;
+  --chart-2: #0A0A0B;
+  --chart-3: #F59E0B;
+  --chart-4: #E5484D;
+  --chart-5: #8B8B91;
 
   --radius: 0.875rem;
 
-  --sidebar: #F2F2F7;
-  --sidebar-foreground: #1C1C1E;
-  --sidebar-primary: #1C1C1E;
+  --sidebar: #FFFFFF;
+  --sidebar-foreground: #0A0A0B;
+  --sidebar-primary: #0A0A0B;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #FFFFFF;
-  --sidebar-accent-foreground: #1C1C1E;
-  --sidebar-border: rgba(60, 60, 67, 0.08);
-  --sidebar-ring: #007AFF;
+  --sidebar-accent: #F0F0F2;
+  --sidebar-accent-foreground: #0A0A0B;
+  --sidebar-border: rgba(0, 0, 0, 0.05);
+  --sidebar-ring: #0A0A0B;
 }
 
 .dark {
-  --background: #1C1C1E;
-  --foreground: #F2F2F7;
-  --card: #2C2C2E;
-  --card-foreground: #F2F2F7;
-  --popover: #2C2C2E;
-  --popover-foreground: #F2F2F7;
-  --primary: #F2F2F7;
-  --primary-foreground: #1C1C1E;
-  --secondary: #3A3A3C;
-  --secondary-foreground: #F2F2F7;
-  --muted: #3A3A3C;
-  --muted-foreground: #8E8E93;
-  --accent: #3A3A3C;
-  --accent-foreground: #F2F2F7;
-  --destructive: #FF453A;
-  --border: rgba(255, 255, 255, 0.08);
-  --input: rgba(255, 255, 255, 0.08);
-  --ring: #0A84FF;
-  --sidebar: #2C2C2E;
-  --sidebar-foreground: #F2F2F7;
-  --sidebar-primary: #F2F2F7;
-  --sidebar-primary-foreground: #1C1C1E;
-  --sidebar-accent: #3A3A3C;
-  --sidebar-accent-foreground: #F2F2F7;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-ring: #0A84FF;
+  --background: #0C0C0E;
+  --foreground: #EBEBF0;
+  --card: #1C1C1F;
+  --card-foreground: #EBEBF0;
+  --popover: #1C1C1F;
+  --popover-foreground: #EBEBF0;
+  --primary: #EBEBF0;
+  --primary-foreground: #0C0C0E;
+  --secondary: #2A2A2E;
+  --secondary-foreground: #EBEBF0;
+  --muted: #232326;
+  --muted-foreground: #98989F;
+  --accent: #2A2A2E;
+  --accent-foreground: #EBEBF0;
+  --destructive: #FF6B6B;
+  --border: rgba(255, 255, 255, 0.09);
+  --input: rgba(255, 255, 255, 0.09);
+  --ring: #EBEBF0;
+  --sidebar: #131316;
+  --sidebar-foreground: #EBEBF0;
+  --sidebar-primary: #EBEBF0;
+  --sidebar-primary-foreground: #0C0C0E;
+  --sidebar-accent: #1E1E22;
+  --sidebar-accent-foreground: #EBEBF0;
+  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-ring: #EBEBF0;
 }
 
 @layer base {
@@ -134,87 +140,201 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", ui-sans-serif, sans-serif;
+    font-family: "Geist", -apple-system, BlinkMacSystemFont, ui-sans-serif, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "ss01", "cv01";
   }
 }
 
-/* ─── Card — stat cards get subtle lift on hover, section cards do not ─── */
-.ios-card {
-  background: #FFFFFF;
-  border-radius: 14px;
+/* ─── Card - Double bezel architecture ─── */
+.card {
+  background: var(--card);
+  border-radius: 18px;
+  border: 1px solid var(--border);
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.04),
-    0 0 0 0.5px rgba(60, 60, 67, 0.06);
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+.ios-card {
+  background: var(--card);
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.03),
+    0 4px 16px rgba(0, 0, 0, 0.04);
 }
 
 .ios-card-interactive {
   transition:
-    box-shadow 0.2s var(--ease-out-strong),
-    transform 0.2s var(--ease-out-strong);
+    box-shadow 0.22s var(--ease-out-strong),
+    transform 0.22s var(--ease-out-strong);
 }
 .ios-card-interactive:hover {
   box-shadow:
-    0 4px 20px rgba(0, 0, 0, 0.07),
-    0 1px 4px rgba(0, 0, 0, 0.04),
-    0 0 0 0.5px rgba(60, 60, 67, 0.06);
-  transform: translateY(-1px);
+    0 2px 4px rgba(0, 0, 0, 0.06),
+    0 8px 28px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
 }
 .ios-card-interactive:active {
-  transform: scale(0.99) translateY(0);
+  transform: scale(0.985);
   transition-duration: 0.1s;
 }
 
-/* ─── Page section enter animation ─── */
+/* ─── Stat card - premium number display ─── */
+.stat-value {
+  font-family: "Geist Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  letter-spacing: -0.04em;
+}
+
+/* ─── Fade up entrance - snappier ─── */
 @keyframes fadeUp {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(12px);
+    filter: blur(2px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+    filter: blur(0);
   }
 }
 .animate-fade-up {
-  animation: fadeUp 0.35s var(--ease-out-strong) both;
+  animation: fadeUp 0.4s var(--ease-out-strong) both;
 }
 .animate-fade-up-1 { animation-delay: 0ms; }
-.animate-fade-up-2 { animation-delay: 50ms; }
-.animate-fade-up-3 { animation-delay: 100ms; }
-.animate-fade-up-4 { animation-delay: 150ms; }
-.animate-fade-up-5 { animation-delay: 200ms; }
+.animate-fade-up-2 { animation-delay: 60ms; }
+.animate-fade-up-3 { animation-delay: 120ms; }
+.animate-fade-up-4 { animation-delay: 180ms; }
+.animate-fade-up-5 { animation-delay: 240ms; }
+.animate-fade-up-6 { animation-delay: 300ms; }
 
-/* ─── Live pulse — refined, not aggressive ─── */
+/* ─── Scale fade for inline items ─── */
+@keyframes scaleFadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-scale-in {
+  animation: scaleFadeIn 0.25s var(--ease-out-strong) both;
+}
+
+/* ─── Shimmer ─── */
+@keyframes shimmer {
+  from { background-position: -600px 0; }
+  to   { background-position:  600px 0; }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--muted) 0%,
+    var(--accent) 40%,
+    var(--muted) 80%
+  );
+  background-size: 600px 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* ─── Live pulse - refined ─── */
 @keyframes livePulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.6; transform: scale(1.3); }
+  0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(16,185,129,0.4); }
+  50%       { opacity: 0.9; transform: scale(1.3); box-shadow: 0 0 0 4px rgba(16,185,129,0); }
 }
 .animate-live-pulse {
-  animation: livePulse 2.4s var(--ease-in-out-strong) infinite;
+  animation: livePulse 2.4s ease-in-out infinite;
 }
 
-/* ─── iOS inset separator ─── */
-.ios-separator {
+/* ─── Nav active indicator ─── */
+.nav-item-active {
   position: relative;
 }
-.ios-separator::after {
-  content: "";
+.nav-item-active::before {
+  content: '';
   position: absolute;
-  bottom: 0;
-  left: 16px;
-  right: 0;
-  height: 0.5px;
-  background: rgba(60, 60, 67, 0.08);
-}
-.ios-separator:last-child::after {
-  display: none;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 16px;
+  background: var(--foreground);
+  border-radius: 0 3px 3px 0;
 }
 
-/* ─── Button press feedback ─── */
-button:active,
-a[role="button"]:active {
-  transform: scale(0.98);
-  transition: transform 0.1s var(--ease-out-strong);
+/* ─── Row hover ─── */
+.row-hover {
+  transition: background 0.12s ease;
+}
+.row-hover:hover {
+  background: var(--accent);
+}
+
+/* ─── Sparkline fade ─── */
+@keyframes sparkFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.spark-enter {
+  animation: sparkFade 0.6s ease both;
+  animation-delay: 0.3s;
+}
+
+/* ─── Button press - tactile ─── */
+button:active:not([disabled]) {
+  transform: scale(0.97);
+  transition: transform 0.1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ─── Focus rings ─── */
+:focus-visible {
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+
+/* ─── Badge / pill ─── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+/* ─── Section divider line ─── */
+.section-divider {
+  height: 1px;
+  background: rgba(0,0,0,0.05);
+}
+
+/* ─── Sidebar AI status widget ─── */
+.agent-status-widget {
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+/* ─── Chart tooltip ─── */
+.chart-tooltip {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
 }
