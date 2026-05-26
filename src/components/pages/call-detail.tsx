@@ -201,35 +201,73 @@ function AudioPlayer({ src }: { src: string }) {
 
 // ─── Chat Bubble ──────────────────────────────────────────
 
-function ChatBubble({ turn }: { turn: TranscriptTurn }) {
+function ChatBubble({ turn, callerName }: { turn: TranscriptTurn; callerName?: string | null }) {
   const isAI = turn.role === "assistant"
+  // Orvia = right (agent/employee). Caller = left (customer coming in).
+  const isRight = isAI
+
   return (
-    <div style={{ display: "flex", justifyContent: isAI ? "flex-start" : "flex-end" }}>
-      <div style={{ maxWidth: "80%" }}>
-        <p style={{
-          fontSize: 10, fontWeight: 600, color: "var(--muted-foreground)",
-          marginBottom: 4, textAlign: isAI ? "left" : "right",
-          textTransform: "uppercase", letterSpacing: "0.06em",
-        }}>
-          {isAI ? "Orvia" : "Caller"}
-        </p>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: isRight ? "flex-end" : "flex-start", gap: 4 }}>
+      {/* Name label */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        flexDirection: isRight ? "row-reverse" : "row",
+      }}>
+        {/* Avatar circle */}
         <div style={{
-          padding: "10px 14px", fontSize: 13, lineHeight: 1.6,
-          borderRadius: isAI ? "4px 14px 14px 14px" : "14px 4px 14px 14px",
-          background: isAI ? "var(--muted)" : "var(--foreground)",
-          color: isAI ? "var(--foreground)" : "var(--background)",
+          width: 22,
+          height: 22,
+          borderRadius: "50%",
+          background: isAI ? "var(--foreground)" : "var(--muted)",
           border: `1px solid var(--border)`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}>
+          <span style={{
+            fontSize: 9,
+            fontWeight: 700,
+            color: isAI ? "var(--background)" : "var(--muted-foreground)",
+            letterSpacing: "0.02em",
+          }}>
+            {isAI ? "AI" : (callerName ? callerName.charAt(0).toUpperCase() : "C")}
+          </span>
+        </div>
+        <span style={{
+          fontSize: 11,
+          fontWeight: 600,
+          color: "var(--muted-foreground)",
+          letterSpacing: "-0.01em",
+        }}>
+          {isAI ? "Orvia" : (callerName ?? "Caller")}
+        </span>
+      </div>
+
+      {/* Bubble + timestamp */}
+      <div style={{ maxWidth: "78%", display: "flex", flexDirection: "column", alignItems: isRight ? "flex-end" : "flex-start", gap: 3 }}>
+        <div style={{
+          padding: "9px 14px",
+          fontSize: 13,
+          lineHeight: 1.6,
+          borderRadius: isRight ? "14px 4px 14px 14px" : "4px 14px 14px 14px",
+          background: isAI ? "var(--foreground)" : "var(--muted)",
+          color: isAI ? "var(--background)" : "var(--foreground)",
+          border: `1px solid ${isAI ? "transparent" : "var(--border)"}`,
         }}>
           {turn.content}
         </div>
         {turn.timestamp != null && (
-          <p style={{
-            fontSize: 10, color: "var(--muted-foreground)", opacity: 0.6,
-            marginTop: 3, textAlign: isAI ? "left" : "right",
+          <span style={{
+            fontSize: 10,
+            color: "var(--muted-foreground)",
+            opacity: 0.5,
             fontVariantNumeric: "tabular-nums",
           }}>
             {Math.floor(turn.timestamp / 60)}:{String(Math.floor(turn.timestamp % 60)).padStart(2, "0")}
-          </p>
+          </span>
         )}
       </div>
     </div>
@@ -462,7 +500,7 @@ export default function CallDetailPage() {
                 <DetailCard title="Conversation" icon={Phone}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     {call.transcript.map((turn: TranscriptTurn, i: number) => (
-                      <ChatBubble key={i} turn={turn} />
+                      <ChatBubble key={i} turn={turn} callerName={(call.extracted_data as Record<string, unknown>)?.caller_name as string | null} />
                     ))}
                   </div>
                 </DetailCard>
