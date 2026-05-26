@@ -74,8 +74,7 @@ function capitalize(s: string): string {
 }
 
 function buildGreeting(clinic: Clinic): string {
-  const name = clinic.settings.receptionist_name || "Orvia";
-  return `Hi, ${name} here with ${clinic.name}. How can I help?`;
+  return `Thanks for calling ${clinic.name}, how can I help you today?`;
 }
 
 function buildServicesNarrative(services: ClinicService[]): string {

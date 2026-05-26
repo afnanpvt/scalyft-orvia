@@ -441,9 +441,19 @@ export default function CallDetailPage() {
           ) : null}
 
           {/* Two-column */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 300px", gap: 14 }}
-            className="grid-cols-1 lg:grid-cols-[1fr_300px]"
-          >
+          <style>{`
+            .call-detail-grid {
+              display: grid;
+              grid-template-columns: 1fr 300px;
+              gap: 14px;
+            }
+            @media (max-width: 700px) {
+              .call-detail-grid {
+                grid-template-columns: 1fr;
+              }
+            }
+          `}</style>
+          <div className="call-detail-grid">
             {/* Transcript */}
             <div className="animate-fade-up animate-fade-up-3">
               {isLoading ? (
