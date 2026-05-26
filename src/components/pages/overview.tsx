@@ -309,7 +309,7 @@ function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, spark
   const bg = resolvedTheme === "dark" ? "var(--card)" : cardBg
   return (
     <div
-      className="ios-card-interactive animate-fade-up"
+      className="ios-card-interactive animate-fade-up stat-card-root"
       style={{
         borderRadius: 20,
         overflow: "hidden",
@@ -324,7 +324,7 @@ function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, spark
       }}
     >
       {/* Left: text content */}
-      <div style={{ padding: "22px 22px 20px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between", position: "relative", zIndex: 1 }}>
+      <div className="stat-card-inner" style={{ padding: "22px 22px 20px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between", position: "relative", zIndex: 1 }}>
         <div>
           {/* Icon badge */}
           <div style={{
@@ -346,7 +346,7 @@ function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, spark
           <p style={{ fontSize: 11.5, fontWeight: 500, color: resolvedTheme === "dark" ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)", marginBottom: 4, letterSpacing: "0.02em", textTransform: "uppercase" }}>{label}</p>
 
           {/* Value */}
-          <p style={{
+          <p className="stat-card-value" style={{
             fontSize: 40,
             fontWeight: 700,
             color: resolvedTheme === "dark" ? "#F2F2F7" : "#0A0A0B",
@@ -929,11 +929,11 @@ export default function OverviewPage() {
             <div className="skeleton" style={{ width: 34, height: 34, borderRadius: "50%" }} />
           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+        <div className="overview-stat-grid">
           <StatSkeleton /><StatSkeleton /><StatSkeleton /><StatSkeleton />
         </div>
         <div className="ios-card" style={{ height: 260 }} />
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 14 }}>
+        <div className="overview-bottom-grid">
           <div className="ios-card" style={{ height: 240 }} />
           <div className="ios-card" style={{ height: 240 }} />
         </div>
@@ -979,10 +979,55 @@ export default function OverviewPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <style>{`
+        .overview-stat-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 14px;
+          align-items: stretch;
+        }
+        .overview-bottom-grid {
+          display: grid;
+          grid-template-columns: 1fr 1.6fr;
+          gap: 14px;
+        }
+        @media (max-width: 700px) {
+          .overview-stat-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+          }
+          .overview-bottom-grid {
+            grid-template-columns: 1fr;
+          }
+          .overview-header-status {
+            display: none !important;
+          }
+          .overview-header h1 {
+            font-size: 22px !important;
+          }
+        }
+        @media (max-width: 400px) {
+          .overview-stat-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+          }
+        }
+        @media (max-width: 700px) {
+          .stat-card-value {
+            font-size: 32px !important;
+          }
+          .stat-card-inner {
+            padding: 16px 16px 14px !important;
+          }
+          .stat-card-root {
+            min-height: 130px !important;
+          }
+        }
+      `}</style>
 
       {/* Header */}
       <div
-        className="animate-fade-up animate-fade-up-1"
+        className="overview-header animate-fade-up animate-fade-up-1"
         style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4 }}
       >
         <div>
@@ -1005,7 +1050,7 @@ export default function OverviewPage() {
         </div>
 
         {/* Status pill - real data */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        <div className="overview-header-status" style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <div style={{
             display: "flex",
             alignItems: "center",
@@ -1034,7 +1079,7 @@ export default function OverviewPage() {
       </div>
 
       {/* Stat cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, alignItems: "stretch" }}>
+      <div className="overview-stat-grid">
         <div className="animate-fade-up animate-fade-up-2" style={{ display: "flex", flexDirection: "column" }}>
           <StatCard
             value={calls}
@@ -1085,7 +1130,7 @@ export default function OverviewPage() {
             illustration={<IllustrationAvgTime />}
           />
         </div>
-      </div>
+      </div>{/* /overview-stat-grid */}
 
       {/* Exceptions */}
       {exceptions.length > 0 && (
@@ -1120,7 +1165,7 @@ export default function OverviewPage() {
       )}
 
       {/* Schedule + Chart */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.6fr", gap: 14 }}>
+      <div className="overview-bottom-grid">
         <SectionCard
           title="Coming Up Next"
           icon={CalendarDays}
