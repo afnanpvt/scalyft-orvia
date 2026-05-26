@@ -1,23 +1,22 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
-import { Phone, ChevronLeft, ChevronRight, PhoneIncoming, PhoneOff, PhoneMissed, PhoneForwarded, Clock, Calendar } from "lucide-react"
+import { Phone, ChevronLeft, ChevronRight, PhoneIncoming, PhoneOff, PhoneMissed, PhoneForwarded, Clock, ArrowRight } from "lucide-react"
 
 import { getCalls } from "@/lib/api"
 import type { Call } from "@/lib/types"
 
 // ─── Helpers ──────────────────────────────────────────────
 
-function formatDate(dateString: string | null): string {
-  if (!dateString) return ""
+function formatDateGroup(dateString: string | null): string {
+  if (!dateString) return "Unknown"
   const d = new Date(dateString)
   const today = new Date()
   const yesterday = new Date(today)
   yesterday.setDate(today.getDate() - 1)
-
   if (d.toDateString() === today.toDateString()) return "Today"
   if (d.toDateString() === yesterday.toDateString()) return "Yesterday"
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
 }
 
 function formatTime(dateString: string | null): string {
@@ -32,39 +31,73 @@ function formatDuration(secs: number | null): string {
   return m > 0 ? `${m}m ${s}s` : `${s}s`
 }
 
+function getCallerLabel(call: Call): string {
+  const extracted = (call.extracted_data ?? {}) as Record<string, unknown>
+  const name = extracted.caller_name as string | null
+  if (name) return name
+  if (call.caller_phone) return call.caller_phone
+  return "Unknown caller"
+}
+
+function getCallerInitial(call: Call): string {
+  const extracted = (call.extracted_data ?? {}) as Record<string, unknown>
+  const name = extracted.caller_name as string | null
+  if (name) return name.charAt(0).toUpperCase()
+  return "#"
+}
+
 // ─── Outcome config ───────────────────────────────────────
 
-const OUTCOME: Record<string, { label: string; bg: string; color: string; border: string; icon: React.ElementType }> = {
-  appointment_booked: { label: "Booked",   bg: "#D1FAE5", color: "#065F46", border: "rgba(16,185,129,0.25)",   icon: Calendar },
-  lead_captured:      { label: "Lead",     bg: "#EEF2FF", color: "#4338CA", border: "rgba(99,102,241,0.25)",   icon: PhoneIncoming },
-  info_given:         { label: "Info",     bg: "var(--muted)", color: "var(--muted-foreground)", border: "var(--border)", icon: PhoneIncoming },
-  transferred:        { label: "Transfer", bg: "#FEF3C7", color: "#92400E", border: "rgba(245,158,11,0.25)",   icon: PhoneForwarded },
-  missed:             { label: "Missed",   bg: "#FEE2E2", color: "#991B1B", border: "rgba(229,72,77,0.25)",    icon: PhoneMissed },
-  failed:             { label: "Failed",   bg: "#FEE2E2", color: "#991B1B", border: "rgba(229,72,77,0.25)",    icon: PhoneOff },
+const OUTCOME: Record<string, {
+  label: string
+  bg: string
+  color: string
+  border: string
+  dotColor: string
+  icon: React.ElementType
+}> = {
+  appointment_booked: { label: "Booked",   bg: "#D1FAE5", color: "#065F46", border: "rgba(16,185,129,0.3)",  dotColor: "#10B981", icon: PhoneIncoming },
+  lead_captured:      { label: "Lead",     bg: "#EEF2FF", color: "#4338CA", border: "rgba(99,102,241,0.3)",  dotColor: "#6366F1", icon: PhoneIncoming },
+  info_given:         { label: "Info",     bg: "var(--muted)", color: "var(--muted-foreground)", border: "var(--border)", dotColor: "var(--muted-foreground)", icon: PhoneIncoming },
+  transferred:        { label: "Transfer", bg: "#FEF3C7", color: "#92400E", border: "rgba(245,158,11,0.3)",  dotColor: "#F59E0B", icon: PhoneForwarded },
+  missed:             { label: "Missed",   bg: "#FEE2E2", color: "#991B1B", border: "rgba(229,72,77,0.3)",   dotColor: "#E5484D", icon: PhoneMissed },
+  failed:             { label: "Failed",   bg: "#FEE2E2", color: "#991B1B", border: "rgba(229,72,77,0.3)",   dotColor: "#E5484D", icon: PhoneOff },
 }
 
 function getOutcome(outcome: string | null) {
   return OUTCOME[outcome ?? ""] ?? {
-    label: outcome?.replace(/_/g, " ") ?? "Unknown",
+    label: "Unknown",
     bg: "var(--muted)", color: "var(--muted-foreground)", border: "var(--border)",
-    icon: PhoneIncoming,
+    dotColor: "var(--muted-foreground)", icon: PhoneIncoming,
   }
+}
+
+// ─── Group calls by date ───────────────────────────────────
+
+function groupByDate(calls: Call[]): { label: string; calls: Call[] }[] {
+  const groups: Record<string, Call[]> = {}
+  for (const call of calls) {
+    const key = formatDateGroup(call.started_at ?? call.created_at)
+    if (!groups[key]) groups[key] = []
+    groups[key].push(call)
+  }
+  return Object.entries(groups).map(([label, calls]) => ({ label, calls }))
 }
 
 // ─── Skeleton ─────────────────────────────────────────────
 
 function RowSkeleton() {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
-      <div className="skeleton" style={{ width: 38, height: 38, borderRadius: 12, flexShrink: 0 }} />
+    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 20px", borderBottom: "1px solid var(--border)" }}>
+      <div className="skeleton" style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7 }}>
-          <div className="skeleton" style={{ height: 13, width: 130, borderRadius: 4 }} />
-          <div className="skeleton" style={{ height: 11, width: 48, borderRadius: 4 }} />
-        </div>
-        <div className="skeleton" style={{ height: 11, width: "55%", borderRadius: 4 }} />
+        <div className="skeleton" style={{ height: 13, width: 120, borderRadius: 4, marginBottom: 7 }} />
+        <div className="skeleton" style={{ height: 11, width: "65%", borderRadius: 4 }} />
       </div>
-      <div className="skeleton" style={{ width: 64, height: 24, borderRadius: 8, flexShrink: 0 }} />
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+        <div className="skeleton" style={{ height: 11, width: 40, borderRadius: 4 }} />
+        <div className="skeleton" style={{ width: 60, height: 22, borderRadius: 999 }} />
+      </div>
     </div>
   )
 }
@@ -73,10 +106,11 @@ function RowSkeleton() {
 
 function CallRow({ call }: { call: Call }) {
   const o = getOutcome(call.outcome ?? null)
-  const Icon = o.icon
   const duration = formatDuration(call.duration_secs)
   const time = formatTime(call.started_at ?? call.created_at)
-  const date = formatDate(call.started_at ?? call.created_at)
+  const callerLabel = getCallerLabel(call)
+  const initial = getCallerInitial(call)
+  const hasName = !!(call.extracted_data as Record<string, unknown>)?.caller_name
 
   return (
     <Link
@@ -86,53 +120,108 @@ function CallRow({ call }: { call: Call }) {
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 14,
-        padding: "14px 20px",
+        gap: 13,
+        padding: "13px 20px",
         borderBottom: "1px solid var(--border)",
         textDecoration: "none",
+        transition: "background 0.1s ease",
       }}
     >
-      {/* Icon */}
+      {/* Avatar */}
       <div style={{
-        width: 38, height: 38, borderRadius: 12,
-        background: o.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-        border: `1px solid ${o.border}`,
+        width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
+        background: o.bg,
+        border: `1.5px solid ${o.border}`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        position: "relative",
       }}>
-        <Icon style={{ width: 16, height: 16, color: o.color }} strokeWidth={1.75} />
+        <span style={{
+          fontSize: 14, fontWeight: 700,
+          color: o.color,
+          fontFamily: "Geist, sans-serif",
+        }}>
+          {initial}
+        </span>
+        {/* Outcome dot - bottom right of avatar */}
+        <span style={{
+          position: "absolute", bottom: -1, right: -1,
+          width: 12, height: 12, borderRadius: "50%",
+          background: o.dotColor,
+          border: "2px solid var(--card)",
+        }} />
       </div>
 
-      {/* Main */}
+      {/* Content */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 3 }}>
-          <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
-            {call.caller_phone ?? "Unknown caller"}
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 3 }}>
+          <span style={{
+            fontSize: 13.5, fontWeight: 600,
+            color: "var(--foreground)",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            letterSpacing: "-0.02em",
+          }}>
+            {callerLabel}
           </span>
-          <span style={{ fontSize: 11, color: "var(--muted-foreground)", flexShrink: 0, fontVariantNumeric: "tabular-nums", opacity: 0.7 }}>
-            {time && date ? `${time} · ${date}` : date || time}
-          </span>
+          {hasName && call.caller_phone && (
+            <span style={{ fontSize: 11, color: "var(--muted-foreground)", opacity: 0.5, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+              {call.caller_phone}
+            </span>
+          )}
         </div>
-        <p style={{ fontSize: 12.5, color: "var(--muted-foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.4 }}>
-          {call.summary ?? "No summary available"}
+        <p style={{
+          fontSize: 12, color: "var(--muted-foreground)",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          lineHeight: 1.4, letterSpacing: "-0.005em",
+        }}>
+          {call.summary ?? "No summary"}
         </p>
       </div>
 
-      {/* Right */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        {duration && (
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <Clock style={{ width: 11, height: 11, color: "var(--muted-foreground)", opacity: 0.6 }} strokeWidth={1.5} />
-            <span style={{ fontSize: 11, color: "var(--muted-foreground)", fontVariantNumeric: "tabular-nums" }}>{duration}</span>
-          </div>
-        )}
-        <span style={{
-          fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999,
-          background: o.bg, color: o.color, whiteSpace: "nowrap", letterSpacing: "0.01em",
-          border: `1px solid ${o.border}`,
-        }}>
-          {o.label}
-        </span>
+      {/* Right meta */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          {duration && (
+            <span style={{ fontSize: 11, color: "var(--muted-foreground)", opacity: 0.6, fontVariantNumeric: "tabular-nums" }}>
+              {duration}
+            </span>
+          )}
+          <span style={{ fontSize: 11, color: "var(--muted-foreground)", opacity: 0.5 }}>{time}</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{
+            fontSize: 11, fontWeight: 600,
+            padding: "2px 9px", borderRadius: 999,
+            background: o.bg, color: o.color,
+            border: `1px solid ${o.border}`,
+            whiteSpace: "nowrap", letterSpacing: "0.01em",
+          }}>
+            {o.label}
+          </span>
+          <ArrowRight style={{ width: 11, height: 11, color: "var(--muted-foreground)", opacity: 0.4 }} strokeWidth={1.5} />
+        </div>
       </div>
     </Link>
+  )
+}
+
+// ─── Date group divider ────────────────────────────────────
+
+function DateDivider({ label }: { label: string }) {
+  return (
+    <div style={{
+      padding: "8px 20px 6px",
+      background: "var(--muted)",
+      borderBottom: "1px solid var(--border)",
+      display: "flex", alignItems: "center", gap: 8,
+    }}>
+      <span style={{
+        fontSize: 11, fontWeight: 700,
+        color: "var(--muted-foreground)",
+        textTransform: "uppercase", letterSpacing: "0.07em",
+      }}>
+        {label}
+      </span>
+    </div>
   )
 }
 
@@ -152,6 +241,7 @@ export default function CallsPage() {
   const totalPages = Math.ceil(total / pageSize)
   const rangeStart = total === 0 ? 0 : (page - 1) * pageSize + 1
   const rangeEnd = Math.min(page * pageSize, total)
+  const groups = groupByDate(calls)
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -187,24 +277,8 @@ export default function CallsPage() {
         </div>
       )}
 
-      {/* Table card */}
+      {/* List */}
       <div className="ios-card animate-fade-up animate-fade-up-2" style={{ padding: 0, overflow: "hidden" }}>
-
-        {/* Column headers */}
-        {!isLoading && calls.length > 0 && (
-          <div style={{
-            display: "flex", alignItems: "center", gap: 14, padding: "10px 20px",
-            borderBottom: "1px solid var(--border)",
-            background: "var(--muted)",
-          }}>
-            <div style={{ width: 38, flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>
-              <span style={{ fontSize: 10.5, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Caller</span>
-            </div>
-            <span style={{ fontSize: 10.5, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.08em", flexShrink: 0 }}>Outcome</span>
-          </div>
-        )}
-
         {isLoading ? (
           <>{Array.from({ length: 8 }).map((_, i) => <RowSkeleton key={i} />)}</>
         ) : calls.length === 0 ? (
@@ -220,7 +294,12 @@ export default function CallsPage() {
             </div>
           </div>
         ) : (
-          calls.map((call: Call) => <CallRow key={call.id} call={call} />)
+          groups.map(({ label, calls: groupCalls }) => (
+            <div key={label}>
+              <DateDivider label={label} />
+              {groupCalls.map((call) => <CallRow key={call.id} call={call} />)}
+            </div>
+          ))
         )}
 
         {/* Pagination */}
