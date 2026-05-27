@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback, useMemo } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Plus, Sun, Moon, Monitor, Check, Building2, Wrench, Bot, ShieldCheck, Sliders } from "lucide-react"
 
-import { getClinicSettings, updateClinicSettings, updateClinicTopLevel } from "@/lib/api"
+import { getBusinessSettings, updateBusinessSettings, updateBusinessTopLevel } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { useTheme, type Theme } from "@/lib/theme"
-import type { Clinic, ClinicSettings as ClinicSettingsType, ClinicService, ClinicFAQ } from "@/lib/types"
+import type { Business, BusinessSettings as BusinessSettingsType, BusinessService, BusinessFAQ } from "@/lib/types"
 
 // ─── Constants ─────────────────────────────────────────
 
@@ -25,7 +25,7 @@ const DAY_LABELS: Record<string, string> = {
 }
 const LANGUAGE_OPTIONS = [
   { value: "english",   label: "English" },
-  { value: "hindi",     label: "Hindi" },
+  { value: "spanish",   label: "Spanish" },
   { value: "bilingual", label: "Bilingual" },
 ] as const
 
@@ -60,11 +60,11 @@ function defaultOperatingHours() {
   return result
 }
 
-function emptyService(): ClinicService {
+function emptyService(): BusinessService {
   return { name: "", duration_minutes: 30, price_range: "", description: "", can_book_directly: true, note: "" }
 }
 
-function emptyFAQ(): ClinicFAQ {
+function emptyFAQ(): BusinessFAQ {
   return { question: "", answer: "" }
 }
 
@@ -161,10 +161,10 @@ function SaveBar({ dirty, saving, success, error, onSave }: {
 // ─── Business Info Tab ─────────────────────────────────
 
 function BusinessInfoTab({ clinic, settings, phoneDisplay, onSettingsChange, onPhoneDisplayChange }: {
-  clinic: Clinic
-  settings: ClinicSettingsType
+  clinic: Business
+  settings: BusinessSettingsType
   phoneDisplay: string
-  onSettingsChange: (patch: Partial<ClinicSettingsType>) => void
+  onSettingsChange: (patch: Partial<BusinessSettingsType>) => void
   onPhoneDisplayChange: (v: string) => void
   dirty: boolean; saving: boolean; success: boolean; error: string | null; onSave: () => void
 }) {
@@ -253,11 +253,11 @@ function BusinessInfoTab({ clinic, settings, phoneDisplay, onSettingsChange, onP
 // ─── Services Tab ──────────────────────────────────────
 
 function ServicesTab({ services, onServicesChange }: {
-  services: ClinicService[]
-  onServicesChange: (s: ClinicService[]) => void
+  services: BusinessService[]
+  onServicesChange: (s: BusinessService[]) => void
   dirty: boolean; saving: boolean; success: boolean; error: string | null; onSave: () => void
 }) {
-  function update(i: number, patch: Partial<ClinicService>) {
+  function update(i: number, patch: Partial<BusinessService>) {
     const u = [...services]; u[i] = { ...u[i], ...patch }; onServicesChange(u)
   }
   function remove(i: number) { onServicesChange(services.filter((_, j) => j !== i)) }
@@ -330,15 +330,15 @@ function ServicesTab({ services, onServicesChange }: {
 // ─── AI Assistant Tab ──────────────────────────────────
 
 function AIAssistantTab({ settings, onSettingsChange }: {
-  settings: ClinicSettingsType
-  onSettingsChange: (patch: Partial<ClinicSettingsType>) => void
+  settings: BusinessSettingsType
+  onSettingsChange: (patch: Partial<BusinessSettingsType>) => void
   dirty: boolean; saving: boolean; success: boolean; error: string | null; onSave: () => void
 }) {
   const instructionsText = (settings.special_instructions ?? []).join("\n")
   const faq = settings.faq ?? []
   const emergency = settings.emergency_protocol ?? { during_hours: "", after_hours: "" }
 
-  function updateFAQ(i: number, patch: Partial<ClinicFAQ>) {
+  function updateFAQ(i: number, patch: Partial<BusinessFAQ>) {
     const u = [...faq]; u[i] = { ...u[i], ...patch }; onSettingsChange({ faq: u })
   }
   function removeFAQ(i: number) { onSettingsChange({ faq: faq.filter((_, j) => j !== i) }) }
@@ -360,7 +360,7 @@ function AIAssistantTab({ settings, onSettingsChange }: {
 
           <FieldGroup label="Language">
             <select value={settings.language_preference ?? "english"}
-              onChange={e => onSettingsChange({ language_preference: e.target.value as "english" | "hindi" | "bilingual" })}
+              onChange={e => onSettingsChange({ language_preference: e.target.value as "english" | "spanish" | "bilingual" })}
               className={`${S.input} cursor-pointer`}>
               {LANGUAGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
@@ -434,9 +434,9 @@ function AIAssistantTab({ settings, onSettingsChange }: {
 
 // ─── Account Tab ───────────────────────────────────────
 
-function AccountTab({ clinic }: { clinic: Clinic }) {
+function AccountTab({ clinic }: { clinic: Business }) {
   const rows = [
-    { label: "Clinic ID", value: clinic.id },
+    { label: "Business ID", value: clinic.id },
     { label: "Vapi Phone ID", value: clinic.vapi_phone_id },
     { label: "Display Phone", value: clinic.phone_display },
   ]
@@ -595,10 +595,10 @@ function PreferencesTab() {
 
 // ─── Dirty detection ───────────────────────────────────
 
-function tabIsDirty(tab: Tab, editSettings: ClinicSettingsType | null, originalSettings: string,
+function tabIsDirty(tab: Tab, editSettings: BusinessSettingsType | null, originalSettings: string,
   editPhoneDisplay: string, originalPhoneDisplay: string): boolean {
   if (!editSettings) return false
-  let original: ClinicSettingsType | null = null
+  let original: BusinessSettingsType | null = null
   try { original = JSON.parse(originalSettings) } catch { return false }
   if (!original) return false
 
@@ -625,9 +625,9 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("Business Info")
   const queryClient = useQueryClient()
 
-  const { data: clinic, isLoading } = useQuery({ queryKey: ["clinic-settings"], queryFn: getClinicSettings })
+  const { data: clinic, isLoading } = useQuery({ queryKey: ["business-settings"], queryFn: getBusinessSettings })
 
-  const [editSettings, setEditSettings] = useState<ClinicSettingsType | null>(null)
+  const [editSettings, setEditSettings] = useState<BusinessSettingsType | null>(null)
   const [editPhoneDisplay, setEditPhoneDisplay] = useState("")
   const [originalSettings, setOriginalSettings] = useState("")
   const [originalPhoneDisplay, setOriginalPhoneDisplay] = useState("")
@@ -657,11 +657,11 @@ export default function SettingsPage() {
     return JSON.stringify(editSettings) !== originalSettings || editPhoneDisplay !== originalPhoneDisplay
   }, [editSettings, originalSettings, editPhoneDisplay, originalPhoneDisplay])
 
-  const patchSettings = useCallback((patch: Partial<ClinicSettingsType>) => {
+  const patchSettings = useCallback((patch: Partial<BusinessSettingsType>) => {
     setEditSettings(prev => prev ? { ...prev, ...patch } : prev)
   }, [])
 
-  const onServicesChange = useCallback((services: ClinicService[]) => {
+  const onServicesChange = useCallback((services: BusinessService[]) => {
     setEditSettings(prev => prev ? { ...prev, service_details: services } : prev)
   }, [])
 
@@ -675,16 +675,16 @@ export default function SettingsPage() {
           cleaned.special_instructions.pop()
         cleaned.special_instructions = cleaned.special_instructions.filter((l: string) => l.trim() !== "")
       }
-      const { error: e1 } = await updateClinicSettings(clinic.id, cleaned as unknown as Record<string, unknown>)
+      const { error: e1 } = await updateBusinessSettings(clinic.id, cleaned as unknown as Record<string, unknown>)
       if (e1) { setErrorMsg(e1); return }
       if (editPhoneDisplay !== originalPhoneDisplay) {
-        const { error: e2 } = await updateClinicTopLevel(clinic.id, { phone_display: editPhoneDisplay })
+        const { error: e2 } = await updateBusinessTopLevel(clinic.id, { phone_display: editPhoneDisplay })
         if (e2) { setErrorMsg(e2); return }
       }
       setEditSettings(cleaned)
       setOriginalSettings(JSON.stringify(cleaned))
       setOriginalPhoneDisplay(editPhoneDisplay)
-      await queryClient.invalidateQueries({ queryKey: ["clinic-settings"] })
+      await queryClient.invalidateQueries({ queryKey: ["business-settings"] })
       setSuccessMsg(true); setTimeout(() => setSuccessMsg(false), 3000)
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Failed to save")

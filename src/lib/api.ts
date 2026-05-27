@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { Call, Lead, Appointment, Clinic } from "@/lib/types";
+import type { Call, Lead, Appointment, Business } from "@/lib/types";
 
 // ─── Overview ────────────────────────────────────────────
 
@@ -178,9 +178,9 @@ export async function getOutcomeBreakdown() {
   }));
 }
 
-// ─── Clinic Settings ─────────────────────────────────────
+// ─── Business Settings ───────────────────────────────────
 
-export async function getClinicSettings(): Promise<Clinic | null> {
+export async function getBusinessSettings(): Promise<Business | null> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -188,20 +188,23 @@ export async function getClinicSettings(): Promise<Clinic | null> {
 
   const { data: userRow } = await supabase
     .from("users")
-    .select("clinic_id")
+    .select("business_id")
     .eq("id", user.id)
     .single();
 
   if (!userRow) return null;
 
-  const { data: clinic } = await supabase
-    .from("clinics")
+  const { data: business } = await supabase
+    .from("businesses")
     .select("*")
-    .eq("id", userRow.clinic_id)
+    .eq("id", userRow.business_id)
     .single();
 
-  return (clinic as Clinic) ?? null;
+  return (business as Business) ?? null;
 }
+
+// Keep old name as alias so callers that haven't been updated yet still compile
+export const getClinicSettings = getBusinessSettings;
 
 // ─── Follow-up Queue ─────────────────────────────────────
 
@@ -279,7 +282,6 @@ export async function getBriefing() {
 
   const endOfDay = new Date(today);
   endOfDay.setHours(23, 59, 59, 999);
-  const endOfDayISO = endOfDay.toISOString();
 
   const [
     callsRes,
@@ -288,7 +290,7 @@ export async function getBriefing() {
     appointmentsRes,
     exceptionsRes,
     recentRes,
-    clinicRes,
+    businessRes,
   ] = await Promise.all([
     supabase
       .from("calls")
@@ -298,12 +300,10 @@ export async function getBriefing() {
       .from("leads")
       .select("id", { count: "exact", head: true })
       .gte("created_at", todayISO),
-    // Count of appointments BOOKED today (regardless of when they're scheduled for)
     supabase
       .from("appointments")
       .select("id", { count: "exact", head: true })
       .gte("created_at", todayISO),
-    // Upcoming appointments — from now forward, sorted by scheduled time
     supabase
       .from("appointments")
       .select("*")
@@ -311,7 +311,6 @@ export async function getBriefing() {
       .in("status", ["confirmed", "rescheduled"])
       .order("scheduled_start", { ascending: true })
       .limit(20),
-    // Exception calls — transferred or failed (need attention)
     supabase
       .from("calls")
       .select("*")
@@ -319,15 +318,13 @@ export async function getBriefing() {
       .gte("created_at", todayISO)
       .order("created_at", { ascending: false })
       .limit(5),
-    // Recent calls for activity feed
     supabase
       .from("calls")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(10),
-    // Clinic status for live indicator
     supabase
-      .from("clinics")
+      .from("businesses")
       .select("status, vapi_phone_id")
       .limit(1)
       .maybeSingle(),
@@ -345,7 +342,6 @@ export async function getBriefing() {
     is_repeat_caller: c.caller_phone ? (phoneCounts[c.caller_phone] ?? 0) > 1 : false,
   }));
 
-  // Avg call duration — today's calls only, from the recent set
   const todayStart = today.toISOString();
   const todayCallDurations = rawRecent
     .filter((c) => c.created_at >= todayStart && c.duration_secs != null)
@@ -362,8 +358,8 @@ export async function getBriefing() {
     exceptionCalls: (exceptionsRes.data as Call[]) ?? [],
     recentCalls,
     avgCallSecs,
-    clinicStatus: (clinicRes.data?.status as string) ?? null,
-    clinicHasPhone: !!(clinicRes.data?.vapi_phone_id),
+    businessStatus: (businessRes.data?.status as string) ?? null,
+    businessHasPhone: !!(businessRes.data?.vapi_phone_id),
   };
 }
 
@@ -395,24 +391,28 @@ export async function markLeadBooked(leadId: string) {
 
 // ─── Settings (Save) ────────────────────────────────────
 
-export async function updateClinicSettings(
-  clinicId: string,
+export async function updateBusinessSettings(
+  businessId: string,
   settings: Record<string, unknown>,
 ) {
   const { error } = await supabase
-    .from("clinics")
+    .from("businesses")
     .update({ settings, updated_at: new Date().toISOString() })
-    .eq("id", clinicId);
+    .eq("id", businessId);
   return { error: error?.message ?? null };
 }
 
-export async function updateClinicTopLevel(
-  clinicId: string,
+export async function updateBusinessTopLevel(
+  businessId: string,
   fields: Record<string, unknown>,
 ) {
   const { error } = await supabase
-    .from("clinics")
+    .from("businesses")
     .update({ ...fields, updated_at: new Date().toISOString() })
-    .eq("id", clinicId);
+    .eq("id", businessId);
   return { error: error?.message ?? null };
 }
+
+// Keep old names as aliases for any callers not yet updated
+export const updateClinicSettings = updateBusinessSettings;
+export const updateClinicTopLevel = updateBusinessTopLevel;

@@ -83,7 +83,7 @@ function formatElapsed(iso: string): string {
 function buildCallSummary(call: Call): string {
   if (call.summary) return call.summary
   const extracted = call.extracted_data ?? {}
-  const name = (extracted.patient_name as string) ?? call.caller_phone ?? "Unknown"
+  const name = (extracted.caller_name as string) ?? call.caller_phone ?? "Unknown"
   const service = (extracted.service_needed as string) ?? null
   const outcomeMap: Record<string, string> = {
     appointment_booked: "Appointment booked",
@@ -659,7 +659,7 @@ function ScheduleTimeline({ appointments }: { appointments: Appointment[] }) {
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{ fontSize: 13, fontWeight: 500, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
-                {apt.patient_name}
+                {apt.customer_name}
               </p>
               {apt.service_type && (
                 <p style={{ fontSize: 11.5, color: "var(--muted-foreground)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -963,7 +963,7 @@ export default function OverviewPage() {
   const upcomingAppointments = d?.upcomingAppointments ?? []
   const exceptions = d?.exceptionCalls ?? []
   const recentCalls = d?.recentCalls ?? []
-  const clinicActive = d?.clinicStatus === "active" && d?.clinicHasPhone
+  const clinicActive = d?.businessStatus === "active" && d?.businessHasPhone
 
   const avgCallDisplay = avgCallSecs != null ? formatDuration(avgCallSecs) : "--"
   const greeting = getGreeting(profile.fullName)

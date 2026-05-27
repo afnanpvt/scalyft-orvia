@@ -1,331 +1,222 @@
-import type { Clinic, ClinicService, ClinicFAQ } from "@/lib/types";
+import type { Business, BusinessService, BusinessFAQ } from "@/lib/types";
 
 export function buildAssistantConfig(
-  clinic: Clinic,
-  n8nBaseUrl: string,
-  webhookSecret: string
+  business: Business,
+  supabaseUrl: string,
 ) {
-  const { settings } = clinic;
-  const lang = settings.language_preference || "english";
-
   return {
     model: {
       provider: "openai" as const,
       model: "gpt-4o-mini",
-      systemPrompt: buildSystemPrompt(clinic),
+      systemPrompt: buildSystemPrompt(business),
       temperature: 0.3,
     },
     voice: {
-      provider: "11labs" as const,
-      voiceId: "rachel", // English-focused voice — revisit after voice testing
+      provider: "vapi" as const,
+      voiceId: "Savannah",
     },
-    firstMessage: buildGreeting(clinic),
-    tools: buildTools(clinic, n8nBaseUrl, webhookSecret),
+    firstMessage: buildGreeting(business),
+    tools: buildTools(business, supabaseUrl),
     endCallPhrases: [
+      "talk to you later",
+      "have a good day",
+      "have a great day",
       "goodbye",
       "bye",
-      "thank you",
-      "thanks",
-      "that's all",
-      "no more questions",
     ],
-    serverUrl: `${n8nBaseUrl}/webhook/vapi-events`,
-    silenceTimeoutSeconds: 15,
-    maxDurationSeconds: 300, // 5 min max per call
+    serverUrl: `${supabaseUrl}/functions/v1/vapi-events`,
+    silenceTimeoutSeconds: 20,
+    maxDurationSeconds: 600,
     backgroundSound: "off" as const,
   };
 }
 
-function buildGreeting(clinic: Clinic): string {
-  const { settings } = clinic;
-  const name = settings.receptionist_name || "Orvia";
-
-  return `Thank you for calling ${clinic.name}. This is ${name}, how can I help you today?`;
+function buildGreeting(business: Business): string {
+  return `Thanks for calling ${business.name}, how can I help you today?`;
 }
 
-function buildSystemPrompt(clinic: Clinic): string {
-  const { settings } = clinic;
-  const name = settings.receptionist_name || "Orvia";
+function buildSystemPrompt(business: Business): string {
+  const { settings } = business;
+  const agentName = settings.receptionist_name || "Orvia";
 
   const sections: string[] = [];
 
-  // ── Identity ──────────────────────────────────────────
   sections.push(`# Who You Are
-You are ${name}, the AI receptionist for ${clinic.name}.
-${settings.doctor_name ? `The clinic is run by ${settings.doctor_name}.` : ""}
-${settings.tagline ? `The clinic's motto: "${settings.tagline}"` : ""}
-You are warm, professional, and reassuring. You sound like a real person who works at this clinic — not a robot, not a call center agent.`);
+You are ${agentName}, the AI receptionist for ${business.name}.
+${settings.business_owner ? `The business is owned by ${settings.business_owner}.` : ""}
+${settings.tagline ? `Their motto: "${settings.tagline}"` : ""}
+You sound like a real person who works at the front desk — warm, calm, efficient. Never robotic. Never a call center agent.`);
 
-  // ── Communication Style ───────────────────────────────
   sections.push(`# How You Speak
-- Speak naturally in English. Use simple, clear sentences.
-- Be conversational — use "sure", "absolutely", "of course", "no problem" naturally.
-- Be empathetic — if someone mentions pain or discomfort, acknowledge it before moving to booking.
-- Never sound scripted. Vary your phrasing.
-- Keep responses SHORT — 1-2 sentences max per turn. Real receptionists don't give speeches.
-- Ask ONE question at a time. Never stack multiple questions.
-- Use the caller's name once you have it — "Sure Rahul, let me check that for you."
-- If you don't understand something, say "Sorry, could you repeat that?" — not "I didn't comprehend your input."
-- Mention this call may be recorded at the start.`);
+- Keep every reply to one or two short sentences. Real receptionists don't make speeches.
+- Ask ONE question at a time. Never stack questions.
+- Use contractions naturally — "I'll", "you're", "we've", "don't".
+- Use the caller's first name once you have it.
+- If you mishear, say "Sorry, could you repeat that?"
+- If a caller is upset or in pain, acknowledge it first before moving to logistics.
+- Mention near the start that the call may be recorded.`);
 
-  // ── Special instructions from clinic owner ────────────
   if (settings.special_instructions?.length) {
-    sections.push(`# Special Instructions from the Clinic Owner
-${settings.special_instructions.map((i) => `- ${i}`).join("\n")}`);
+    sections.push(`# Owner's Standing Instructions\n${settings.special_instructions.map((i) => `- ${i}`).join("\n")}`);
   }
 
-  // ── Services ──────────────────────────────────────────
   if (settings.service_details?.length) {
-    sections.push(
-      `# Services Offered\n${buildServiceSection(settings.service_details)}`
-    );
+    sections.push(`# Services\n${buildServiceSection(settings.service_details)}`);
   } else if (settings.services?.length) {
-    sections.push(
-      `# Services Offered\nThe clinic offers: ${settings.services.join(", ")}.`
-    );
+    sections.push(`# Services\nWe offer: ${settings.services.join(", ")}.`);
   }
 
-  // ── FAQ ────────────────────────────────────────────────
   if (settings.faq?.length) {
     sections.push(`# Common Questions\n${buildFAQSection(settings.faq)}`);
   }
 
-  // ── Operating Hours ───────────────────────────────────
-  sections.push(
-    `# Clinic Hours\n${buildHoursSection(clinic)}`
-  );
+  sections.push(`# Hours\n${buildHoursSection(business)}`);
 
-  // ── Location ──────────────────────────────────────────
   if (settings.address) {
-    sections.push(
-      `# Location\nThe clinic is located at: ${settings.address}${settings.landmark ? ` (${settings.landmark})` : ""}.`
-    );
+    sections.push(`# Location\nWe're at ${settings.address}${settings.landmark ? ` (${settings.landmark})` : ""}.`);
   }
 
-  // ── Booking Rules ─────────────────────────────────────
-  sections.push(`# How to Handle Calls
+  if (settings.service_area_zips?.length) {
+    const city = settings.city ?? "our service area";
+    sections.push(`# Service Area\nWe only serve: ${settings.service_area_zips.join(", ")} in ${city}. Always ask for ZIP code first.`);
+  }
 
-## Caller wants an appointment
-1. Ask what service they need (if not already mentioned)
-2. Ask for their zip code to confirm service area (if applicable)
-3. Ask their preferred date and time
-4. Use the check_availability tool to find open slots
-5. Offer available slots to the caller
-6. Once they pick a slot, ask for their name and phone number
-7. Use the book_appointment tool to confirm
-8. Repeat the booking details: "You're all set — [service] on [date] at [time]."
+  const emergencyDuring = settings.emergency_protocol?.during_hours ?? "Dispatch a technician same day.";
+  const emergencyAfter = settings.emergency_protocol?.after_hours ?? "Take name, phone, and address. Tell them the on-call tech will call back within 30 minutes.";
 
-## Caller asking about services or pricing
-- Share the price RANGE, never an exact price. Say "typically ranges from" or "starts from".
-- For complex jobs requiring an on-site assessment, suggest booking a free estimate first.
+  sections.push(`# Workflows
 
-## Emergency or pain
-${settings.emergency_protocol?.during_hours
-    ? `During clinic hours: ${settings.emergency_protocol.during_hours}`
-    : "During clinic hours: Try to book the next available slot today."}
-${settings.emergency_protocol?.after_hours
-    ? `After hours: ${settings.emergency_protocol.after_hours}`
-    : "After hours: Take their details, assure them the clinic will call back first thing in the morning."}
-${settings.emergency_number ? `For true emergencies, transfer to: ${settings.emergency_number}` : ""}
+## Booking
+1. Ask ZIP code first — confirm we serve their area.
+2. Ask what service they need.
+3. Ask preferred date and time.
+4. Call check_availability to find open slots.
+5. Offer 2-3 slots in plain English.
+6. Get their full name and callback phone.
+7. Call book_appointment to confirm.
+8. Read it back: "You're all set — [service], [day] at [time]."
 
-## Caller wants to speak to the owner or manager directly
-Say they are currently unavailable. Offer to book a callback or take a message.
+## Emergencies
+During hours: ${emergencyDuring}
+After hours: ${emergencyAfter}
+${settings.emergency_protocol?.emergency_contact ? `Emergency contact: ${settings.emergency_protocol.emergency_contact}` : ""}
 
-## Non-customer calls (vendors, sales, etc.)
-Politely take a message. Do not book a job for non-customers.
+## Can't complete booking
+Call capture_lead. Tell the caller someone will call back within 30 minutes.`);
 
-## You can't complete a booking (system error, no slots)
-Capture their lead information using capture_lead, and assure them someone will call back within 30 minutes.`);
-
-  // ── Boundaries ────────────────────────────────────────
-  sections.push(`# What You Must NOT Do
-- Never guarantee exact prices — always give ranges or say the technician will provide a free on-site estimate.
-- Never share other customers' information.
-- Never argue with a caller. If they're upset, empathize and offer to have the owner call them back.
-- Never make promises the business can't keep (same-day for non-emergency, specific technician availability).
-- Never confirm a booking outside the service area.`);
+  sections.push(`# Guardrails
+- Never quote exact prices — always give a range.
+- Never share another customer's information.
+- Never argue. If a caller is upset, offer to have the owner call back.
+- Never book or capture a lead for someone outside the service area.`);
 
   return sections.join("\n\n");
 }
 
-function buildServiceSection(services: ClinicService[]): string {
+function buildServiceSection(services: BusinessService[]): string {
   return services
     .map((s) => {
-      let line = `- **${s.name}**: ${s.description}. Duration: ~${s.duration_minutes} min. Price range: ${s.price_range}.`;
-      if (!s.can_book_directly) {
-        line += ` ⚠️ ${s.note || "Requires consultation first — book a consultation appointment."}`;
-      }
-      if (s.priority === "high") {
-        line += ` 🔴 Priority: try to book same-day or next available.`;
-      }
-      return line;
+      const price = s.price_range ? ` Price range: ${s.price_range}.` : "";
+      const booking = s.can_book_directly
+        ? "Can book directly."
+        : `Needs a tech to assess first — book a free estimate. ${s.note ?? ""}`.trim();
+      const priority = s.priority === "high" ? " HIGH PRIORITY — try same day or next available." : "";
+      return `- ${s.name}: ${s.description}. ~${s.duration_minutes} min.${price} ${booking}${priority}`;
     })
     .join("\n");
 }
 
-function buildFAQSection(faqs: ClinicFAQ[]): string {
-  return faqs
-    .map((f) => `Q: "${f.question}"\nA: ${f.answer}`)
-    .join("\n\n");
+function buildFAQSection(faqs: BusinessFAQ[]): string {
+  return faqs.map((f) => `Q: "${f.question}"\nA: ${f.answer}`).join("\n\n");
 }
 
-function buildHoursSection(clinic: Clinic): string {
-  const { settings } = clinic;
-
-  if (settings.operating_hours) {
-    const days = [
-      "monday",
-      "tuesday",
-      "wednesday",
-      "thursday",
-      "friday",
-      "saturday",
-      "sunday",
-    ];
-    const lines = days.map((day) => {
-      const h = settings.operating_hours?.[day];
-      if (!h || h.closed) return `- ${capitalize(day)}: Closed`;
-      let line = `- ${capitalize(day)}: ${h.open} - ${h.close}`;
-      if (h.lunch_break) line += ` (lunch break: ${h.lunch_break})`;
-      return line;
-    });
-    return lines.join("\n");
+function buildHoursSection(business: Business): string {
+  const { settings } = business;
+  if (!settings.operating_hours) {
+    return settings.hours ?? "Open Monday through Saturday, 7am to 7pm. Closed Sundays.";
   }
-
-  return `Clinic hours: ${settings.hours || "10am-7pm Mon-Sat, closed Sunday"}.`;
+  const days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+  return days.map((day) => {
+    const h = settings.operating_hours?.[day];
+    if (!h || h.closed) return `${day.charAt(0).toUpperCase() + day.slice(1)}: Closed`;
+    return `${day.charAt(0).toUpperCase() + day.slice(1)}: ${h.open}–${h.close}`;
+  }).join(", ");
 }
 
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-function buildTools(
-  clinic: Clinic,
-  n8nBaseUrl: string,
-  webhookSecret: string
-) {
-  const { settings } = clinic;
+function buildTools(business: Business, supabaseUrl: string) {
+  const { settings } = business;
+  const base = `${supabaseUrl}/functions/v1`;
 
   const tools: unknown[] = [
     {
-      type: "function" as const,
+      type: "function",
       function: {
         name: "capture_lead",
-        description:
-          "Save the caller's contact information when you cannot complete a booking or they just want a callback",
+        description: "Save the caller's contact info when you can't complete a booking or they want a callback",
         parameters: {
           type: "object",
           properties: {
-            name: {
-              type: "string",
-              description: "Caller's full name",
-            },
-            phone: {
-              type: "string",
-              description:
-                "Caller's phone number (only if different from caller ID)",
-            },
-            service_needed: {
-              type: "string",
-              description: "What service they need",
-            },
+            name: { type: "string", description: "Caller's full name" },
+            phone: { type: "string", description: "Caller's phone number (only if different from caller ID)" },
+            service_needed: { type: "string", description: "What service they need" },
             urgency: {
               type: "string",
               enum: ["emergency", "urgent", "routine", "inquiry"],
-              description: "How urgent is the request",
+              description: "How urgent the request is",
             },
-            notes: {
-              type: "string",
-              description: "Any other relevant details mentioned by the patient",
-            },
+            notes: { type: "string", description: "Any other relevant details" },
           },
           required: ["name", "service_needed", "urgency"],
         },
       },
-      server: {
-        url: `${n8nBaseUrl}/webhook/capture-lead`,
-        secret: webhookSecret,
-      },
+      server: { url: `${base}/capture-lead?business_id=${business.id}` },
     },
     {
-      type: "function" as const,
+      type: "function",
       function: {
         name: "check_availability",
-        description:
-          "Check available appointment slots for a specific date. Call this before offering slots to the patient.",
+        description: "Check available slots for a specific date. Call this before offering times.",
         parameters: {
           type: "object",
           properties: {
-            date: {
-              type: "string",
-              description: "Date to check in YYYY-MM-DD format",
-            },
-            service_type: {
-              type: "string",
-              description: "Type of service (affects slot duration)",
-            },
+            date: { type: "string", description: "Date in YYYY-MM-DD format" },
+            service_type: { type: "string", description: "Type of service (affects slot duration)" },
           },
           required: ["date"],
         },
       },
-      server: {
-        url: `${n8nBaseUrl}/webhook/check-availability`,
-        secret: webhookSecret,
-      },
+      server: { url: `${base}/check-availability?business_id=${business.id}` },
     },
     {
-      type: "function" as const,
+      type: "function",
       function: {
         name: "book_appointment",
-        description:
-          "Book a confirmed appointment after the patient has selected a slot",
+        description: "Book a confirmed appointment after the caller selects a slot",
         parameters: {
           type: "object",
           properties: {
-            patient_name: {
-              type: "string",
-              description: "Patient's full name",
-            },
-            patient_phone: {
-              type: "string",
-              description: "Patient's phone number",
-            },
-            service_type: {
-              type: "string",
-              description: "Type of dental service",
-            },
-            slot: {
-              type: "string",
-              description:
-                "ISO 8601 datetime of the appointment (e.g., 2026-03-21T14:30:00+05:30)",
-            },
-            notes: {
-              type: "string",
-              description: "Any notes about the appointment",
-            },
+            customer_name: { type: "string", description: "Caller's full name" },
+            customer_phone: { type: "string", description: "Caller's phone number" },
+            service_type: { type: "string", description: "Type of service being booked" },
+            slot: { type: "string", description: "ISO 8601 datetime of the appointment" },
+            notes: { type: "string", description: "Any notes about the appointment" },
           },
-          required: ["patient_name", "patient_phone", "service_type", "slot"],
+          required: ["customer_name", "customer_phone", "service_type", "slot"],
         },
       },
-      server: {
-        url: `${n8nBaseUrl}/webhook/book-appointment`,
-        secret: webhookSecret,
-      },
+      server: { url: `${base}/book-appointment?business_id=${business.id}` },
     },
   ];
 
-  // Add transfer call only if a transfer number is configured
-  const transferNumber =
-    settings.transfer_number || settings.emergency_number;
+  const transferNumber = settings.transfer_number || settings.emergency_number;
   if (transferNumber) {
     tools.push({
-      type: "transferCall" as const,
+      type: "transferCall",
       destinations: [
         {
-          type: "number" as const,
+          type: "number",
           number: transferNumber,
-          message:
-            "One moment, let me connect you to the clinic directly.",
+          message: "One moment, let me connect you directly.",
         },
       ],
     });

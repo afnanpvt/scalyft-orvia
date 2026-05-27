@@ -219,13 +219,13 @@ Deno.serve(async (req: Request) => {
   const { toolCallId, args } = extractArgs(rawBody);
 
   const url = new URL(req.url);
-  const clinic_id = (args.clinic_id as string | undefined) ?? url.searchParams.get("clinic_id") ?? undefined;
+  const business_id = (args.business_id as string | undefined) ?? url.searchParams.get("business_id") ?? undefined;
   const date = args.date as string | undefined;
   const service_type = args.service_type as string | undefined;
 
-  console.log("check-availability PARSED:", { toolCallId, clinic_id, date, service_type, argsKeys: Object.keys(args) });
+  console.log("check-availability PARSED:", { toolCallId, business_id, date, service_type, argsKeys: Object.keys(args) });
 
-  if (!clinic_id) {
+  if (!business_id) {
     return vapiResponse(toolCallId, { error: "I'm having trouble identifying the clinic. Let me take your details instead." });
   }
   if (!date) {
@@ -241,9 +241,9 @@ Deno.serve(async (req: Request) => {
   });
 
   const { data: clinic, error: clinicErr } = await supabase
-    .from("clinics")
+    .from("businesses")
     .select("settings, timezone")
-    .eq("id", clinic_id)
+    .eq("id", business_id)
     .single();
 
   if (clinicErr || !clinic) {
@@ -302,7 +302,7 @@ Deno.serve(async (req: Request) => {
   const { data: appointments } = await supabase
     .from("appointments")
     .select("scheduled_start, scheduled_end")
-    .eq("clinic_id", clinic_id)
+    .eq("business_id", business_id)
     .gte("scheduled_start", dayStartUtc)
     .lte("scheduled_start", dayEndUtc)
     .in("status", ["confirmed", "rescheduled"]);

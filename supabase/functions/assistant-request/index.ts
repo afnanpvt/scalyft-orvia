@@ -310,7 +310,7 @@ function buildTools(clinic: Clinic, supabaseUrl: string) {
           required: ["name", "service_needed", "urgency"],
         },
       },
-      server: { url: `${edgeFnBase}/capture-lead?clinic_id=${clinic.id}` },
+      server: { url: `${edgeFnBase}/capture-lead?business_id=${clinic.id}` },
       messages: [
         { type: "request-start", content: "Got it, writing this down." },
         { type: "request-failed", content: "Couldn't save that on my end - let me just have the owner call you back directly." },
@@ -330,7 +330,7 @@ function buildTools(clinic: Clinic, supabaseUrl: string) {
           required: ["date"],
         },
       },
-      server: { url: `${edgeFnBase}/check-availability?clinic_id=${clinic.id}` },
+      server: { url: `${edgeFnBase}/check-availability?business_id=${clinic.id}` },
       messages: [
         // Spoken when the tool is fired. VAPI picks one at random, so vary them.
         { type: "request-start", content: "Let me check that real quick." },
@@ -347,16 +347,16 @@ function buildTools(clinic: Clinic, supabaseUrl: string) {
         parameters: {
           type: "object",
           properties: {
-            patient_name: { type: "string", description: "Caller's full name" },
-            patient_phone: { type: "string", description: "Caller's phone number" },
+            customer_name: { type: "string", description: "Caller's full name" },
+            customer_phone: { type: "string", description: "Caller's phone number" },
             service_type: { type: "string", description: "Type of service being booked" },
             slot: { type: "string", description: "ISO 8601 datetime of the appointment (e.g., 2026-03-21T14:30:00+05:30)" },
             notes: { type: "string", description: "Any notes about the appointment" },
           },
-          required: ["patient_name", "patient_phone", "service_type", "slot"],
+          required: ["customer_name", "customer_phone", "service_type", "slot"],
         },
       },
-      server: { url: `${edgeFnBase}/book-appointment?clinic_id=${clinic.id}` },
+      server: { url: `${edgeFnBase}/book-appointment?business_id=${clinic.id}` },
       messages: [
         { type: "request-start", content: "Alright, locking that in." },
         { type: "request-start", content: "Booking it now." },
@@ -550,7 +550,7 @@ Deno.serve(async (req: Request) => {
   });
 
   const { data: clinic, error } = await supabase
-    .from("clinics")
+    .from("businesses")
     .select("*")
     .eq("vapi_phone_id", phoneNumberId)
     .eq("status", "active")

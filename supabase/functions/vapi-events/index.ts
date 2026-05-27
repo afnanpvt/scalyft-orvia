@@ -155,7 +155,7 @@ Deno.serve(async (req: Request) => {
     let clinicId: string | null = null;
     if (phoneNumberId) {
       const { data: clinic } = await supabase
-        .from("clinics")
+        .from("businesses")
         .select("id")
         .eq("vapi_phone_id", phoneNumberId)
         .eq("status", "active")
@@ -174,7 +174,7 @@ Deno.serve(async (req: Request) => {
     const { error } = await supabase.from("calls").upsert(
       {
         vapi_call_id: vapiCallId,
-        clinic_id: clinicId,
+        business_id: clinicId,
         caller_phone: callerPhone,
         status: "in_progress",
         started_at: msg.call?.startedAt ?? new Date().toISOString(),
@@ -210,7 +210,7 @@ Deno.serve(async (req: Request) => {
     let clinicId: string | null = null;
     if (phoneNumberId) {
       const { data: clinic } = await supabase
-        .from("clinics")
+        .from("businesses")
         .select("id")
         .eq("vapi_phone_id", phoneNumberId)
         .eq("status", "active")
@@ -224,7 +224,7 @@ Deno.serve(async (req: Request) => {
       outcome: "missed",
       ended_at: msg.call?.endedAt ?? new Date().toISOString(),
     };
-    if (clinicId) missedData.clinic_id = clinicId;
+    if (clinicId) missedData.business_id = clinicId;
     if (callerPhone) missedData.caller_phone = callerPhone;
     if (msg.call?.startedAt) missedData.started_at = msg.call.startedAt;
 
@@ -264,17 +264,17 @@ Deno.serve(async (req: Request) => {
     // Don't overwrite outcome if capture-lead/book-appointment already set it
     const { data: existing } = await supabase
       .from("calls")
-      .select("outcome, clinic_id")
+      .select("outcome, business_id")
       .eq("vapi_call_id", vapiCallId)
       .single();
 
     const outcome = existing?.outcome ?? inferOutcome(extractedVars, summary, msg.analysis);
 
     // Look up clinic if row doesn't exist yet
-    let clinicId = existing?.clinic_id ?? null;
+    let clinicId = existing?.business_id ?? null;
     if (!clinicId && phoneNumberId) {
       const { data: clinic } = await supabase
-        .from("clinics")
+        .from("businesses")
         .select("id")
         .eq("vapi_phone_id", phoneNumberId)
         .eq("status", "active")
@@ -294,7 +294,7 @@ Deno.serve(async (req: Request) => {
       ended_at: msg.call?.endedAt ?? new Date().toISOString(),
     };
 
-    if (clinicId) updateData.clinic_id = clinicId;
+    if (clinicId) updateData.business_id = clinicId;
     if (callerPhone) updateData.caller_phone = callerPhone;
     if (msg.call?.startedAt) updateData.started_at = msg.call.startedAt;
     if (transcriptTurns.length > 0) updateData.transcript = transcriptTurns;

@@ -1,0 +1,154 @@
+{
+  "business_identity": {
+    "name": "Smith's Plumbing & Drain",
+    "business_owner": "Mike Smith",
+    "tagline": "Fast, honest plumbing — done right the first time",
+    "established_year": 2015,
+    "location": {
+      "address": "4821 Westlake Dr, Austin, TX 78746",
+      "city": "Austin",
+      "service_area": "Austin metro area"
+    }
+  },
+
+  "service_area_zips": [
+    "78701", "78702", "78703", "78704", "78705",
+    "78721", "78722", "78723", "78724", "78725",
+    "78741", "78742", "78744", "78745", "78746",
+    "78748", "78749", "78750", "78751", "78752",
+    "78753", "78754", "78757", "78758", "78759"
+  ],
+
+  "operating_hours": {
+    "monday":    { "open": "07:00", "close": "18:00" },
+    "tuesday":   { "open": "07:00", "close": "18:00" },
+    "wednesday": { "open": "07:00", "close": "18:00" },
+    "thursday":  { "open": "07:00", "close": "18:00" },
+    "friday":    { "open": "07:00", "close": "18:00" },
+    "saturday":  { "open": "08:00", "close": "14:00" },
+    "sunday":    { "closed": true }
+  },
+
+  "services": [
+    {
+      "name": "Drain Cleaning",
+      "duration_minutes": 60,
+      "price_range": "$95-$250",
+      "description": "Kitchen, bathroom, and main line drain cleaning and unclogging",
+      "can_book_directly": true
+    },
+    {
+      "name": "Leak Repair",
+      "duration_minutes": 60,
+      "price_range": "$150-$400",
+      "description": "Fix leaking pipes, faucets, supply lines, and valves",
+      "can_book_directly": true
+    },
+    {
+      "name": "Toilet Repair or Replacement",
+      "duration_minutes": 60,
+      "price_range": "$100-$600",
+      "description": "Running toilet, clogged toilet, full toilet replacement",
+      "can_book_directly": true
+    },
+    {
+      "name": "Water Heater Repair",
+      "duration_minutes": 90,
+      "price_range": "$150-$500",
+      "description": "Diagnose and repair gas or electric water heaters",
+      "can_book_directly": true
+    },
+    {
+      "name": "Water Heater Replacement",
+      "duration_minutes": 180,
+      "price_range": "$900-$2200",
+      "description": "Full water heater replacement — tank or tankless",
+      "can_book_directly": false,
+      "note": "Needs a free on-site estimate first so we can size the right unit"
+    },
+    {
+      "name": "Sewer Line Inspection & Repair",
+      "duration_minutes": 120,
+      "price_range": "$200-$3000",
+      "description": "Camera inspection, hydro-jetting, sewer line repair or replacement",
+      "can_book_directly": false,
+      "note": "Needs a free estimate — pricing varies heavily by scope"
+    },
+    {
+      "name": "Emergency Plumbing",
+      "duration_minutes": 90,
+      "price_range": "$200-$600",
+      "description": "Burst pipes, flooding, gas leaks, sewage backup — any plumbing emergency",
+      "can_book_directly": true,
+      "priority": "high",
+      "note": "Same-day response. Try to dispatch within 2 hours."
+    },
+    {
+      "name": "Free Estimate",
+      "duration_minutes": 30,
+      "price_range": "$0",
+      "description": "Free on-site assessment for larger jobs — water heaters, repiping, sewer work",
+      "can_book_directly": true
+    }
+  ],
+
+  "faq": [
+    {
+      "question": "Do you charge for estimates?",
+      "answer": "No, estimates are completely free. We'll come out, assess the job, and give you a straight price before any work starts."
+    },
+    {
+      "question": "Are you licensed and insured?",
+      "answer": "Yes, we're fully licensed and insured in the state of Texas. License number available on request."
+    },
+    {
+      "question": "Do you offer emergency service?",
+      "answer": "Yes, we offer emergency plumbing service 7 days a week. For true emergencies outside normal hours, call us and the on-call tech will get back to you within 30 minutes."
+    },
+    {
+      "question": "How much does drain cleaning cost?",
+      "answer": "Drain cleaning typically runs ninety-five to two-fifty depending on the type of drain and how severe the clog is. We can give you a firm price once we take a look."
+    },
+    {
+      "question": "Do you work on gas lines?",
+      "answer": "Yes, we handle gas line repairs and installations. If you smell gas right now, leave the building and call your gas company first, then call us."
+    },
+    {
+      "question": "What payment methods do you accept?",
+      "answer": "We accept cash, check, and all major credit cards. Financing is available for larger jobs over five hundred dollars."
+    }
+  ],
+
+  "receptionist_personality": {
+    "name": "Orvia",
+    "tone": "friendly, straightforward, no-nonsense",
+    "language_preference": "english",
+    "special_instructions": [
+      "Always ask for the caller's ZIP code first to confirm we serve their area",
+      "For any emergency (burst pipe, flooding, gas smell, sewage backup) — flag as urgent and prioritize dispatch",
+      "Never give exact prices — always say 'typically runs' or 'starting around' with a range",
+      "If someone asks for Mike directly, say he's out on a job and offer to take a message or book a callback",
+      "For larger jobs like water heater replacement or sewer work, always suggest a free estimate first"
+    ]
+  },
+
+  "emergency_protocol": {
+    "during_hours": "Dispatch a technician same day, prioritize over routine calls. Try to have someone there within 2 hours.",
+    "after_hours": "Take the caller's name, phone number, address, and describe the emergency. Assure them the on-call tech will call back within 30 minutes. For gas leaks or flooding, tell them to shut off the main and call 911 if needed.",
+    "emergency_contact": "+1-512-555-0100"
+  },
+
+  "notification_preferences": {
+    "new_appointment": { "sms": true, "email": true },
+    "new_lead": { "sms": true, "email": false },
+    "emergency_call": { "sms": true, "email": true },
+    "daily_summary": { "email": true, "time": "19:00" }
+  },
+
+  "calendar": {
+    "provider": "google",
+    "slot_duration_default": 60,
+    "buffer_between_appointments": 30,
+    "max_appointments_per_day": 8
+  }
+}

@@ -1,14 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Vapi tool: book_appointment
-// Called mid-call when Orvia books an appointment.
-// Inserts appointment row, updates call outcome, sends confirmation SMS to caller + owner.
+// Inserts appointment row, updates call outcome, sends confirmation SMS (fire-and-forget).
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface AppointmentArgs {
-  patient_name: string;
-  patient_phone: string;
+  customer_name: string;
+  customer_phone: string;
   service_type: string;
   slot: string; // ISO 8601 datetime
   notes?: string;
@@ -20,6 +19,8 @@ interface VapiToolCall {
   arguments?: Record<string, unknown>;
   function?: { name: string; arguments: string | Record<string, unknown> };
 }
+
+declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void };
 
 function vapiResponse(toolCallId: string | null, result: unknown, status = 200): Response {
   const body = toolCallId
@@ -93,10 +94,10 @@ Deno.serve(async (req: Request) => {
   }
 
   const url = new URL(req.url);
-  const clinicId = url.searchParams.get("clinic_id");
+  const businessId = url.searchParams.get("business_id") ?? url.searchParams.get("clinic_id");
 
-  if (!clinicId) {
-    return new Response(JSON.stringify({ error: "Missing clinic_id" }), {
+  if (!businessId) {
+    return new Response(JSON.stringify({ error: "Missing business_id" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });
@@ -147,9 +148,13 @@ Deno.serve(async (req: Request) => {
     return vapiResponse(toolCallId, { error: "Failed to parse tool arguments" });
   }
 
-  console.log("book-appointment called:", { toolCallId, patient_name: args.patient_name, slot: args.slot });
+  // Support legacy patient_name/patient_phone field names from older prompts
+  const customerName = (args.customer_name ?? (args as unknown as Record<string, string>).patient_name) as string | undefined;
+  const customerPhone = (args.customer_phone ?? (args as unknown as Record<string, string>).patient_phone) as string | undefined;
 
-  if (!args.patient_name || !args.patient_phone || !args.service_type || !args.slot) {
+  console.log("book-appointment called:", { toolCallId, customer_name: customerName, slot: args.slot });
+
+  if (!customerName || !customerPhone || !args.service_type || !args.slot) {
     return vapiResponse(toolCallId, { error: "Need name, phone, service, and time to book." });
   }
 
@@ -157,17 +162,17 @@ Deno.serve(async (req: Request) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Load clinic
-  const { data: clinic } = await supabase
-    .from("clinics")
+  // Load business
+  const { data: business } = await supabase
+    .from("businesses")
     .select("settings, timezone, name")
-    .eq("id", clinicId)
+    .eq("id", businessId)
     .single();
 
-  const timezone = clinic?.timezone ?? "America/Chicago";
-  const slotDuration = clinic?.settings?.slot_duration_default ?? 60;
-  const notifyPhone = clinic?.settings?.notification_phone ?? ownerPhone;
-  const businessName = clinic?.name ?? "the business";
+  const timezone = business?.timezone ?? "America/Chicago";
+  const slotDuration = business?.settings?.slot_duration_default ?? 60;
+  const notifyPhone = business?.settings?.notification_phone ?? ownerPhone;
+  const businessName = business?.name ?? "the business";
 
   // Find call row
   let callRowId: string | null = null;
@@ -180,6 +185,25 @@ Deno.serve(async (req: Request) => {
     callRowId = callRow?.id ?? null;
   }
 
+  // Idempotency: if this call already has an appointment, return success
+  if (callRowId) {
+    const { data: existing } = await supabase
+      .from("appointments")
+      .select("id")
+      .eq("call_id", callRowId)
+      .maybeSingle();
+
+    if (existing) {
+      console.log("book-appointment: idempotent return, appointment already exists for call", vapiCallId);
+      const formattedSlot = formatSlot(args.slot, timezone);
+      return vapiResponse(toolCallId, {
+        success: true,
+        appointment_id: existing.id,
+        message: `Already booked! ${args.service_type} for ${formattedSlot}.`,
+      });
+    }
+  }
+
   // Calculate end time
   const slotStart = new Date(args.slot);
   const slotEnd = new Date(slotStart.getTime() + slotDuration * 60000);
@@ -188,10 +212,10 @@ Deno.serve(async (req: Request) => {
   const { data: appointment, error: aptError } = await supabase
     .from("appointments")
     .insert({
-      clinic_id: clinicId,
+      business_id: businessId,
       call_id: callRowId,
-      patient_name: args.patient_name,
-      patient_phone: args.patient_phone,
+      customer_name: customerName,
+      customer_phone: customerPhone,
       service_type: args.service_type,
       scheduled_start: slotStart.toISOString(),
       scheduled_end: slotEnd.toISOString(),
@@ -206,39 +230,51 @@ Deno.serve(async (req: Request) => {
     return vapiResponse(toolCallId, { error: "Couldn't confirm that slot, please try a different time." });
   }
 
-  // Set call outcome (upsert so it works even if call.started hasn't fired)
+  // Set call outcome
   if (vapiCallId) {
     await supabase
       .from("calls")
       .upsert(
-        { vapi_call_id: vapiCallId, clinic_id: clinicId, outcome: "appointment_booked" },
+        { vapi_call_id: vapiCallId, business_id: businessId, outcome: "appointment_booked" },
         { onConflict: "vapi_call_id" }
       );
   }
 
   const formattedSlot = formatSlot(args.slot, timezone);
 
-  // SMS to caller confirming booking
-  if (twilioAccountSid && twilioAuthToken && twilioFrom && args.patient_phone) {
-    const callerSms =
-      `Confirmed! Your ${args.service_type} appointment with ${businessName} is set for ${formattedSlot}.\n` +
-      `Questions? Call ${twilioFrom}.`;
-    await sendSms(twilioAccountSid, twilioAuthToken, twilioFrom, args.patient_phone, callerSms);
+  // Fire-and-forget SMS — does not block Vapi tool response
+  if (twilioAccountSid && twilioAuthToken && twilioFrom) {
+    const smsPromises: Promise<void>[] = [];
+
+    if (customerPhone) {
+      const callerMsg =
+        `Confirmed! Your ${args.service_type} appointment with ${businessName} is set for ${formattedSlot}.\n` +
+        `Questions? Call ${twilioFrom}.`;
+      smsPromises.push(sendSms(twilioAccountSid, twilioAuthToken, twilioFrom, customerPhone, callerMsg));
+    }
+
+    if (notifyPhone) {
+      const ownerMsg =
+        `NEW JOB BOOKED - ${businessName}\n` +
+        `Name: ${customerName}\n` +
+        `Phone: ${customerPhone}\n` +
+        `Service: ${args.service_type}\n` +
+        `Time: ${formattedSlot}\n` +
+        (args.notes ? `Notes: ${args.notes}` : "");
+      smsPromises.push(sendSms(twilioAccountSid, twilioAuthToken, twilioFrom, notifyPhone, ownerMsg));
+    }
+
+    if (smsPromises.length > 0) {
+      try {
+        EdgeRuntime.waitUntil(Promise.allSettled(smsPromises));
+      } catch {
+        // EdgeRuntime.waitUntil not available — SMS will fire anyway
+        Promise.allSettled(smsPromises).catch(() => {});
+      }
+    }
   }
 
-  // SMS to owner
-  if (twilioAccountSid && twilioAuthToken && twilioFrom && notifyPhone) {
-    const ownerSms =
-      `NEW JOB BOOKED - ${businessName}\n` +
-      `Name: ${args.patient_name}\n` +
-      `Phone: ${args.patient_phone}\n` +
-      `Service: ${args.service_type}\n` +
-      `Time: ${formattedSlot}\n` +
-      (args.notes ? `Notes: ${args.notes}` : "");
-    await sendSms(twilioAccountSid, twilioAuthToken, twilioFrom, notifyPhone, ownerSms);
-  }
-
-  console.log("book-appointment: booked", appointment?.id, "for clinic", clinicId, "at", args.slot);
+  console.log("book-appointment: booked", appointment?.id, "for business", businessId, "at", args.slot);
 
   return vapiResponse(toolCallId, {
     success: true,

@@ -18,7 +18,7 @@ export interface AuthContext {
   user: User | null;
   session: Session | null;
   isLoading: boolean;
-  clinicId: string | null;
+  businessId: string | null;
   profile: UserProfile;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -30,7 +30,7 @@ const AuthCtx = createContext<AuthContext | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [clinicId, setClinicId] = useState<string | null>(null);
+  const [businessId, setBusinessId] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile>({ fullName: null, email: null, role: null });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(s?.user ?? null);
       if (s?.user) fetchUserData(s.user.id, s.user.email ?? null);
       else {
-        setClinicId(null);
+        setBusinessId(null);
         setProfile({ fullName: null, email: null, role: null });
         setIsLoading(false);
       }
@@ -63,10 +63,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function fetchUserData(userId: string, email: string | null) {
     const { data } = await supabase
       .from("users")
-      .select("clinic_id, full_name, role, theme_preference")
+      .select("business_id, full_name, role, theme_preference")
       .eq("id", userId)
       .single();
-    setClinicId(data?.clinic_id ?? null);
+    setBusinessId(data?.business_id ?? null);
     setProfile({
       fullName: data?.full_name ?? null,
       email,
@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
-    setClinicId(null);
+    setBusinessId(null);
     setProfile({ fullName: null, email: null, role: null });
   }
 
@@ -113,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthCtx.Provider
-      value={{ user, session, isLoading, clinicId, profile, signIn, signOut, updateProfile }}
+      value={{ user, session, isLoading, businessId, profile, signIn, signOut, updateProfile }}
     >
       {children}
     </AuthCtx.Provider>

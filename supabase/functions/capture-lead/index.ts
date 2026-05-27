@@ -1,8 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Vapi tool: capture_lead
-// Called mid-call when Orvia captures a lead.
-// Inserts a lead row, updates the call row outcome, sends SMS to owner.
+// Inserts a lead row, updates call outcome, sends SMS to owner (fire-and-forget).
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -20,6 +19,8 @@ interface VapiToolCall {
   arguments?: Record<string, unknown>;
   function?: { name: string; arguments: string | Record<string, unknown> };
 }
+
+declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void };
 
 function vapiResponse(toolCallId: string | null, result: unknown, status = 200): Response {
   const body = toolCallId
@@ -96,10 +97,10 @@ Deno.serve(async (req: Request) => {
   }
 
   const url = new URL(req.url);
-  const clinicId = url.searchParams.get("clinic_id");
+  const businessId = url.searchParams.get("business_id") ?? url.searchParams.get("clinic_id");
 
-  if (!clinicId) {
-    return new Response(JSON.stringify({ error: "Missing clinic_id" }), {
+  if (!businessId) {
+    return new Response(JSON.stringify({ error: "Missing business_id" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });
@@ -115,7 +116,6 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // Parse Vapi tool call format (current: toolCallList with object args, legacy: toolCalls with JSON string args)
   let args: LeadArgs = {} as LeadArgs;
   let toolCallId: string | null = null;
   let vapiCallId: string | null = null;
@@ -162,18 +162,18 @@ Deno.serve(async (req: Request) => {
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // Load clinic for timezone + notification phone
-  const { data: clinic } = await supabase
-    .from("clinics")
+  // Load business for timezone + notification phone
+  const { data: business } = await supabase
+    .from("businesses")
     .select("settings, timezone, name")
-    .eq("id", clinicId)
+    .eq("id", businessId)
     .single();
 
-  const timezone = clinic?.timezone ?? "America/Chicago";
-  const notifyPhone = clinic?.settings?.notification_phone ?? ownerPhone;
-  const businessName = clinic?.name ?? "the business";
+  const timezone = business?.timezone ?? "America/Chicago";
+  const notifyPhone = business?.settings?.notification_phone ?? ownerPhone;
+  const businessName = business?.name ?? "the business";
 
-  // Find the call row if we have a vapi_call_id
+  // Find call row
   let callRowId: string | null = null;
   if (vapiCallId) {
     const { data: callRow } = await supabase
@@ -184,12 +184,30 @@ Deno.serve(async (req: Request) => {
     callRowId = callRow?.id ?? null;
   }
 
+  // Idempotency: if this call already has a lead, return success
+  if (callRowId) {
+    const { data: existing } = await supabase
+      .from("leads")
+      .select("id")
+      .eq("call_id", callRowId)
+      .maybeSingle();
+
+    if (existing) {
+      console.log("capture-lead: idempotent return, lead already exists for call", vapiCallId);
+      return vapiResponse(toolCallId, {
+        success: true,
+        lead_id: existing.id,
+        message: "Got it. Someone will call you back shortly.",
+      });
+    }
+  }
+
   // Insert lead
   const phone = args.phone ?? callerPhone ?? "unknown";
   const { data: lead, error: leadError } = await supabase
     .from("leads")
     .insert({
-      clinic_id: clinicId,
+      business_id: businessId,
       call_id: callRowId,
       name: args.name,
       phone,
@@ -218,13 +236,13 @@ Deno.serve(async (req: Request) => {
       await supabase
         .from("calls")
         .upsert(
-          { vapi_call_id: vapiCallId, clinic_id: clinicId, outcome: "lead_captured" },
+          { vapi_call_id: vapiCallId, business_id: businessId, outcome: "lead_captured" },
           { onConflict: "vapi_call_id" }
         );
     }
   }
 
-  // SMS owner - always for emergency/urgent, only during hours for routine/inquiry
+  // Fire-and-forget SMS — does not block Vapi tool response
   const shouldNotify =
     twilioAccountSid &&
     twilioAuthToken &&
@@ -248,10 +266,15 @@ Deno.serve(async (req: Request) => {
       (args.notes ? `Notes: ${args.notes}\n` : "") +
       `Reply or call back within 30 min.`;
 
-    await sendSms(twilioAccountSid!, twilioAuthToken!, twilioFrom!, notifyPhone, smsBody);
+    const smsPromise = sendSms(twilioAccountSid!, twilioAuthToken!, twilioFrom!, notifyPhone, smsBody);
+    try {
+      EdgeRuntime.waitUntil(smsPromise);
+    } catch {
+      smsPromise.catch(() => {});
+    }
   }
 
-  console.log("capture-lead: saved lead", lead?.id, "for clinic", clinicId, "urgency:", args.urgency);
+  console.log("capture-lead: saved lead", lead?.id, "for business", businessId, "urgency:", args.urgency);
 
   return vapiResponse(toolCallId, {
     success: true,
