@@ -36,7 +36,7 @@ const S = {
   hint:     "text-xs text-muted-foreground mt-1.5 leading-relaxed opacity-80",
   input:    "w-full bg-transparent border-0 border-b-2 border-border px-0 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-foreground focus:outline-none transition-colors",
   textarea: "w-full bg-transparent border-0 border-b-2 border-border px-0 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-foreground focus:outline-none transition-colors resize-none",
-  timeInput:"w-24 bg-transparent border-0 border-b-2 border-border px-0 py-2 text-sm tabular-nums text-foreground focus:border-foreground focus:outline-none transition-colors",
+  timeInput:"bg-transparent border-0 border-b-2 border-border px-0 py-2 text-sm tabular-nums text-foreground focus:border-foreground focus:outline-none transition-colors",
   section:  "text-xs font-bold uppercase tracking-widest text-muted-foreground mb-4",
   addBtn:   "flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground cursor-pointer transition-colors",
   removeBtn:"text-xs text-red-500/70 hover:text-red-500 cursor-pointer transition-colors font-medium",
@@ -225,22 +225,27 @@ function BusinessInfoTab({ clinic, settings, phoneDisplay, onSettingsChange, onP
             const info = hours[day] ?? { open: "09:00", close: "18:00", closed: false }
             const closed = info.closed ?? false
             return (
-              <div key={day} className="flex items-center gap-4 py-3 border-b border-border last:border-0"
+              <div key={day} className="py-3 border-b border-border last:border-0"
                 style={{ opacity: closed ? 0.45 : 1 }}>
-                <span className="text-sm font-semibold w-10">{DAY_LABELS[day]}</span>
-                {closed ? (
-                  <span className="flex-1 text-sm text-muted-foreground">Closed</span>
-                ) : (
-                  <div className="flex-1 flex items-center gap-3">
-                    <input type="time" value={info.open} onChange={e => updateHour(day, "open", e.target.value)} className={S.timeInput} />
-                    <span className="text-xs text-muted-foreground">to</span>
-                    <input type="time" value={info.close} onChange={e => updateHour(day, "close", e.target.value)} className={S.timeInput} />
-                  </div>
-                )}
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input type="checkbox" checked={closed} onChange={() => toggleClosed(day)} className="accent-foreground cursor-pointer" />
-                  <span className="text-xs text-muted-foreground">Closed</span>
-                </label>
+                {/* Single row on sm+, two rows on mobile */}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-semibold w-10 shrink-0">{DAY_LABELS[day]}</span>
+                  {closed ? (
+                    <span className="flex-1 text-sm text-muted-foreground">Closed</span>
+                  ) : (
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <input type="time" value={info.open} onChange={e => updateHour(day, "open", e.target.value)}
+                        className={S.timeInput} style={{ minWidth: 0, width: "100%", maxWidth: 110 }} />
+                      <span className="text-xs text-muted-foreground shrink-0">to</span>
+                      <input type="time" value={info.close} onChange={e => updateHour(day, "close", e.target.value)}
+                        className={S.timeInput} style={{ minWidth: 0, width: "100%", maxWidth: 110 }} />
+                    </div>
+                  )}
+                  <label className="flex items-center gap-1.5 cursor-pointer select-none shrink-0">
+                    <input type="checkbox" checked={closed} onChange={() => toggleClosed(day)} className="accent-foreground cursor-pointer" />
+                    <span className="text-xs text-muted-foreground">Closed</span>
+                  </label>
+                </div>
               </div>
             )
           })}
@@ -702,28 +707,48 @@ export default function SettingsPage() {
       </div>
 
       {/* Tab bar */}
-      <div style={{
-        display: "flex", gap: 4, borderBottom: "1.5px solid var(--border)", marginBottom: 0, overflowX: "auto",
-      }}>
-        {TABS.map(({ id, label, icon: Icon }) => {
-          const active = activeTab === id
-          const dirty = editSettings ? tabIsDirty(id, editSettings, originalSettings, editPhoneDisplay, originalPhoneDisplay) : false
-          return (
-            <button key={id} type="button" onClick={() => setActiveTab(id)}
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "10px 14px", border: "none", background: "transparent", cursor: "pointer",
-                fontSize: 13, fontWeight: active ? 600 : 500,
-                color: active ? "var(--foreground)" : "var(--muted-foreground)",
-                borderBottom: active ? "2px solid var(--foreground)" : "2px solid transparent",
-                marginBottom: -1.5, transition: "all 0.15s", whiteSpace: "nowrap",
-              }}>
-              <Icon style={{ width: 14, height: 14 }} strokeWidth={active ? 2.25 : 1.75} />
-              {label}
-              {dirty && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--foreground)", opacity: 0.6, flexShrink: 0 }} />}
-            </button>
-          )
-        })}
+      <div style={{ borderBottom: "1.5px solid var(--border)", marginBottom: 0 }}>
+        {/* Mobile: icon grid */}
+        <div className="flex sm:hidden">
+          {TABS.map(({ id, icon: Icon }) => {
+            const active = activeTab === id
+            const dirty = editSettings ? tabIsDirty(id, editSettings, originalSettings, editPhoneDisplay, originalPhoneDisplay) : false
+            return (
+              <button key={id} type="button" onClick={() => setActiveTab(id)}
+                style={{
+                  flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                  padding: "10px 4px", border: "none", background: "transparent", cursor: "pointer",
+                  borderBottom: active ? "2px solid var(--foreground)" : "2px solid transparent",
+                  marginBottom: -1.5, transition: "all 0.15s", position: "relative",
+                }}>
+                <Icon style={{ width: 16, height: 16, color: active ? "var(--foreground)" : "var(--muted-foreground)" }} strokeWidth={active ? 2.25 : 1.75} />
+                {dirty && <span style={{ position: "absolute", top: 8, right: "calc(50% - 10px)", width: 5, height: 5, borderRadius: "50%", background: "var(--foreground)", opacity: 0.6 }} />}
+              </button>
+            )
+          })}
+        </div>
+        {/* Desktop: icon + label */}
+        <div className="hidden sm:flex" style={{ gap: 4 }}>
+          {TABS.map(({ id, label, icon: Icon }) => {
+            const active = activeTab === id
+            const dirty = editSettings ? tabIsDirty(id, editSettings, originalSettings, editPhoneDisplay, originalPhoneDisplay) : false
+            return (
+              <button key={id} type="button" onClick={() => setActiveTab(id)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "10px 14px", border: "none", background: "transparent", cursor: "pointer",
+                  fontSize: 13, fontWeight: active ? 600 : 500,
+                  color: active ? "var(--foreground)" : "var(--muted-foreground)",
+                  borderBottom: active ? "2px solid var(--foreground)" : "2px solid transparent",
+                  marginBottom: -1.5, transition: "all 0.15s", whiteSpace: "nowrap",
+                }}>
+                <Icon style={{ width: 14, height: 14 }} strokeWidth={active ? 2.25 : 1.75} />
+                {label}
+                {dirty && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--foreground)", opacity: 0.6, flexShrink: 0 }} />}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Content */}

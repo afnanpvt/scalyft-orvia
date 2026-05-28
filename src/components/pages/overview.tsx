@@ -13,19 +13,74 @@ import {
 } from "recharts"
 import {
   Phone,
-  Calendar,
   AlertTriangle,
   TrendingUp,
   ArrowRight,
-  PhoneCall,
-  CalendarDays,
-  Users,
-  Clock,
   CheckCircle2,
   XCircle,
-  MinusCircle,
   Zap,
 } from "lucide-react"
+
+// ─── Premium SVG Icons ────────────────────────────────────
+// Hand-crafted SVGs, not generic icon library defaults
+
+function IconPhoneCall({ color, size = 14 }: { color: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.42 2 2 0 0 1 3.6 1.24h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+      <path d="M14.05 2a9 9 0 0 1 7.94 7.94"/>
+      <path d="M14.05 6A5 5 0 0 1 18 9.95"/>
+    </svg>
+  )
+}
+
+function IconCalendar({ color, size = 14 }: { color: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+      <line x1="16" y1="2" x2="16" y2="6"/>
+      <line x1="8" y1="2" x2="8" y2="6"/>
+      <line x1="3" y1="10" x2="21" y2="10"/>
+      <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>
+    </svg>
+  )
+}
+
+function IconUsers({ color, size = 14 }: { color: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+      <circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </svg>
+  )
+}
+
+function IconClock({ color, size = 14 }: { color: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <polyline points="12 6 12 12 16 14"/>
+    </svg>
+  )
+}
+
+function IconZap({ color, size = 14 }: { color: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+    </svg>
+  )
+}
+
+function IconPhone({ color, size = 14 }: { color: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.42 2 2 0 0 1 3.6 1.24h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+    </svg>
+  )
+}
 
 import {
   getBriefing,
@@ -185,7 +240,7 @@ function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, spark
   value: number | string
   label: string
   sublabel?: string
-  icon: React.ElementType
+  icon: ({ color, size }: { color: string; size?: number }) => React.ReactElement
   iconColor: string
   cardBg: string
   sparkData?: number[]
@@ -244,7 +299,7 @@ function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, spark
               border: isDark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.04)",
               flexShrink: 0,
             }}>
-              <Icon style={{ width: 13, height: 13, color: iconColor }} strokeWidth={2} />
+              <Icon color={iconColor} size={13} />
             </div>
             <p style={{
               fontSize: 11,
@@ -367,6 +422,9 @@ function SectionCard({ title, icon: Icon, count, action, subtitle, children, sty
 type WeekDay = { date: string; calls: number; leads: number; appointments: number }
 
 function WeeklyChart() {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
+
   const { data: raw, isLoading } = useQuery({
     queryKey: ["weekly-stats"],
     queryFn: getWeeklyCallStats,
@@ -375,101 +433,139 @@ function WeeklyChart() {
   const days: WeekDay[] = raw ?? []
   const totalCalls = days.reduce((s, d) => s + d.calls, 0)
   const totalBooked = days.reduce((s, d) => s + d.appointments, 0)
-
-  const subtitle = isLoading
-    ? undefined
-    : totalCalls === 0
-    ? "No calls yet"
-    : `${totalCalls} calls · ${totalBooked} booked`
+  const bookingRate = totalCalls > 0 ? Math.round((totalBooked / totalCalls) * 100) : 0
 
   return (
-    <SectionCard
-      title="This Week"
-      icon={TrendingUp}
-      subtitle={subtitle}
-      action={
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: "#6366F1", flexShrink: 0 }} />
-            <span style={{ fontSize: 11.5, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>Calls</span>
+    <div className="ios-card" style={{ overflow: "hidden", padding: 0 }}>
+        {/* Header row - title left, metrics right */}
+        <div style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          padding: "18px 20px 0",
+        }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
+              <TrendingUp style={{ width: 13, height: 13, color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)" }} strokeWidth={1.5} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.36)", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                This Week
+              </span>
+            </div>
+            {!isLoading && (
+              <p style={{ fontSize: 28, fontWeight: 700, color: isDark ? "#F2F2F7" : "#0A0A0B", lineHeight: 1, fontFamily: "Geist Mono, monospace", letterSpacing: "-0.04em", fontVariantNumeric: "tabular-nums" }}>
+                {totalCalls}
+                <span style={{ fontSize: 13, fontWeight: 500, color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)", letterSpacing: "-0.01em", marginLeft: 6, fontFamily: "Geist, sans-serif" }}>
+                  call{totalCalls !== 1 ? "s" : ""}
+                </span>
+              </p>
+            )}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: "#10B981", flexShrink: 0 }} />
-            <span style={{ fontSize: 11.5, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>Appointments</span>
-          </div>
-        </div>
-      }
-    >
-      <div style={{ padding: "16px 12px 14px" }}>
-        {isLoading ? (
-          <div style={{ height: 200, display: "flex", alignItems: "flex-end", gap: 6, padding: "0 12px" }}>
-            {[60, 80, 40, 100, 70, 50, 90].map((h, i) => (
-              <div key={i} style={{ flex: 1, display: "flex", gap: 3, alignItems: "flex-end" }}>
-                <div className="skeleton" style={{ flex: 1, height: h * 0.9, borderRadius: "4px 4px 0 0" }} />
-                <div className="skeleton" style={{ flex: 1, height: h * 0.55, borderRadius: "4px 4px 0 0", opacity: 0.6 }} />
+
+          {/* Metric pills - right aligned */}
+          {!isLoading && totalCalls > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: 2, background: "#6366F1", flexShrink: 0, display: "block" }} />
+                  <span style={{ fontSize: 11, color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.38)", letterSpacing: "-0.01em" }}>Calls</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: 2, background: "#10B981", flexShrink: 0, display: "block" }} />
+                  <span style={{ fontSize: 11, color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.38)", letterSpacing: "-0.01em" }}>Booked</span>
+                </div>
               </div>
-            ))}
-          </div>
-        ) : totalCalls === 0 ? (
-          <div style={{ height: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
-            <TrendingUp style={{ width: 28, height: 28, color: "var(--muted-foreground)", opacity: 0.3 }} strokeWidth={1.25} />
-            <p style={{ fontSize: 13, color: "var(--muted-foreground)", opacity: 0.5 }}>No calls this week yet</p>
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={days} barCategoryGap="30%" barGap={3} margin={{ top: 4, right: 4, left: -8, bottom: 0 }}>
-              <XAxis
-                dataKey="date"
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontFamily: "Geist, sans-serif" }}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                allowDecimals={false}
-                domain={[0, (max: number) => Math.max(Math.ceil(max * 1.2), 3)]}
-                tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontFamily: "Geist, sans-serif" }}
-                tickFormatter={(v) => `${v}`}
-                width={24}
-                label={{
-                  value: "Count",
-                  angle: -90,
-                  position: "insideLeft",
-                  offset: 14,
-                  style: { fontSize: 10, fill: "var(--muted-foreground)", opacity: 0.5 },
-                }}
-              />
-              <Tooltip
-                cursor={{ fill: "rgba(99,102,241,0.05)", radius: 6 }}
-                content={({ active, payload, label }) => {
-                  if (!active || !payload?.length) return null
-                  const calls = (payload.find((p) => p.dataKey === "calls")?.value as number) ?? 0
-                  const booked = (payload.find((p) => p.dataKey === "appointments")?.value as number) ?? 0
-                  return (
-                    <div className="chart-tooltip">
-                      <p style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginBottom: 6, letterSpacing: "-0.01em" }}>{label}</p>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: 2, background: "#6366F1", flexShrink: 0 }} />
-                          <span style={{ fontSize: 11.5, color: "var(--muted-foreground)" }}>{calls} call{calls !== 1 ? "s" : ""}</span>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: 2, background: "#10B981", flexShrink: 0 }} />
-                          <span style={{ fontSize: 11.5, color: "var(--muted-foreground)" }}>{booked} appointment{booked !== 1 ? "s" : ""} booked</span>
+              <span style={{
+                fontSize: 11,
+                fontWeight: 600,
+                padding: "3px 9px",
+                borderRadius: 999,
+                color: "#065F46",
+                background: "#D1FAE5",
+                border: "1px solid rgba(16,185,129,0.2)",
+                letterSpacing: "0.01em",
+                whiteSpace: "nowrap",
+              }}>
+                {bookingRate}% booked
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Chart area */}
+        <div style={{ padding: "12px 10px 14px" }}>
+          {isLoading ? (
+            <div style={{ height: 180, display: "flex", alignItems: "flex-end", gap: 5, padding: "0 10px" }}>
+              {[55, 75, 38, 95, 65, 48, 85].map((h, i) => (
+                <div key={i} style={{ flex: 1, display: "flex", gap: 2, alignItems: "flex-end" }}>
+                  <div className="skeleton" style={{ flex: 1, height: h * 0.9, borderRadius: "5px 5px 0 0" }} />
+                  <div className="skeleton" style={{ flex: 1, height: h * 0.5, borderRadius: "5px 5px 0 0", opacity: 0.5 }} />
+                </div>
+              ))}
+            </div>
+          ) : totalCalls === 0 ? (
+            <div style={{ height: 180, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
+              <div style={{
+                width: 48,
+                height: 48,
+                borderRadius: 14,
+                background: isDark ? "rgba(255,255,255,0.04)" : "#F5F5F7",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: isDark ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.05)",
+              }}>
+                <TrendingUp style={{ width: 20, height: 20, color: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.18)" }} strokeWidth={1.25} />
+              </div>
+              <p style={{ fontSize: 13, color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.32)", letterSpacing: "-0.01em" }}>No calls this week yet</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={days} barCategoryGap="32%" barGap={2} margin={{ top: 4, right: 4, left: -14, bottom: 0 }}>
+                <XAxis
+                  dataKey="date"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fontSize: 10.5, fill: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.32)", fontFamily: "Geist, sans-serif" }}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  allowDecimals={false}
+                  domain={[0, (max: number) => Math.max(Math.ceil(max * 1.25), 4)]}
+                  tick={{ fontSize: 10.5, fill: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.32)", fontFamily: "Geist, sans-serif" }}
+                  tickFormatter={(v) => `${v}`}
+                  width={22}
+                />
+                <Tooltip
+                  cursor={{ fill: isDark ? "rgba(255,255,255,0.03)" : "rgba(99,102,241,0.04)", radius: 8 }}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null
+                    const calls = (payload.find((p) => p.dataKey === "calls")?.value as number) ?? 0
+                    const booked = (payload.find((p) => p.dataKey === "appointments")?.value as number) ?? 0
+                    return (
+                      <div className="chart-tooltip">
+                        <p style={{ fontSize: 11.5, fontWeight: 600, color: "var(--foreground)", marginBottom: 7, letterSpacing: "-0.01em" }}>{label}</p>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                            <span style={{ width: 7, height: 7, borderRadius: 2, background: "#6366F1", flexShrink: 0 }} />
+                            <span style={{ fontSize: 11.5, color: "var(--muted-foreground)", fontVariantNumeric: "tabular-nums" }}>{calls} call{calls !== 1 ? "s" : ""}</span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                            <span style={{ width: 7, height: 7, borderRadius: 2, background: "#10B981", flexShrink: 0 }} />
+                            <span style={{ fontSize: 11.5, color: "var(--muted-foreground)", fontVariantNumeric: "tabular-nums" }}>{booked} booked</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )
-                }}
-              />
-              <Bar dataKey="calls" fill="#6366F1" fillOpacity={0.85} radius={[4, 4, 0, 0]} name="Calls" />
-              <Bar dataKey="appointments" fill="#10B981" fillOpacity={0.85} radius={[4, 4, 0, 0]} name="Appointments booked" />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-    </SectionCard>
+                    )
+                  }}
+                />
+                <Bar dataKey="calls" fill="#6366F1" fillOpacity={isDark ? 0.75 : 0.82} radius={[5, 5, 0, 0]} name="Calls" />
+                <Bar dataKey="appointments" fill="#10B981" fillOpacity={isDark ? 0.75 : 0.82} radius={[5, 5, 0, 0]} name="Booked" />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+    </div>
   )
 }
 
@@ -485,107 +581,183 @@ function timeUntil(iso: string): string {
   return rem > 0 ? `In ${hrs}h ${rem}m` : `In ${hrs}h`
 }
 
-function ScheduleTimeline({ appointments }: { appointments: Appointment[] }) {
-  if (appointments.length === 0) {
-    return (
-      <div style={{ padding: "32px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-        <CalendarDays style={{ width: 28, height: 28, color: "var(--muted-foreground)" }} strokeWidth={1.25} />
-        <p style={{ fontSize: 13, fontWeight: 500, color: "var(--muted-foreground)", textAlign: "center" }}>Nothing on the schedule</p>
-        <p style={{ fontSize: 11.5, color: "var(--muted-foreground)", textAlign: "center", maxWidth: 200, lineHeight: 1.5, opacity: 0.6 }}>
-          Appointments Orvia books will show up here.
-        </p>
-      </div>
-    )
-  }
+function ScheduleCard({ appointments }: { appointments: Appointment[] }) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
 
   const sorted = [...appointments].sort(
     (a, b) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime()
   )
   const now = new Date()
+  const upcoming = sorted.filter((a) => new Date(a.scheduled_start) >= now)
+  const count = upcoming.length
 
   return (
-    <>
-      {sorted.map((apt) => {
-        const isPast = new Date(apt.scheduled_start) < now
-        const countdown = timeUntil(apt.scheduled_start)
-        const isNext = !isPast && !!countdown
-
-        const pillLabel = isPast ? "Done" : countdown || "Upcoming"
-        const pillBg = isPast ? "var(--muted)" : isNext ? "#D1FAE5" : "var(--muted)"
-        const pillColor = isPast ? "var(--muted-foreground)" : isNext ? "#065F46" : "var(--muted-foreground)"
-        const pillBorder = isPast ? "var(--border)" : isNext ? "rgba(16,185,129,0.2)" : "var(--border)"
-
-        return (
-          <div
-            key={apt.id}
-            className="row-hover"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding: "12px 20px",
-              borderBottom: "1px solid var(--border)",
-              opacity: isPast ? 0.5 : 1,
-            }}
-          >
-            {(() => {
-              const slot = formatScheduleSlot(apt.scheduled_start)
-              return (
-                <div style={{ width: 78, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
-                  {slot.day && (
-                    <p style={{ fontSize: 10.5, fontWeight: 600, color: "var(--muted-foreground)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                      {slot.day}
-                    </p>
-                  )}
-                  <p style={{ fontSize: 12, fontWeight: 500, color: "var(--foreground)" }}>
-                    {slot.time}
-                  </p>
-                </div>
-              )
-            })()}
+    <div className="ios-card" style={{ overflow: "hidden", padding: 0, display: "flex", flexDirection: "column" }}>
+        {/* Card header */}
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "18px 20px 14px",
+          borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"}`,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div style={{
-              width: 26,
-              height: 26,
-              borderRadius: "50%",
-              background: isPast ? "var(--muted)" : "#D1FAE5",
+              width: 28,
+              height: 28,
+              borderRadius: 8,
+              background: isDark ? "rgba(255,255,255,0.06)" : "#ECFDF5",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              flexShrink: 0,
+              border: isDark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.04)",
             }}>
-              {isPast
-                ? <CheckCircle2 style={{ width: 12, height: 12, color: "var(--muted-foreground)" }} strokeWidth={1.5} />
-                : <CalendarDays style={{ width: 12, height: 12, color: "#10B981" }} strokeWidth={1.5} />
-              }
+              <IconCalendar color="#10B981" size={13} />
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 13, fontWeight: 500, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
-                {apt.customer_name}
-              </p>
-              {apt.service_type && (
-                <p style={{ fontSize: 11.5, color: "var(--muted-foreground)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {apt.service_type}
-                </p>
-              )}
-            </div>
-            <span style={{
-              fontSize: 11,
-              fontWeight: 600,
-              padding: "3px 9px",
-              borderRadius: 999,
-              color: pillColor,
-              background: pillBg,
-              border: `1px solid ${pillBorder}`,
-              flexShrink: 0,
-              whiteSpace: "nowrap",
-              letterSpacing: "0.01em",
-            }}>
-              {pillLabel}
+            <span style={{ fontSize: 13, fontWeight: 600, color: isDark ? "#F2F2F7" : "#0A0A0B", letterSpacing: "-0.02em" }}>
+              Coming Up Next
             </span>
+            {count > 0 && (
+              <span style={{
+                fontSize: 10.5,
+                fontWeight: 700,
+                padding: "2px 7px",
+                borderRadius: 999,
+                color: "#065F46",
+                background: "#D1FAE5",
+                border: "1px solid rgba(16,185,129,0.2)",
+                letterSpacing: "0.02em",
+                lineHeight: "17px",
+              }}>
+                {count}
+              </span>
+            )}
           </div>
-        )
-      })}
-    </>
+          <Link
+            to="/calls"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              fontSize: 11.5,
+              fontWeight: 500,
+              color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
+              textDecoration: "none",
+              letterSpacing: "-0.01em",
+              transition: "color 0.15s cubic-bezier(0.16,1,0.3,1)",
+            }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.65)")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)")}
+          >
+            View all <ArrowRight style={{ width: 10, height: 10 }} strokeWidth={1.5} />
+          </Link>
+        </div>
+
+        {/* Appointment list or empty state */}
+        {sorted.length === 0 ? (
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "36px 20px", gap: 8 }}>
+            <IconCalendar color={isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.18)"} size={24} />
+            <p style={{ fontSize: 13, color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)", letterSpacing: "-0.01em" }}>
+              No upcoming appointments
+            </p>
+          </div>
+        ) : (
+          <div style={{ flex: 1 }}>
+            {sorted.slice(0, 5).map((apt, idx) => {
+              const isPast = new Date(apt.scheduled_start) < now
+              const countdown = timeUntil(apt.scheduled_start)
+              const isNext = !isPast && !!countdown && idx === sorted.findIndex(a => new Date(a.scheduled_start) >= now)
+              const slot = formatScheduleSlot(apt.scheduled_start)
+
+              return (
+                <div
+                  key={apt.id}
+                  className="row-hover"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "11px 20px",
+                    borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)"}`,
+                    opacity: isPast ? 0.45 : 1,
+                    transition: "opacity 0.15s ease",
+                  }}
+                >
+                  {/* Time column - prominent */}
+                  <div style={{ width: 68, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+                    {slot.day && (
+                      <p style={{ fontSize: 9.5, fontWeight: 700, color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)", textTransform: "uppercase", letterSpacing: "0.06em", lineHeight: 1.2, marginBottom: 1 }}>
+                        {slot.day}
+                      </p>
+                    )}
+                    <p style={{ fontSize: 13, fontWeight: 600, color: isDark ? "#F2F2F7" : "#0A0A0B", lineHeight: 1.2, letterSpacing: "-0.02em" }}>
+                      {slot.time}
+                    </p>
+                  </div>
+
+                  {/* Status dot */}
+                  <div style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: isPast ? (isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)") : isNext ? "#10B981" : (isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.22)"),
+                    flexShrink: 0,
+                    boxShadow: isNext ? "0 0 0 3px rgba(16,185,129,0.15)" : "none",
+                  }} />
+
+                  {/* Name + service */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, fontWeight: 500, color: isDark ? "#F2F2F7" : "#0A0A0B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "-0.02em", lineHeight: 1.3 }}>
+                      {apt.customer_name}
+                    </p>
+                    {apt.service_type && (
+                      <p style={{ fontSize: 11, color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.38)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>
+                        {apt.service_type}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Countdown pill or done check */}
+                  {isPast ? (
+                    <CheckCircle2 style={{ width: 14, height: 14, color: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)", flexShrink: 0 }} strokeWidth={1.5} />
+                  ) : countdown ? (
+                    <span style={{
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      padding: "3px 8px",
+                      borderRadius: 999,
+                      color: isNext ? "#065F46" : (isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.38)"),
+                      background: isNext ? "#D1FAE5" : (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"),
+                      border: isNext ? "1px solid rgba(16,185,129,0.2)" : `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
+                      flexShrink: 0,
+                      whiteSpace: "nowrap",
+                      letterSpacing: "0.01em",
+                      fontVariantNumeric: "tabular-nums",
+                    }}>
+                      {countdown}
+                    </span>
+                  ) : (
+                    <span style={{
+                      fontSize: 10.5,
+                      fontWeight: 600,
+                      padding: "3px 8px",
+                      borderRadius: 999,
+                      color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)",
+                      background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+                      border: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
+                      flexShrink: 0,
+                      letterSpacing: "0.01em",
+                    }}>
+                      Upcoming
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+    </div>
   )
 }
 
@@ -630,7 +802,7 @@ function ActivityRow({ call, delay }: { call: Call & { is_repeat_caller?: boolea
         justifyContent: "center",
         flexShrink: 0,
       }}>
-        <PhoneCall style={{ width: 13, height: 13, color: cfg?.iconColor ?? "var(--muted-foreground)" }} strokeWidth={1.75} />
+        <IconPhoneCall color={cfg?.iconColor ?? "var(--muted-foreground)"} size={13} />
       </div>
 
       {/* Content */}
@@ -839,7 +1011,7 @@ function BillingWidget() {
           justifyContent: "center",
           flexShrink: 0,
         }}>
-          <Zap style={{ width: 15, height: 15, color: accentColor }} strokeWidth={2} />
+          <IconZap color={accentColor} size={15} />
         </div>
 
         {/* Label + status */}
@@ -1146,7 +1318,7 @@ export default function OverviewPage() {
             value={calls}
             label="Calls Handled"
             sublabel={calls === 1 ? "call answered today" : "calls answered today"}
-            icon={PhoneCall}
+            icon={IconPhoneCall}
             iconColor="#6366F1"
             cardBg="#EEF2FF"
             sparkData={callSparkData}
@@ -1157,7 +1329,7 @@ export default function OverviewPage() {
             value={appointments}
             label="Appointments"
             sublabel="booked today"
-            icon={CalendarDays}
+            icon={IconCalendar}
             iconColor="#10B981"
             cardBg="#ECFDF5"
             sparkData={apptSparkData}
@@ -1168,7 +1340,7 @@ export default function OverviewPage() {
             value={leads}
             label="Leads Captured"
             sublabel="new leads today"
-            icon={Users}
+            icon={IconUsers}
             iconColor="#D97706"
             cardBg="#FFFBEB"
             sparkData={leadSparkData}
@@ -1179,7 +1351,7 @@ export default function OverviewPage() {
             value={avgCallDisplay}
             label="Avg Call Length"
             sublabel="per call today"
-            icon={Clock}
+            icon={IconClock}
             iconColor="#E5484D"
             cardBg="#FFF1F2"
           />
@@ -1226,36 +1398,8 @@ export default function OverviewPage() {
         <p style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10, opacity: 0.6 }}>
           Schedule &amp; Performance
         </p>
-        <div className="overview-bottom-grid">
-          <SectionCard
-            title="Coming Up Next"
-            icon={CalendarDays}
-            count={upcomingAppointments.length > 0 ? upcomingAppointments.length : undefined}
-            action={
-              <Link
-                to="/calls"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: "var(--muted-foreground)",
-                  textDecoration: "none",
-                  letterSpacing: "-0.01em",
-                  opacity: 0.7,
-                  transition: "opacity 0.15s ease",
-                }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.opacity = "1")}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.opacity = "0.7")}
-              >
-                View all <ArrowRight style={{ width: 11, height: 11 }} strokeWidth={1.5} />
-              </Link>
-            }
-          >
-            <ScheduleTimeline appointments={upcomingAppointments} />
-          </SectionCard>
-
+        <div className="overview-bottom-grid" style={{ alignItems: "stretch" }}>
+          <ScheduleCard appointments={upcomingAppointments} />
           <WeeklyChart />
         </div>
       </div>

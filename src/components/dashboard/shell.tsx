@@ -6,14 +6,61 @@ import {
   Phone,
   UserPlus,
   Settings,
-  Menu,
-  X,
   LogOut,
   ChevronDown,
   ChevronUp,
   Bot,
   Zap,
 } from "lucide-react";
+
+// ─── Animated Hamburger (21st.dev) ────────────────────────
+// SVG morph: 3 lines → X using cubic-bezier spring transitions
+
+function HamburgerIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      className="pointer-events-none"
+      width={18}
+      height={18}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path
+        d="M4 12L20 12"
+        className={[
+          "origin-center transition-all duration-300",
+          "[transition-timing-function:cubic-bezier(.5,.85,.25,1.1)]",
+          open
+            ? "translate-y-0 rotate-[315deg]"
+            : "-translate-y-[7px] rotate-0",
+        ].join(" ")}
+      />
+      <path
+        d="M4 12H20"
+        className={[
+          "origin-center transition-all duration-300",
+          "[transition-timing-function:cubic-bezier(.5,.85,.25,1.8)]",
+          open ? "rotate-45" : "rotate-0",
+        ].join(" ")}
+      />
+      <path
+        d="M4 12H20"
+        className={[
+          "origin-center transition-all duration-300",
+          "[transition-timing-function:cubic-bezier(.5,.85,.25,1.1)]",
+          open
+            ? "translate-y-0 rotate-[135deg]"
+            : "translate-y-[7px] rotate-0",
+        ].join(" ")}
+      />
+    </svg>
+  );
+}
 
 const NAV_MAIN = [
   { label: "Overview", to: "/", icon: LayoutDashboard },
@@ -195,54 +242,123 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div style={{ display: "flex", height: "100dvh", background: "var(--background)" }}>
-      {/* Mobile overlay */}
-      {mobileOpen && (
+      {/* Mobile drawer - slides in from left */}
+      <div
+        className="lg:hidden"
+        style={{
+          position: "fixed", inset: 0, zIndex: 40,
+          pointerEvents: mobileOpen ? "auto" : "none",
+        }}
+      >
+        {/* Backdrop */}
         <div
-          style={{ position: "fixed", inset: 0, zIndex: 40, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)" }}
-          className="lg:hidden"
           onClick={() => setMobileOpen(false)}
+          style={{
+            position: "absolute", inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            backdropFilter: "blur(4px)",
+            WebkitBackdropFilter: "blur(4px)",
+            opacity: mobileOpen ? 1 : 0,
+            transition: "opacity 0.3s cubic-bezier(0.32,0.72,0,1)",
+          }}
+        />
+
+        {/* Drawer panel */}
+        <div
+          style={{
+            position: "absolute", top: 0, left: 0, bottom: 0,
+            width: 260,
+            background: "var(--sidebar)",
+            borderRight: "1px solid var(--sidebar-border)",
+            display: "flex", flexDirection: "column",
+            transform: mobileOpen ? "translateX(0)" : "translateX(-100%)",
+            transition: "transform 0.3s cubic-bezier(0.32,0.72,0,1)",
+            willChange: "transform",
+          }}
+          onClick={e => e.stopPropagation()}
         >
-          <div className="animate-fade-up"
-            style={{
-              position: "absolute", left: 0, right: 0, bottom: 0,
-              background: "var(--card)", borderTopLeftRadius: 24, borderTopRightRadius: 24,
-              padding: "8px 12px 32px",
-              boxShadow: "0 -8px 48px rgba(0,0,0,0.2)",
-              border: "1px solid var(--border)",
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div style={{ width: 36, height: 4, background: "var(--border)", borderRadius: 2, margin: "8px auto 20px" }} />
-            {[...NAV_MAIN, ...NAV_OTHER].map(({ label, to, icon: Icon }) => {
-              const isActive = to === "/" ? pathname === "/" : pathname.startsWith(to);
-              return (
-                <Link key={to} to={to} onClick={() => setMobileOpen(false)}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 14,
-                    fontSize: 15, fontWeight: isActive ? 600 : 400,
-                    color: isActive ? "var(--foreground)" : "var(--muted-foreground)",
-                    background: isActive ? "var(--accent)" : "transparent",
-                    marginBottom: 2, textDecoration: "none",
-                  }}>
-                  <Icon style={{ width: 18, height: 18, color: isActive ? "var(--foreground)" : "var(--muted-foreground)" }} strokeWidth={isActive ? 2 : 1.5} />
-                  {label}
-                </Link>
-              );
-            })}
-            <div style={{ paddingTop: 12, marginTop: 8, borderTop: "1px solid var(--border)" }}>
-              <button type="button" onClick={() => { signOut(); setMobileOpen(false); }}
-                style={{
-                  display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
-                  fontSize: 15, color: "#E5484D", background: "transparent", border: "none",
-                  cursor: "pointer", width: "100%", fontFamily: "inherit",
-                }}>
-                <LogOut style={{ width: 18, height: 18 }} strokeWidth={1.5} />
-                Sign out
-              </button>
+          {/* Drawer header */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 16px 14px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+              <div style={{
+                width: 30, height: 30, borderRadius: 9, background: "var(--foreground)",
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+              }}>
+                <Zap style={{ width: 13, height: 13, color: "var(--background)" }} strokeWidth={2.5} />
+              </div>
+              <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.4px", color: "var(--foreground)" }}>Orvia</span>
             </div>
+            <button
+              type="button"
+              onClick={() => setMobileOpen(false)}
+              aria-expanded={mobileOpen}
+              aria-label="Close menu"
+              style={{ background: "transparent", border: "none", cursor: "pointer", padding: 4, color: "var(--muted-foreground)", display: "flex" }}
+            >
+              <HamburgerIcon open={true} />
+            </button>
+          </div>
+
+          {/* Nav links */}
+          <nav style={{ flex: 1, padding: "4px 10px", overflowY: "auto" }}>
+            <div>
+              {NAV_MAIN.map(({ label, to, icon: Icon }) => {
+                const isActive = to === "/" ? pathname === "/" : pathname.startsWith(to);
+                return (
+                  <Link key={to} to={to} onClick={() => setMobileOpen(false)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10,
+                      fontSize: 14, fontWeight: isActive ? 600 : 400,
+                      color: isActive ? "var(--foreground)" : "var(--muted-foreground)",
+                      background: isActive ? "var(--accent)" : "transparent",
+                      marginBottom: 2, textDecoration: "none", position: "relative",
+                    }}>
+                    {isActive && (
+                      <span style={{
+                        position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
+                        width: 3, height: 14, background: "var(--foreground)", borderRadius: "0 3px 3px 0",
+                      }} />
+                    )}
+                    <Icon style={{ width: 16, height: 16, color: isActive ? "var(--foreground)" : "var(--muted-foreground)", flexShrink: 0 }} strokeWidth={isActive ? 2 : 1.5} />
+                    {label}
+                  </Link>
+                );
+              })}
+            </div>
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--sidebar-border)" }}>
+              {NAV_OTHER.map(({ label, to, icon: Icon }) => {
+                const isActive = pathname.startsWith(to);
+                return (
+                  <Link key={to} to={to} onClick={() => setMobileOpen(false)}
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10,
+                      fontSize: 14, fontWeight: isActive ? 600 : 400,
+                      color: isActive ? "var(--foreground)" : "var(--muted-foreground)",
+                      background: isActive ? "var(--accent)" : "transparent",
+                      marginBottom: 2, textDecoration: "none",
+                    }}>
+                    <Icon style={{ width: 16, height: 16, color: isActive ? "var(--foreground)" : "var(--muted-foreground)", flexShrink: 0 }} strokeWidth={isActive ? 2 : 1.5} />
+                    {label}
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
+
+          {/* Sign out */}
+          <div style={{ padding: "12px 10px 32px", borderTop: "1px solid var(--sidebar-border)" }}>
+            <button type="button" onClick={() => { signOut(); setMobileOpen(false); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10,
+                fontSize: 14, color: "#E5484D", background: "transparent", border: "none",
+                cursor: "pointer", width: "100%", fontFamily: "inherit",
+              }}>
+              <LogOut style={{ width: 16, height: 16 }} strokeWidth={1.5} />
+              Sign out
+            </button>
           </div>
         </div>
-      )}
+      </div>
 
       {/* Sidebar */}
       <aside className="hidden lg:flex" style={{
@@ -327,28 +443,33 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* Main area */}
       <div style={{ display: "flex", flex: 1, flexDirection: "column", overflow: "hidden" }}>
-        {/* Mobile top bar */}
+        {/* Mobile top bar - hamburger LEFT, logo right of it */}
         <div className="flex lg:hidden" style={{
-          alignItems: "center", justifyContent: "space-between", height: 52, padding: "0 16px",
+          alignItems: "center", gap: 10, height: 52, padding: "0 16px",
           background: "var(--card)", borderBottom: "1px solid var(--border)", flexShrink: 0,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: 8, background: "var(--foreground)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <Zap style={{ width: 13, height: 13, color: "var(--background)" }} strokeWidth={2.5} />
-            </div>
-            <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.4px", color: "var(--foreground)" }}>Orvia</span>
-          </div>
-          <button type="button" onClick={() => setMobileOpen(v => !v)}
+          <button
+            type="button"
+            onClick={() => setMobileOpen(v => !v)}
+            aria-expanded={mobileOpen}
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
             style={{
-              padding: 7, borderRadius: 10, border: "1px solid var(--border)",
-              background: "var(--card)", cursor: "pointer", color: "var(--muted-foreground)",
+              padding: 6, borderRadius: 9, border: "none",
+              background: "transparent", cursor: "pointer", color: "var(--foreground)",
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+            }}
+          >
+            <HamburgerIcon open={mobileOpen} />
+          </button>
+          <Link to="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
+            <div style={{
+              width: 26, height: 26, borderRadius: 7, background: "var(--foreground)",
               display: "flex", alignItems: "center", justifyContent: "center",
             }}>
-            {mobileOpen ? <X style={{ width: 18, height: 18 }} strokeWidth={1.5} /> : <Menu style={{ width: 18, height: 18 }} strokeWidth={1.5} />}
-          </button>
+              <Zap style={{ width: 12, height: 12, color: "var(--background)" }} strokeWidth={2.5} />
+            </div>
+            <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.4px", color: "var(--foreground)" }}>Orvia</span>
+          </Link>
         </div>
 
         {/* Page content */}
