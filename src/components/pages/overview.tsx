@@ -8,8 +8,6 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  LineChart,
-  Line,
 } from "recharts"
 import {
   Phone,
@@ -146,156 +144,34 @@ function OutcomeBadge({ outcome }: { outcome: Call["outcome"] }) {
   )
 }
 
-// ─── Card Illustrations ───────────────────────────────────
-// Large 3D-style geometric shapes for the right half of each stat card
+// ─── Mini Sparkbar (replaces noisy SVG illustrations) ────────
+// Shows a 7-bar mini chart using the card's accent color - clean, data-first
 
-function IllustrationCalls() {
-  // Rounded phone-wave hex shapes, indigo/violet tones
+function MiniSparkbar({ data, color }: { data: number[]; color: string }) {
+  if (!data.length || !data.some(v => v > 0)) return null
+  const max = Math.max(...data, 1)
   return (
-    <svg width="140" height="130" viewBox="0 0 140 130" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Back hex - softer */}
-      <path d="M95 20 L122 36 L122 68 L95 84 L68 68 L68 36 Z" fill="url(#callsGrad1)" opacity="0.55" />
-      {/* Front hex - main */}
-      <path d="M75 34 L100 48 L100 76 L75 90 L50 76 L50 48 Z" fill="url(#callsGrad2)" />
-      {/* Inner circle glow */}
-      <circle cx="75" cy="62" r="16" fill="white" opacity="0.18" />
-      {/* Small accent orb floating top-right */}
-      <circle cx="116" cy="22" r="10" fill="#818CF8" opacity="0.5" />
-      <circle cx="116" cy="22" r="6" fill="#A5B4FC" opacity="0.7" />
-      <defs>
-        <linearGradient id="callsGrad1" x1="68" y1="20" x2="122" y2="84" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#A5B4FC" />
-          <stop offset="1" stopColor="#6366F1" />
-        </linearGradient>
-        <linearGradient id="callsGrad2" x1="50" y1="34" x2="100" y2="90" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#C7D2FE" />
-          <stop offset="1" stopColor="#818CF8" />
-        </linearGradient>
-      </defs>
-    </svg>
-  )
-}
-
-function IllustrationAppointments() {
-  // Stacked circles / orbs, emerald tones
-  return (
-    <svg width="140" height="130" viewBox="0 0 140 130" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Large back circle */}
-      <circle cx="90" cy="55" r="46" fill="url(#apptGrad1)" opacity="0.4" />
-      {/* Mid circle */}
-      <circle cx="85" cy="60" r="34" fill="url(#apptGrad2)" opacity="0.65" />
-      {/* Front circle */}
-      <circle cx="80" cy="65" r="22" fill="url(#apptGrad3)" />
-      {/* Inner shine */}
-      <circle cx="74" cy="57" r="8" fill="white" opacity="0.25" />
-      {/* Small satellite */}
-      <circle cx="118" cy="28" r="9" fill="#6EE7B7" opacity="0.6" />
-      <defs>
-        <linearGradient id="apptGrad1" x1="44" y1="9" x2="136" y2="101" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#6EE7B7" />
-          <stop offset="1" stopColor="#10B981" />
-        </linearGradient>
-        <linearGradient id="apptGrad2" x1="51" y1="26" x2="119" y2="94" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#A7F3D0" />
-          <stop offset="1" stopColor="#34D399" />
-        </linearGradient>
-        <linearGradient id="apptGrad3" x1="58" y1="43" x2="102" y2="87" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#D1FAE5" />
-          <stop offset="1" stopColor="#6EE7B7" />
-        </linearGradient>
-      </defs>
-    </svg>
-  )
-}
-
-function IllustrationLeads() {
-  // Layered rounded-square blocks / stepping stones, amber tones
-  return (
-    <svg width="140" height="130" viewBox="0 0 140 130" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Back block */}
-      <rect x="62" y="14" width="64" height="64" rx="16" fill="url(#leadsGrad1)" opacity="0.45" />
-      {/* Mid block */}
-      <rect x="52" y="28" width="58" height="58" rx="14" fill="url(#leadsGrad2)" opacity="0.7" />
-      {/* Front block */}
-      <rect x="42" y="42" width="52" height="52" rx="12" fill="url(#leadsGrad3)" />
-      {/* Shine */}
-      <rect x="50" y="50" width="20" height="10" rx="5" fill="white" opacity="0.22" />
-      {/* Accent dot */}
-      <circle cx="118" cy="20" r="8" fill="#FCD34D" opacity="0.7" />
-      <defs>
-        <linearGradient id="leadsGrad1" x1="62" y1="14" x2="126" y2="78" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#FDE68A" />
-          <stop offset="1" stopColor="#F59E0B" />
-        </linearGradient>
-        <linearGradient id="leadsGrad2" x1="52" y1="28" x2="110" y2="86" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#FEF3C7" />
-          <stop offset="1" stopColor="#FCD34D" />
-        </linearGradient>
-        <linearGradient id="leadsGrad3" x1="42" y1="42" x2="94" y2="94" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#FEF9EE" />
-          <stop offset="1" stopColor="#FDE68A" />
-        </linearGradient>
-      </defs>
-    </svg>
-  )
-}
-
-function IllustrationAvgTime() {
-  // Spiral / arc rings, red/rose tones
-  return (
-    <svg width="140" height="130" viewBox="0 0 140 130" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Outer ring */}
-      <circle cx="85" cy="65" r="48" stroke="url(#timeGrad1)" strokeWidth="18" fill="none" opacity="0.35" />
-      {/* Mid ring */}
-      <circle cx="85" cy="65" r="33" stroke="url(#timeGrad2)" strokeWidth="14" fill="none" opacity="0.55" />
-      {/* Inner filled circle */}
-      <circle cx="85" cy="65" r="18" fill="url(#timeGrad3)" />
-      {/* Inner shine */}
-      <circle cx="79" cy="58" r="6" fill="white" opacity="0.28" />
-      {/* Satellite orb */}
-      <circle cx="122" cy="24" r="9" fill="#FCA5A5" opacity="0.65" />
-      <defs>
-        <linearGradient id="timeGrad1" x1="37" y1="17" x2="133" y2="113" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#FECACA" />
-          <stop offset="1" stopColor="#F87171" />
-        </linearGradient>
-        <linearGradient id="timeGrad2" x1="52" y1="32" x2="118" y2="98" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#FEE2E2" />
-          <stop offset="1" stopColor="#FCA5A5" />
-        </linearGradient>
-        <linearGradient id="timeGrad3" x1="67" y1="47" x2="103" y2="83" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#FEE2E2" />
-          <stop offset="1" stopColor="#F87171" />
-        </linearGradient>
-      </defs>
-    </svg>
-  )
-}
-
-// ─── Sparkline ────────────────────────────────────────────
-
-function Sparkline({ data, color }: { data: number[]; color: string }) {
-  if (!data.length) return null
-  const pts = data.map((v, i) => ({ v, i }))
-  return (
-    <ResponsiveContainer width="100%" height={44}>
-      <LineChart data={pts} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
-        <Line
-          type="monotone"
-          dataKey="v"
-          stroke={color}
-          strokeWidth={2}
-          dot={false}
-          isAnimationActive={false}
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 32 }}>
+      {data.map((v, i) => (
+        <div
+          key={i}
+          style={{
+            flex: 1,
+            borderRadius: "3px 3px 0 0",
+            background: color,
+            height: `${Math.max(4, Math.round((v / max) * 100))}%`,
+            opacity: v === 0 ? 0.15 : 0.9,
+            transition: "height 0.4s ease",
+          }}
         />
-      </LineChart>
-    </ResponsiveContainer>
+      ))}
+    </div>
   )
 }
 
 // ─── Stat Card ────────────────────────────────────────────
 
-function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, sparkData, sparkColor, trend, illustration }: {
+function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, sparkData, sparkColor }: {
   value: number | string
   label: string
   sublabel?: string
@@ -304,112 +180,81 @@ function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, spark
   cardBg: string
   sparkData?: number[]
   sparkColor?: string
-  trend?: { value: string; up: boolean }
-  illustration?: React.ReactNode
 }) {
   const { resolvedTheme } = useTheme()
   const bg = resolvedTheme === "dark" ? "var(--card)" : cardBg
+  const hasSpark = sparkData && sparkData.length > 1 && sparkData.some(v => v > 0)
+
   return (
     <div
-      className="ios-card-interactive animate-fade-up stat-card-root"
+      className="ios-card-interactive stat-card-root"
       style={{
-        borderRadius: 20,
+        borderRadius: 18,
         overflow: "hidden",
         position: "relative",
         height: "100%",
         display: "flex",
         flexDirection: "column",
         background: bg,
-        border: resolvedTheme === "dark" ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.06)",
-        boxShadow: "0 1px 2px rgba(0,0,0,0.03), 0 4px 16px rgba(0,0,0,0.04)",
-        minHeight: 160,
+        border: resolvedTheme === "dark" ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.05)",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03)",
+        minHeight: 148,
       }}
     >
-      {/* Left: text content */}
-      <div className="stat-card-inner" style={{ padding: "22px 22px 20px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between", position: "relative", zIndex: 1 }}>
-        <div>
-          {/* Icon badge */}
+      <div className="stat-card-inner" style={{ padding: "18px 18px 16px", flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
+        {/* Top row: icon + label */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{
-            width: 34,
-            height: 34,
-            borderRadius: 10,
-            background: resolvedTheme === "dark" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.6)",
-            backdropFilter: "blur(4px)",
+            width: 30,
+            height: 30,
+            borderRadius: 9,
+            background: resolvedTheme === "dark" ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.7)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            marginBottom: 16,
-            border: resolvedTheme === "dark" ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(255,255,255,0.7)",
+            border: resolvedTheme === "dark" ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(255,255,255,0.8)",
+            flexShrink: 0,
           }}>
-            <Icon style={{ width: 15, height: 15, color: iconColor }} strokeWidth={2} />
+            <Icon style={{ width: 14, height: 14, color: iconColor }} strokeWidth={2} />
           </div>
+          <p style={{
+            fontSize: 11,
+            fontWeight: 600,
+            color: resolvedTheme === "dark" ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)",
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+          }}>
+            {label}
+          </p>
+        </div>
 
-          {/* Label */}
-          <p style={{ fontSize: 11.5, fontWeight: 500, color: resolvedTheme === "dark" ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)", marginBottom: 4, letterSpacing: "0.02em", textTransform: "uppercase" }}>{label}</p>
-
-          {/* Value */}
+        {/* Value */}
+        <div>
           <p className="stat-card-value" style={{
-            fontSize: 40,
+            fontSize: 38,
             fontWeight: 700,
             color: resolvedTheme === "dark" ? "#F2F2F7" : "#0A0A0B",
             lineHeight: 1,
-            marginBottom: sublabel ? 5 : 0,
             fontFamily: value === "--" ? "Geist, sans-serif" : "Geist Mono, monospace",
-            fontVariantNumeric: value === "--" ? "normal" : "tabular-nums",
-            letterSpacing: value === "--" ? "0em" : "-0.04em",
-            wordSpacing: 0,
+            fontVariantNumeric: "tabular-nums",
+            letterSpacing: "-0.03em",
           }}>
             {value === "--" ? (
-              <span style={{ display: "inline-block", width: 28, height: 3, background: "currentColor", borderRadius: 2, opacity: 0.3, verticalAlign: "middle", marginBottom: 4 }} />
+              <span style={{ display: "inline-block", width: 24, height: 3, background: "currentColor", borderRadius: 2, opacity: 0.25, verticalAlign: "middle" }} />
             ) : value}
           </p>
-
           {sublabel && (
-            <p style={{ fontSize: 11.5, color: resolvedTheme === "dark" ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.38)", marginTop: 4 }}>{sublabel}</p>
+            <p style={{ fontSize: 11, color: resolvedTheme === "dark" ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.35)", marginTop: 3, letterSpacing: "-0.01em" }}>
+              {sublabel}
+            </p>
           )}
         </div>
 
-        {/* Trend badge */}
-        {trend && (
-          <div style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 3,
-            fontSize: 11,
-            fontWeight: 600,
-            color: trend.up ? "#065F46" : "#991B1B",
-            background: "rgba(255,255,255,0.6)",
-            padding: "3px 9px",
-            borderRadius: 999,
-            border: `1px solid ${trend.up ? "rgba(16,185,129,0.25)" : "rgba(229,72,77,0.25)"}`,
-            letterSpacing: "0.01em",
-            width: "fit-content",
-            marginTop: 10,
-          }}>
-            {trend.up ? "+" : ""}{trend.value}
-          </div>
-        )}
-
-        {/* Sparkline at bottom - only if there's real data */}
-        {sparkData && sparkData.length > 1 && sparkData.some(v => v > 0) && (
-          <div className="spark-enter" style={{ marginTop: 12, marginLeft: -4 }}>
-            <Sparkline data={sparkData} color={sparkColor ?? iconColor} />
-          </div>
+        {/* Mini sparkbar at bottom */}
+        {hasSpark && (
+          <MiniSparkbar data={sparkData!} color={sparkColor ?? iconColor} />
         )}
       </div>
-
-      {/* Right: illustration - half-hidden off the right edge */}
-      {illustration && (
-        <div style={{
-          position: "absolute",
-          right: -50,
-          bottom: -20,
-          pointerEvents: "none",
-          opacity: 0.7,
-        }}>
-          {illustration}
-        </div>
-      )}
     </div>
   )
 }
@@ -529,9 +374,14 @@ function WeeklyChart() {
               </div>
             ))}
           </div>
+        ) : totalCalls === 0 ? (
+          <div style={{ height: 200, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <TrendingUp style={{ width: 28, height: 28, color: "var(--muted-foreground)", opacity: 0.3 }} strokeWidth={1.25} />
+            <p style={{ fontSize: 13, color: "var(--muted-foreground)", opacity: 0.5 }}>No calls this week yet</p>
+          </div>
         ) : (
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={days} barCategoryGap="32%" barGap={3} margin={{ top: 4, right: 4, left: -10, bottom: 0 }}>
+            <BarChart data={days} barCategoryGap="30%" barGap={3} margin={{ top: 4, right: 4, left: -8, bottom: 0 }}>
               <XAxis
                 dataKey="date"
                 axisLine={false}
@@ -541,25 +391,44 @@ function WeeklyChart() {
               <YAxis
                 axisLine={false}
                 tickLine={false}
+                allowDecimals={false}
+                domain={[0, (max: number) => Math.max(Math.ceil(max * 1.2), 3)]}
                 tick={{ fontSize: 11, fill: "var(--muted-foreground)", fontFamily: "Geist, sans-serif" }}
-                width={26}
+                tickFormatter={(v) => `${v}`}
+                width={24}
+                label={{
+                  value: "Count",
+                  angle: -90,
+                  position: "insideLeft",
+                  offset: 14,
+                  style: { fontSize: 10, fill: "var(--muted-foreground)", opacity: 0.5 },
+                }}
               />
               <Tooltip
-                cursor={{ fill: "rgba(99,102,241,0.04)", radius: 6 }}
+                cursor={{ fill: "rgba(99,102,241,0.05)", radius: 6 }}
                 content={({ active, payload, label }) => {
                   if (!active || !payload?.length) return null
                   const calls = (payload.find((p) => p.dataKey === "calls")?.value as number) ?? 0
                   const booked = (payload.find((p) => p.dataKey === "appointments")?.value as number) ?? 0
                   return (
                     <div className="chart-tooltip">
-                      <p style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginBottom: 4, letterSpacing: "-0.01em" }}>{label}</p>
-                      <p style={{ fontSize: 11.5, color: "var(--muted-foreground)" }}>{calls} calls · {booked} booked</p>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginBottom: 6, letterSpacing: "-0.01em" }}>{label}</p>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: 2, background: "#6366F1", flexShrink: 0 }} />
+                          <span style={{ fontSize: 11.5, color: "var(--muted-foreground)" }}>{calls} call{calls !== 1 ? "s" : ""}</span>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: 2, background: "#10B981", flexShrink: 0 }} />
+                          <span style={{ fontSize: 11.5, color: "var(--muted-foreground)" }}>{booked} appointment{booked !== 1 ? "s" : ""} booked</span>
+                        </div>
+                      </div>
                     </div>
                   )
                 }}
               />
-              <Bar dataKey="calls" fill="#6366F1" fillOpacity={0.9} radius={[5, 5, 0, 0]} />
-              <Bar dataKey="appointments" fill="#10B981" fillOpacity={0.9} radius={[5, 5, 0, 0]} />
+              <Bar dataKey="calls" fill="#6366F1" fillOpacity={0.85} radius={[4, 4, 0, 0]} name="Calls" />
+              <Bar dataKey="appointments" fill="#10B981" fillOpacity={0.85} radius={[4, 4, 0, 0]} name="Appointments booked" />
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -569,12 +438,6 @@ function WeeklyChart() {
 }
 
 // ─── Today's Schedule ──────────────────────────────────────
-
-const PLACEHOLDER_SLOTS = [
-  { time: "9:00 AM" },
-  { time: "11:00 AM" },
-  { time: "2:00 PM" },
-]
 
 function timeUntil(iso: string): string {
   const diffMs = new Date(iso).getTime() - Date.now()
@@ -844,6 +707,8 @@ function ExceptionRow({ call }: { call: Call }) {
 }
 
 // ─── Billing Widget ───────────────────────────────────────
+// Only renders when there's something actionable to show (low or exhausted).
+// Healthy balance = subtle inline strip, not a banner.
 
 function BillingWidget() {
   const { resolvedTheme } = useTheme()
@@ -853,132 +718,106 @@ function BillingWidget() {
     refetchInterval: 60_000,
   })
 
-  if (isLoading) {
-    return (
-      <div className="ios-card" style={{ padding: "16px 20px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div className="skeleton" style={{ width: 32, height: 32, borderRadius: 10 }} />
-          <div style={{ flex: 1 }}>
-            <div className="skeleton" style={{ height: 11, width: 80, borderRadius: 4, marginBottom: 6 }} />
-            <div className="skeleton" style={{ height: 6, width: "100%", borderRadius: 3 }} />
-          </div>
-          <div className="skeleton" style={{ height: 13, width: 60, borderRadius: 4 }} />
-        </div>
-      </div>
-    )
-  }
-
+  if (isLoading) return null
   if (!data) return null
 
   const secs = data.seconds_remaining
   const mins = Math.floor(Math.abs(secs) / 60)
   const hours = Math.floor(mins / 60)
-  const isNegative = secs < 0
   const isExhausted = secs <= 0
   const isLow = secs > 0 && secs <= 1800
+  const isHealthy = secs > 1800
 
-  // Display label
-  const balanceLabel = isNegative
-    ? `-${hours > 0 ? `${hours}h ${mins % 60}m` : `${mins}m`}`
+  const balanceLabel = isExhausted
+    ? "0m"
     : hours > 0
     ? `${hours}h ${mins % 60}m`
     : `${mins}m`
 
-  // Color scheme
-  const accent = isExhausted
-    ? "#E5484D"
-    : isLow
-    ? "#F59E0B"
-    : "#10B981"
-
-  const accentBg = isExhausted
-    ? "rgba(229,72,77,0.1)"
-    : isLow
-    ? "rgba(245,158,11,0.1)"
-    : "rgba(16,185,129,0.1)"
-
-  const accentBorder = isExhausted
-    ? "rgba(229,72,77,0.25)"
-    : isLow
-    ? "rgba(245,158,11,0.25)"
-    : "rgba(16,185,129,0.2)"
-
-  // Progress bar - cap at 0-100%, treat 5 hours as "full" for visual
   const FULL_SECS = 5 * 60 * 60
   const pct = isExhausted ? 0 : Math.min(100, (secs / FULL_SECS) * 100)
 
-  const statusText = isExhausted
-    ? data.allow_overage ? "Overage active - calls continuing" : "Calls paused - balance exhausted"
-    : isLow
-    ? `Low balance - ${balanceLabel} left`
-    : `${balanceLabel} remaining`
-
-  return (
-    <div
-      className="ios-card animate-fade-up"
-      style={{
-        padding: "14px 18px",
-        border: `1px solid ${accentBorder}`,
-        background: resolvedTheme === "dark" ? "var(--card)" : accentBg,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        {/* Icon */}
-        <div style={{
-          width: 34, height: 34, borderRadius: 10, flexShrink: 0,
-          background: accentBg,
-          border: `1px solid ${accentBorder}`,
-          display: "flex", alignItems: "center", justifyContent: "center",
-        }}>
-          <Zap style={{ width: 15, height: 15, color: accent }} strokeWidth={2} />
+  // Healthy state: unobtrusive strip inside the stat grid area
+  if (isHealthy) {
+    return (
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "10px 16px",
+        borderRadius: 12,
+        background: resolvedTheme === "dark" ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.025)",
+        border: `1px solid ${resolvedTheme === "dark" ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
+      }}>
+        <Zap style={{ width: 13, height: 13, color: "#10B981", flexShrink: 0 }} strokeWidth={2} />
+        <span style={{ fontSize: 12, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>
+          Call minutes
+        </span>
+        <div style={{ flex: 1, height: 4, borderRadius: 2, background: resolvedTheme === "dark" ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)", overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${pct}%`, borderRadius: 2, background: "#10B981", transition: "width 0.6s ease" }} />
         </div>
-
-        {/* Bar + label */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>
-              Call Minutes
-            </span>
-            <span style={{
-              fontSize: 12, fontWeight: 700,
-              color: accent,
-              fontVariantNumeric: "tabular-nums",
-              letterSpacing: "-0.02em",
-            }}>
-              {statusText}
-            </span>
-          </div>
-          {/* Progress bar */}
-          <div style={{
-            height: 5, borderRadius: 3,
-            background: resolvedTheme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)",
-            overflow: "hidden",
-          }}>
-            <div style={{
-              height: "100%",
-              width: `${pct}%`,
-              borderRadius: 3,
-              background: accent,
-              transition: "width 0.6s ease",
-            }} />
-          </div>
-        </div>
-
-        {/* Overage pill */}
+        <span style={{ fontSize: 12, fontWeight: 600, color: "#10B981", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em", flexShrink: 0 }}>
+          {balanceLabel} left
+        </span>
         {data.allow_overage && (
-          <span style={{
-            fontSize: 10, fontWeight: 600,
-            padding: "3px 8px", borderRadius: 999,
-            background: "var(--muted)",
-            color: "var(--muted-foreground)",
-            border: "1px solid var(--border)",
-            flexShrink: 0,
-            whiteSpace: "nowrap",
-            letterSpacing: "0.02em",
-          }}>
+          <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 999, background: "var(--muted)", color: "var(--muted-foreground)", border: "1px solid var(--border)", flexShrink: 0, letterSpacing: "0.02em" }}>
             OVERAGE ON
           </span>
         )}
+      </div>
+    )
+  }
+
+  // Low / exhausted: attention-worthy card
+  const accent = isExhausted ? "#E5484D" : "#F59E0B"
+  const accentBg = isExhausted ? "rgba(229,72,77,0.08)" : "rgba(245,158,11,0.08)"
+  const accentBorder = isExhausted ? "rgba(229,72,77,0.2)" : "rgba(245,158,11,0.2)"
+
+  const title = isExhausted
+    ? data.allow_overage ? "Calls continuing on overage" : "Calls paused"
+    : "Low call balance"
+
+  const description = isExhausted
+    ? data.allow_overage
+      ? "Your call minutes are used up. Overage is active so calls continue, but you will be charged extra."
+      : "Your call minutes are exhausted. New calls are blocked until you top up."
+    : `You have about ${balanceLabel} of call time remaining. Top up soon to avoid interruptions.`
+
+  return (
+    <div
+      className="animate-fade-up"
+      style={{
+        padding: "14px 18px",
+        borderRadius: 14,
+        border: `1px solid ${accentBorder}`,
+        background: resolvedTheme === "dark" ? "var(--card)" : accentBg,
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 14,
+      }}
+    >
+      <div style={{
+        width: 34, height: 34, borderRadius: 10, flexShrink: 0,
+        background: accentBg, border: `1px solid ${accentBorder}`,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        marginTop: 1,
+      }}>
+        <Zap style={{ width: 15, height: 15, color: accent }} strokeWidth={2} />
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: accent, letterSpacing: "-0.01em" }}>{title}</span>
+          {data.allow_overage && (
+            <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 999, background: "var(--muted)", color: "var(--muted-foreground)", border: "1px solid var(--border)", flexShrink: 0, letterSpacing: "0.02em" }}>
+              OVERAGE ON
+            </span>
+          )}
+        </div>
+        <p style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 10 }}>{description}</p>
+        <div style={{ height: 4, borderRadius: 2, background: resolvedTheme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)", overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${pct}%`, borderRadius: 2, background: accent, transition: "width 0.6s ease" }} />
+        </div>
       </div>
     </div>
   )
@@ -1221,64 +1060,57 @@ export default function OverviewPage() {
         </div>
       </div>
 
-      {/* Stat cards */}
-      <div className="overview-stat-grid">
-        <div className="animate-fade-up animate-fade-up-2" style={{ display: "flex", flexDirection: "column" }}>
+      {/* ── Section: Today at a glance ─────────────────────── */}
+      <div>
+        <p style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10, opacity: 0.6 }}>
+          Today at a glance
+        </p>
+        <div className="overview-stat-grid">
           <StatCard
             value={calls}
             label="Calls Handled"
-            sublabel="Today"
+            sublabel={calls === 1 ? "call answered today" : "calls answered today"}
             icon={PhoneCall}
             iconColor="#6366F1"
             cardBg="#EEF2FF"
             sparkData={callSparkData}
             sparkColor="#6366F1"
-            illustration={<IllustrationCalls />}
           />
-        </div>
-        <div className="animate-fade-up animate-fade-up-3" style={{ display: "flex", flexDirection: "column" }}>
           <StatCard
             value={appointments}
             label="Appointments"
-            sublabel="Booked today"
+            sublabel="booked today"
             icon={CalendarDays}
             iconColor="#10B981"
             cardBg="#ECFDF5"
             sparkData={apptSparkData}
             sparkColor="#10B981"
-            illustration={<IllustrationAppointments />}
           />
-        </div>
-        <div className="animate-fade-up animate-fade-up-4" style={{ display: "flex", flexDirection: "column" }}>
           <StatCard
             value={leads}
             label="Leads Captured"
-            sublabel="Today"
+            sublabel="new leads today"
             icon={Users}
             iconColor="#D97706"
             cardBg="#FFFBEB"
             sparkData={leadSparkData}
             sparkColor="#F59E0B"
-            illustration={<IllustrationLeads />}
           />
-        </div>
-        <div className="animate-fade-up animate-fade-up-5" style={{ display: "flex", flexDirection: "column" }}>
           <StatCard
             value={avgCallDisplay}
-            label="Avg Call Time"
-            sublabel="Today"
+            label="Avg Call Length"
+            sublabel="per call today"
             icon={Clock}
             iconColor="#E5484D"
             cardBg="#FFF1F2"
-            illustration={<IllustrationAvgTime />}
           />
         </div>
-      </div>{/* /overview-stat-grid */}
+      </div>
 
-      {/* Billing */}
+      {/* Billing - inline quiet strip or alert card */}
       <BillingWidget />
 
-      {/* Exceptions */}
+      {/* ── Section: Needs Attention ───────────────────────── */}
       {exceptions.length > 0 && (
         <div
           className="ios-card animate-fade-up"
@@ -1310,78 +1142,88 @@ export default function OverviewPage() {
         </div>
       )}
 
-      {/* Schedule + Chart */}
-      <div className="overview-bottom-grid">
-        <SectionCard
-          title="Coming Up Next"
-          icon={CalendarDays}
-          count={upcomingAppointments.length > 0 ? upcomingAppointments.length : undefined}
-          action={
-            <Link
-              to="/calls"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                fontSize: 12,
-                fontWeight: 500,
-                color: "var(--muted-foreground)",
-                textDecoration: "none",
-                letterSpacing: "-0.01em",
-                opacity: 0.7,
-                transition: "opacity 0.15s ease",
-              }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.opacity = "1")}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.opacity = "0.7")}
-            >
-              View all <ArrowRight style={{ width: 11, height: 11 }} strokeWidth={1.5} />
-            </Link>
-          }
-        >
-          <ScheduleTimeline appointments={upcomingAppointments} />
-        </SectionCard>
+      {/* ── Section: Schedule + Performance ───────────────── */}
+      <div>
+        <p style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10, opacity: 0.6 }}>
+          Schedule &amp; Performance
+        </p>
+        <div className="overview-bottom-grid">
+          <SectionCard
+            title="Coming Up Next"
+            icon={CalendarDays}
+            count={upcomingAppointments.length > 0 ? upcomingAppointments.length : undefined}
+            action={
+              <Link
+                to="/calls"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: "var(--muted-foreground)",
+                  textDecoration: "none",
+                  letterSpacing: "-0.01em",
+                  opacity: 0.7,
+                  transition: "opacity 0.15s ease",
+                }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.opacity = "1")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.opacity = "0.7")}
+              >
+                View all <ArrowRight style={{ width: 11, height: 11 }} strokeWidth={1.5} />
+              </Link>
+            }
+          >
+            <ScheduleTimeline appointments={upcomingAppointments} />
+          </SectionCard>
 
-        <WeeklyChart />
+          <WeeklyChart />
+        </div>
       </div>
 
-      {/* Recent calls */}
-      <SectionCard
-        title="Recent Calls"
-        icon={Phone}
-        action={
-          recentCalls.length > 0 ? (
-            <Link
-              to="/calls"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 4,
-                fontSize: 12,
-                fontWeight: 500,
-                color: "var(--muted-foreground)",
-                textDecoration: "none",
-                letterSpacing: "-0.01em",
-                opacity: 0.7,
-                transition: "opacity 0.15s ease",
-              }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.opacity = "1")}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.opacity = "0.7")}
-            >
-              View all <ArrowRight style={{ width: 11, height: 11 }} strokeWidth={1.5} />
-            </Link>
-          ) : undefined
-        }
-      >
-        {recentCalls.length === 0 ? (
-          <>
-            <GhostActivityRow />
-            <GhostActivityRow />
-            <GhostActivityRow />
-          </>
-        ) : (
-          recentCalls.map((call, i) => <ActivityRow key={call.id} call={call} delay={i * 40} />)
-        )}
-      </SectionCard>
+      {/* ── Section: Recent Call Activity ─────────────────── */}
+      <div>
+        <p style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10, opacity: 0.6 }}>
+          Recent Call Activity
+        </p>
+        <SectionCard
+          title="Latest Calls"
+          icon={Phone}
+          action={
+            recentCalls.length > 0 ? (
+              <Link
+                to="/calls"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: "var(--muted-foreground)",
+                  textDecoration: "none",
+                  letterSpacing: "-0.01em",
+                  opacity: 0.7,
+                  transition: "opacity 0.15s ease",
+                }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.opacity = "1")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.opacity = "0.7")}
+              >
+                See all calls <ArrowRight style={{ width: 11, height: 11 }} strokeWidth={1.5} />
+              </Link>
+            ) : undefined
+          }
+        >
+          {recentCalls.length === 0 ? (
+            <>
+              <GhostActivityRow />
+              <GhostActivityRow />
+              <GhostActivityRow />
+            </>
+          ) : (
+            recentCalls.map((call, i) => <ActivityRow key={call.id} call={call} delay={i * 40} />)
+          )}
+        </SectionCard>
+      </div>
 
       {/* Live status footer */}
       <LiveStatusBar clinicActive={!!clinicActive} />
