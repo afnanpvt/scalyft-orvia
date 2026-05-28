@@ -8,6 +8,8 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  AreaChart,
+  Area,
 } from "recharts"
 import {
   Phone,
@@ -144,34 +146,38 @@ function OutcomeBadge({ outcome }: { outcome: Call["outcome"] }) {
   )
 }
 
-// ─── Mini Sparkbar (replaces noisy SVG illustrations) ────────
-// Shows a 7-bar mini chart using the card's accent color - clean, data-first
+// ─── Sparkline ────────────────────────────────────────────
+// Smooth area sparkline - the good-looking one from before
 
-function MiniSparkbar({ data, color }: { data: number[]; color: string }) {
+function Sparkline({ data, color, gradientId }: { data: number[]; color: string; gradientId: string }) {
   if (!data.length || !data.some(v => v > 0)) return null
-  const max = Math.max(...data, 1)
+  const pts = data.map((v, i) => ({ i, v }))
   return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 32 }}>
-      {data.map((v, i) => (
-        <div
-          key={i}
-          style={{
-            flex: 1,
-            borderRadius: "3px 3px 0 0",
-            background: color,
-            height: `${Math.max(4, Math.round((v / max) * 100))}%`,
-            opacity: v === 0 ? 0.15 : 0.9,
-            transition: "height 0.4s ease",
-          }}
+    <ResponsiveContainer width="100%" height={52}>
+      <AreaChart data={pts} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.22} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <Area
+          type="monotone"
+          dataKey="v"
+          stroke={color}
+          strokeWidth={1.75}
+          fill={`url(#${gradientId})`}
+          dot={false}
+          isAnimationActive={false}
         />
-      ))}
-    </div>
+      </AreaChart>
+    </ResponsiveContainer>
   )
 }
 
 // ─── Stat Card ────────────────────────────────────────────
 
-function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, sparkData, sparkColor }: {
+function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, sparkData, sparkColor, gradientId }: {
   value: number | string
   label: string
   sublabel?: string
@@ -180,6 +186,7 @@ function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, spark
   cardBg: string
   sparkData?: number[]
   sparkColor?: string
+  gradientId?: string
 }) {
   const { resolvedTheme } = useTheme()
   const bg = resolvedTheme === "dark" ? "var(--card)" : cardBg
@@ -189,7 +196,7 @@ function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, spark
     <div
       className="ios-card-interactive stat-card-root"
       style={{
-        borderRadius: 18,
+        borderRadius: 20,
         overflow: "hidden",
         position: "relative",
         height: "100%",
@@ -197,13 +204,13 @@ function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, spark
         flexDirection: "column",
         background: bg,
         border: resolvedTheme === "dark" ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.05)",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03)",
-        minHeight: 148,
+        boxShadow: "0 1px 2px rgba(0,0,0,0.03), 0 4px 16px rgba(0,0,0,0.04)",
+        minHeight: 160,
       }}
     >
-      <div className="stat-card-inner" style={{ padding: "18px 18px 16px", flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
-        {/* Top row: icon + label */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div className="stat-card-inner" style={{ padding: "20px 20px 0", flex: 1, display: "flex", flexDirection: "column" }}>
+        {/* Icon + label */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
           <div style={{
             width: 30,
             height: 30,
@@ -212,7 +219,7 @@ function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, spark
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            border: resolvedTheme === "dark" ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(255,255,255,0.8)",
+            border: resolvedTheme === "dark" ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(255,255,255,0.85)",
             flexShrink: 0,
           }}>
             <Icon style={{ width: 14, height: 14, color: iconColor }} strokeWidth={2} />
@@ -220,41 +227,46 @@ function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, spark
           <p style={{
             fontSize: 11,
             fontWeight: 600,
-            color: resolvedTheme === "dark" ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)",
-            letterSpacing: "0.04em",
+            color: resolvedTheme === "dark" ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.38)",
+            letterSpacing: "0.05em",
             textTransform: "uppercase",
           }}>
             {label}
           </p>
         </div>
 
-        {/* Value */}
-        <div>
-          <p className="stat-card-value" style={{
-            fontSize: 38,
-            fontWeight: 700,
-            color: resolvedTheme === "dark" ? "#F2F2F7" : "#0A0A0B",
-            lineHeight: 1,
-            fontFamily: value === "--" ? "Geist, sans-serif" : "Geist Mono, monospace",
-            fontVariantNumeric: "tabular-nums",
-            letterSpacing: "-0.03em",
-          }}>
-            {value === "--" ? (
-              <span style={{ display: "inline-block", width: 24, height: 3, background: "currentColor", borderRadius: 2, opacity: 0.25, verticalAlign: "middle" }} />
-            ) : value}
+        {/* Value + sublabel */}
+        <p className="stat-card-value" style={{
+          fontSize: 40,
+          fontWeight: 700,
+          color: resolvedTheme === "dark" ? "#F2F2F7" : "#0A0A0B",
+          lineHeight: 1,
+          fontFamily: value === "--" ? "Geist, sans-serif" : "Geist Mono, monospace",
+          fontVariantNumeric: "tabular-nums",
+          letterSpacing: "-0.03em",
+          marginBottom: 4,
+        }}>
+          {value === "--" ? (
+            <span style={{ display: "inline-block", width: 24, height: 3, background: "currentColor", borderRadius: 2, opacity: 0.25, verticalAlign: "middle" }} />
+          ) : value}
+        </p>
+        {sublabel && (
+          <p style={{ fontSize: 11.5, color: resolvedTheme === "dark" ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.38)", letterSpacing: "-0.01em", marginBottom: 10 }}>
+            {sublabel}
           </p>
-          {sublabel && (
-            <p style={{ fontSize: 11, color: resolvedTheme === "dark" ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.35)", marginTop: 3, letterSpacing: "-0.01em" }}>
-              {sublabel}
-            </p>
-          )}
-        </div>
-
-        {/* Mini sparkbar at bottom */}
-        {hasSpark && (
-          <MiniSparkbar data={sparkData!} color={sparkColor ?? iconColor} />
         )}
+
+        {/* Sparkline flush to card bottom */}
+        <div style={{ flex: 1 }} />
       </div>
+
+      {hasSpark && gradientId ? (
+        <div style={{ marginTop: -8 }}>
+          <Sparkline data={sparkData!} color={sparkColor ?? iconColor} gradientId={gradientId} />
+        </div>
+      ) : (
+        <div style={{ height: 20 }} />
+      )}
     </div>
   )
 }
@@ -707,117 +719,116 @@ function ExceptionRow({ call }: { call: Call }) {
 }
 
 // ─── Billing Widget ───────────────────────────────────────
-// Only renders when there's something actionable to show (low or exhausted).
-// Healthy balance = subtle inline strip, not a banner.
+// Usage meter: always visible, always calm. Vercel-style.
+// The bar tells the story - no alarmist copy.
 
 function BillingWidget() {
   const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
   const { data, isLoading } = useQuery({
     queryKey: ["billing"],
     queryFn: getBusinessBilling,
     refetchInterval: 60_000,
   })
 
-  if (isLoading) return null
+  if (isLoading) return (
+    <div style={{ height: 52, borderRadius: 14, background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.025)" }} className="skeleton" />
+  )
   if (!data) return null
 
   const secs = data.seconds_remaining
-  const mins = Math.floor(Math.abs(secs) / 60)
+  const absSecs = Math.abs(secs)
+  const mins = Math.floor(absSecs / 60)
   const hours = Math.floor(mins / 60)
   const isExhausted = secs <= 0
   const isLow = secs > 0 && secs <= 1800
-  const isHealthy = secs > 1800
 
-  const balanceLabel = isExhausted
-    ? "0m"
-    : hours > 0
-    ? `${hours}h ${mins % 60}m`
-    : `${mins}m`
-
+  // Segmented bar: treat 5h as 100%
   const FULL_SECS = 5 * 60 * 60
   const pct = isExhausted ? 0 : Math.min(100, (secs / FULL_SECS) * 100)
 
-  // Healthy state: unobtrusive strip inside the stat grid area
-  if (isHealthy) {
-    return (
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        padding: "10px 16px",
-        borderRadius: 12,
-        background: resolvedTheme === "dark" ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.025)",
-        border: `1px solid ${resolvedTheme === "dark" ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
-      }}>
-        <Zap style={{ width: 13, height: 13, color: "#10B981", flexShrink: 0 }} strokeWidth={2} />
-        <span style={{ fontSize: 12, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>
-          Call minutes
-        </span>
-        <div style={{ flex: 1, height: 4, borderRadius: 2, background: resolvedTheme === "dark" ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)", overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${pct}%`, borderRadius: 2, background: "#10B981", transition: "width 0.6s ease" }} />
-        </div>
-        <span style={{ fontSize: 12, fontWeight: 600, color: "#10B981", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em", flexShrink: 0 }}>
-          {balanceLabel} left
-        </span>
-        {data.allow_overage && (
-          <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 999, background: "var(--muted)", color: "var(--muted-foreground)", border: "1px solid var(--border)", flexShrink: 0, letterSpacing: "0.02em" }}>
-            OVERAGE ON
-          </span>
-        )}
-      </div>
-    )
-  }
+  const balanceStr = isExhausted
+    ? "No minutes left"
+    : hours > 0
+    ? `${hours}h ${mins % 60}m remaining`
+    : `${mins}m remaining`
 
-  // Low / exhausted: attention-worthy card
-  const accent = isExhausted ? "#E5484D" : "#F59E0B"
-  const accentBg = isExhausted ? "rgba(229,72,77,0.08)" : "rgba(245,158,11,0.08)"
-  const accentBorder = isExhausted ? "rgba(229,72,77,0.2)" : "rgba(245,158,11,0.2)"
+  // Color: green healthy, amber low, red exhausted - but always muted/confident
+  const barColor = isExhausted ? "#E5484D" : isLow ? "#F59E0B" : "#10B981"
+  const labelColor = isExhausted
+    ? "#E5484D"
+    : isLow
+    ? "#D97706"
+    : isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)"
 
-  const title = isExhausted
-    ? data.allow_overage ? "Calls continuing on overage" : "Calls paused"
-    : "Low call balance"
-
-  const description = isExhausted
+  // Status note - plain English, never panic
+  const note = isExhausted
     ? data.allow_overage
-      ? "Your call minutes are used up. Overage is active so calls continue, but you will be charged extra."
-      : "Your call minutes are exhausted. New calls are blocked until you top up."
-    : `You have about ${balanceLabel} of call time remaining. Top up soon to avoid interruptions.`
+      ? "Calls are active on overage"
+      : "Calls are paused - add minutes to resume"
+    : isLow
+    ? "Running low - consider adding more soon"
+    : null
 
   return (
     <div
-      className="animate-fade-up"
       style={{
-        padding: "14px 18px",
-        borderRadius: 14,
-        border: `1px solid ${accentBorder}`,
-        background: resolvedTheme === "dark" ? "var(--card)" : accentBg,
         display: "flex",
-        alignItems: "flex-start",
+        alignItems: "center",
         gap: 14,
+        padding: "12px 18px",
+        borderRadius: 14,
+        background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.025)",
+        border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)"}`,
       }}
     >
-      <div style={{
-        width: 34, height: 34, borderRadius: 10, flexShrink: 0,
-        background: accentBg, border: `1px solid ${accentBorder}`,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        marginTop: 1,
-      }}>
-        <Zap style={{ width: 15, height: 15, color: accent }} strokeWidth={2} />
+      {/* Icon */}
+      <Zap
+        style={{ width: 14, height: 14, color: barColor, flexShrink: 0, opacity: 0.85 }}
+        strokeWidth={2}
+      />
+
+      {/* Label */}
+      <span style={{ fontSize: 12.5, fontWeight: 500, color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
+        Call minutes
+      </span>
+
+      {/* Track */}
+      <div style={{ flex: 1, height: 5, borderRadius: 3, background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)", overflow: "hidden", position: "relative" }}>
+        <div style={{
+          position: "absolute", inset: 0, right: `${100 - pct}%`,
+          borderRadius: 3,
+          background: barColor,
+          opacity: 0.85,
+          transition: "right 0.6s ease",
+        }} />
       </div>
 
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: accent, letterSpacing: "-0.01em" }}>{title}</span>
-          {data.allow_overage && (
-            <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 999, background: "var(--muted)", color: "var(--muted-foreground)", border: "1px solid var(--border)", flexShrink: 0, letterSpacing: "0.02em" }}>
-              OVERAGE ON
-            </span>
-          )}
-        </div>
-        <p style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 10 }}>{description}</p>
-        <div style={{ height: 4, borderRadius: 2, background: resolvedTheme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)", overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${pct}%`, borderRadius: 2, background: accent, transition: "width 0.6s ease" }} />
-        </div>
+      {/* Balance + note */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 600, color: labelColor, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>
+          {balanceStr}
+        </span>
+        {note && (
+          <span style={{
+            fontSize: 11,
+            padding: "2px 8px",
+            borderRadius: 999,
+            fontWeight: 500,
+            color: isExhausted ? "#E5484D" : "#D97706",
+            background: isExhausted ? "rgba(229,72,77,0.08)" : "rgba(245,158,11,0.08)",
+            border: `1px solid ${isExhausted ? "rgba(229,72,77,0.18)" : "rgba(245,158,11,0.18)"}`,
+            whiteSpace: "nowrap",
+            letterSpacing: "-0.01em",
+          }}>
+            {note}
+          </span>
+        )}
+        {data.allow_overage && !isExhausted && (
+          <span style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 7px", borderRadius: 999, color: "var(--muted-foreground)", background: "var(--muted)", border: "1px solid var(--border)", letterSpacing: "0.02em" }}>
+            OVERAGE ON
+          </span>
+        )}
       </div>
     </div>
   )
@@ -1075,6 +1086,7 @@ export default function OverviewPage() {
             cardBg="#EEF2FF"
             sparkData={callSparkData}
             sparkColor="#6366F1"
+            gradientId="spark-calls"
           />
           <StatCard
             value={appointments}
@@ -1085,6 +1097,7 @@ export default function OverviewPage() {
             cardBg="#ECFDF5"
             sparkData={apptSparkData}
             sparkColor="#10B981"
+            gradientId="spark-appts"
           />
           <StatCard
             value={leads}
@@ -1095,6 +1108,7 @@ export default function OverviewPage() {
             cardBg="#FFFBEB"
             sparkData={leadSparkData}
             sparkColor="#F59E0B"
+            gradientId="spark-leads"
           />
           <StatCard
             value={avgCallDisplay}
