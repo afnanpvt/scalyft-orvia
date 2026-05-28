@@ -147,17 +147,17 @@ function OutcomeBadge({ outcome }: { outcome: Call["outcome"] }) {
 }
 
 // ─── Sparkline ────────────────────────────────────────────
-// Smooth area sparkline - the good-looking one from before
 
 function Sparkline({ data, color, gradientId }: { data: number[]; color: string; gradientId: string }) {
   if (!data.length || !data.some(v => v > 0)) return null
   const pts = data.map((v, i) => ({ i, v }))
   return (
-    <ResponsiveContainer width="100%" height={52}>
+    <ResponsiveContainer width="100%" height={60}>
       <AreaChart data={pts} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity={0.22} />
+            <stop offset="0%" stopColor={color} stopOpacity={0.35} />
+            <stop offset="75%" stopColor={color} stopOpacity={0.06} />
             <stop offset="100%" stopColor={color} stopOpacity={0} />
           </linearGradient>
         </defs>
@@ -165,10 +165,12 @@ function Sparkline({ data, color, gradientId }: { data: number[]; color: string;
           type="monotone"
           dataKey="v"
           stroke={color}
-          strokeWidth={1.75}
+          strokeWidth={2}
           fill={`url(#${gradientId})`}
           dot={false}
           isAnimationActive={false}
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
       </AreaChart>
     </ResponsiveContainer>
@@ -176,6 +178,8 @@ function Sparkline({ data, color, gradientId }: { data: number[]; color: string;
 }
 
 // ─── Stat Card ────────────────────────────────────────────
+// Double-bezel: outer shell (tinted bg + hairline border) wraps inner white core.
+// Sparkline bleeds full-width to card bottom edge - no padding clipping it.
 
 function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, sparkData, sparkColor, gradientId }: {
   value: number | string
@@ -189,84 +193,104 @@ function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, spark
   gradientId?: string
 }) {
   const { resolvedTheme } = useTheme()
-  const bg = resolvedTheme === "dark" ? "var(--card)" : cardBg
+  const isDark = resolvedTheme === "dark"
   const hasSpark = sparkData && sparkData.length > 1 && sparkData.some(v => v > 0)
 
   return (
+    // Outer shell - tinted to card accent color, hairline border
     <div
-      className="ios-card-interactive stat-card-root"
+      className="stat-card-root"
       style={{
-        borderRadius: 20,
-        overflow: "hidden",
-        position: "relative",
+        padding: 2,
+        borderRadius: 22,
+        background: isDark ? "rgba(255,255,255,0.04)" : cardBg,
+        border: isDark ? "1px solid rgba(255,255,255,0.07)" : `1px solid ${cardBg}`,
+        boxShadow: isDark
+          ? "0 1px 3px rgba(0,0,0,0.2), 0 8px 24px rgba(0,0,0,0.12)"
+          : "0 1px 2px rgba(0,0,0,0.03), 0 8px 24px rgba(0,0,0,0.05)",
+        minHeight: 170,
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        background: bg,
-        border: resolvedTheme === "dark" ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.05)",
-        boxShadow: "0 1px 2px rgba(0,0,0,0.03), 0 4px 16px rgba(0,0,0,0.04)",
-        minHeight: 160,
+        transition: "box-shadow 0.2s cubic-bezier(0.32,0.72,0,1), transform 0.2s cubic-bezier(0.32,0.72,0,1)",
+        cursor: "default",
       }}
     >
-      <div className="stat-card-inner" style={{ padding: "20px 20px 0", flex: 1, display: "flex", flexDirection: "column" }}>
-        {/* Icon + label */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-          <div style={{
-            width: 30,
-            height: 30,
-            borderRadius: 9,
-            background: resolvedTheme === "dark" ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            border: resolvedTheme === "dark" ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(255,255,255,0.85)",
-            flexShrink: 0,
-          }}>
-            <Icon style={{ width: 14, height: 14, color: iconColor }} strokeWidth={2} />
+      {/* Inner core - white card with inner highlight */}
+      <div
+        style={{
+          flex: 1,
+          borderRadius: 20,
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          background: isDark ? "var(--card)" : "#ffffff",
+          boxShadow: isDark
+            ? "inset 0 1px 0 rgba(255,255,255,0.06)"
+            : "inset 0 1px 0 rgba(255,255,255,0.9)",
+        }}
+      >
+        <div className="stat-card-inner" style={{ padding: "20px 20px 14px", flex: 1, display: "flex", flexDirection: "column" }}>
+          {/* Icon + label row */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+            <div style={{
+              width: 28,
+              height: 28,
+              borderRadius: 8,
+              background: isDark ? "rgba(255,255,255,0.08)" : cardBg,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: isDark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.04)",
+              flexShrink: 0,
+            }}>
+              <Icon style={{ width: 13, height: 13, color: iconColor }} strokeWidth={2} />
+            </div>
+            <p style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.36)",
+              letterSpacing: "0.05em",
+              textTransform: "uppercase",
+            }}>
+              {label}
+            </p>
           </div>
-          <p style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: resolvedTheme === "dark" ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.38)",
-            letterSpacing: "0.05em",
-            textTransform: "uppercase",
+
+          {/* Value */}
+          <p className="stat-card-value" style={{
+            fontSize: 42,
+            fontWeight: 700,
+            color: isDark ? "#F2F2F7" : "#0A0A0B",
+            lineHeight: 1,
+            fontFamily: "Geist Mono, monospace",
+            fontVariantNumeric: "tabular-nums",
+            letterSpacing: "-0.03em",
+            marginBottom: 5,
           }}>
-            {label}
+            {value === "--" ? (
+              <span style={{ display: "inline-block", width: 28, height: 3, background: "currentColor", borderRadius: 2, opacity: 0.2, verticalAlign: "middle" }} />
+            ) : value}
           </p>
+
+          {sublabel && (
+            <p style={{ fontSize: 11.5, color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.36)", letterSpacing: "-0.01em" }}>
+              {sublabel}
+            </p>
+          )}
+
+          <div style={{ flex: 1 }} />
         </div>
 
-        {/* Value + sublabel */}
-        <p className="stat-card-value" style={{
-          fontSize: 40,
-          fontWeight: 700,
-          color: resolvedTheme === "dark" ? "#F2F2F7" : "#0A0A0B",
-          lineHeight: 1,
-          fontFamily: value === "--" ? "Geist, sans-serif" : "Geist Mono, monospace",
-          fontVariantNumeric: "tabular-nums",
-          letterSpacing: "-0.03em",
-          marginBottom: 4,
-        }}>
-          {value === "--" ? (
-            <span style={{ display: "inline-block", width: 24, height: 3, background: "currentColor", borderRadius: 2, opacity: 0.25, verticalAlign: "middle" }} />
-          ) : value}
-        </p>
-        {sublabel && (
-          <p style={{ fontSize: 11.5, color: resolvedTheme === "dark" ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.38)", letterSpacing: "-0.01em", marginBottom: 10 }}>
-            {sublabel}
-          </p>
+        {/* Sparkline bleeds full width to card bottom - no padding */}
+        {hasSpark && gradientId ? (
+          <div style={{ marginTop: -14 }}>
+            <Sparkline data={sparkData!} color={sparkColor ?? iconColor} gradientId={gradientId} />
+          </div>
+        ) : (
+          <div style={{ height: 16 }} />
         )}
-
-        {/* Sparkline flush to card bottom */}
-        <div style={{ flex: 1 }} />
       </div>
-
-      {hasSpark && gradientId ? (
-        <div style={{ marginTop: -8 }}>
-          <Sparkline data={sparkData!} color={sparkColor ?? iconColor} gradientId={gradientId} />
-        </div>
-      ) : (
-        <div style={{ height: 20 }} />
-      )}
     </div>
   )
 }
@@ -719,8 +743,9 @@ function ExceptionRow({ call }: { call: Call }) {
 }
 
 // ─── Billing Widget ───────────────────────────────────────
-// Usage meter: always visible, always calm. Vercel-style.
-// The bar tells the story - no alarmist copy.
+// Usage meter card. Same design language as stat cards.
+// Segmented arc-style track shows remaining minutes at a glance.
+// No alarmist copy - the visual does the talking.
 
 function BillingWidget() {
   const { resolvedTheme } = useTheme()
@@ -732,103 +757,143 @@ function BillingWidget() {
   })
 
   if (isLoading) return (
-    <div style={{ height: 52, borderRadius: 14, background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.025)" }} className="skeleton" />
+    <div style={{
+      height: 72,
+      borderRadius: 22,
+      background: isDark ? "rgba(255,255,255,0.04)" : "#f5f5f7",
+      border: isDark ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.05)",
+    }} className="skeleton" />
   )
   if (!data) return null
 
   const secs = data.seconds_remaining
-  const absSecs = Math.abs(secs)
-  const mins = Math.floor(absSecs / 60)
+  const mins = Math.floor(Math.abs(secs) / 60)
   const hours = Math.floor(mins / 60)
   const isExhausted = secs <= 0
   const isLow = secs > 0 && secs <= 1800
 
-  // Segmented bar: treat 5h as 100%
   const FULL_SECS = 5 * 60 * 60
   const pct = isExhausted ? 0 : Math.min(100, (secs / FULL_SECS) * 100)
 
-  const balanceStr = isExhausted
-    ? "No minutes left"
+  // Semantic colors - confident, not alarming
+  const accentColor = isExhausted ? "#E5484D" : isLow ? "#F59E0B" : "#10B981"
+  const accentBg = isExhausted
+    ? isDark ? "rgba(229,72,77,0.12)" : "#FFF1F2"
+    : isLow
+    ? isDark ? "rgba(245,158,11,0.12)" : "#FFFBEB"
+    : isDark ? "rgba(16,185,129,0.12)" : "#ECFDF5"
+  const accentBorder = isExhausted
+    ? isDark ? "rgba(229,72,77,0.2)" : "rgba(229,72,77,0.15)"
+    : isLow
+    ? isDark ? "rgba(245,158,11,0.2)" : "rgba(245,158,11,0.2)"
+    : isDark ? "rgba(16,185,129,0.15)" : "rgba(16,185,129,0.2)"
+
+  const balanceDisplay = isExhausted
+    ? "0 min"
     : hours > 0
-    ? `${hours}h ${mins % 60}m remaining`
-    : `${mins}m remaining`
+    ? `${hours}h ${mins % 60}m`
+    : `${mins} min`
 
-  // Color: green healthy, amber low, red exhausted - but always muted/confident
-  const barColor = isExhausted ? "#E5484D" : isLow ? "#F59E0B" : "#10B981"
-  const labelColor = isExhausted
-    ? "#E5484D"
+  const statusLabel = isExhausted
+    ? data.allow_overage ? "Overage active" : "Calls paused"
     : isLow
-    ? "#D97706"
-    : isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)"
+    ? "Running low"
+    : "Available"
 
-  // Status note - plain English, never panic
-  const note = isExhausted
-    ? data.allow_overage
-      ? "Calls are active on overage"
-      : "Calls are paused - add minutes to resume"
-    : isLow
-    ? "Running low - consider adding more soon"
-    : null
+  // Segment track: 20 segments, filled = remaining
+  const SEGMENTS = 20
+  const filledCount = Math.round((pct / 100) * SEGMENTS)
 
   return (
     <div
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 14,
-        padding: "12px 18px",
-        borderRadius: 14,
-        background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.025)",
-        border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)"}`,
+        padding: 2,
+        borderRadius: 22,
+        background: isDark ? "rgba(255,255,255,0.04)" : accentBg,
+        border: `1px solid ${accentBorder}`,
+        boxShadow: isDark
+          ? "0 1px 3px rgba(0,0,0,0.2), 0 8px 24px rgba(0,0,0,0.12)"
+          : "0 1px 2px rgba(0,0,0,0.03), 0 8px 24px rgba(0,0,0,0.05)",
       }}
     >
-      {/* Icon */}
-      <Zap
-        style={{ width: 14, height: 14, color: barColor, flexShrink: 0, opacity: 0.85 }}
-        strokeWidth={2}
-      />
-
-      {/* Label */}
-      <span style={{ fontSize: 12.5, fontWeight: 500, color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
-        Call minutes
-      </span>
-
-      {/* Track */}
-      <div style={{ flex: 1, height: 5, borderRadius: 3, background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)", overflow: "hidden", position: "relative" }}>
+      <div style={{
+        borderRadius: 20,
+        padding: "16px 20px",
+        background: isDark ? "var(--card)" : "#ffffff",
+        boxShadow: isDark
+          ? "inset 0 1px 0 rgba(255,255,255,0.06)"
+          : "inset 0 1px 0 rgba(255,255,255,0.9)",
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+      }}>
+        {/* Icon badge */}
         <div style={{
-          position: "absolute", inset: 0, right: `${100 - pct}%`,
-          borderRadius: 3,
-          background: barColor,
-          opacity: 0.85,
-          transition: "right 0.6s ease",
-        }} />
-      </div>
+          width: 36,
+          height: 36,
+          borderRadius: 10,
+          background: isDark ? "rgba(255,255,255,0.06)" : accentBg,
+          border: `1px solid ${accentBorder}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}>
+          <Zap style={{ width: 15, height: 15, color: accentColor }} strokeWidth={2} />
+        </div>
 
-      {/* Balance + note */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        <span style={{ fontSize: 12.5, fontWeight: 600, color: labelColor, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>
-          {balanceStr}
-        </span>
-        {note && (
-          <span style={{
-            fontSize: 11,
-            padding: "2px 8px",
-            borderRadius: 999,
-            fontWeight: 500,
-            color: isExhausted ? "#E5484D" : "#D97706",
-            background: isExhausted ? "rgba(229,72,77,0.08)" : "rgba(245,158,11,0.08)",
-            border: `1px solid ${isExhausted ? "rgba(229,72,77,0.18)" : "rgba(245,158,11,0.18)"}`,
-            whiteSpace: "nowrap",
-            letterSpacing: "-0.01em",
-          }}>
-            {note}
-          </span>
-        )}
-        {data.allow_overage && !isExhausted && (
-          <span style={{ fontSize: 10.5, fontWeight: 600, padding: "2px 7px", borderRadius: 999, color: "var(--muted-foreground)", background: "var(--muted)", border: "1px solid var(--border)", letterSpacing: "0.02em" }}>
-            OVERAGE ON
-          </span>
-        )}
+        {/* Label + status */}
+        <div style={{ flexShrink: 0 }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.36)", letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: 3 }}>
+            Call Minutes
+          </p>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+            <span style={{ fontSize: 22, fontWeight: 700, color: isDark ? "#F2F2F7" : "#0A0A0B", fontFamily: "Geist Mono, monospace", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em", lineHeight: 1 }}>
+              {balanceDisplay}
+            </span>
+            <span style={{
+              fontSize: 11,
+              fontWeight: 600,
+              padding: "2px 8px",
+              borderRadius: 999,
+              color: accentColor,
+              background: isDark ? "rgba(255,255,255,0.06)" : accentBg,
+              border: `1px solid ${accentBorder}`,
+              letterSpacing: "0.02em",
+              whiteSpace: "nowrap",
+            }}>
+              {statusLabel}
+            </span>
+            {data.allow_overage && !isExhausted && (
+              <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 999, color: "var(--muted-foreground)", background: "var(--muted)", border: "1px solid var(--border)", letterSpacing: "0.03em" }}>
+                OVERAGE
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Segmented track - the visual story */}
+        <div style={{ flex: 1, display: "flex", gap: 3, alignItems: "center" }}>
+          {Array.from({ length: SEGMENTS }).map((_, i) => {
+            const filled = i < filledCount
+            const isLast = i === filledCount - 1
+            return (
+              <div
+                key={i}
+                style={{
+                  flex: 1,
+                  height: 6,
+                  borderRadius: 3,
+                  background: filled
+                    ? accentColor
+                    : isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)",
+                  opacity: filled ? (isLast ? 0.6 : 1) : 0.5,
+                  transition: "background 0.3s ease",
+                }}
+              />
+            )
+          })}
+        </div>
       </div>
     </div>
   )
