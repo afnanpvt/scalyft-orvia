@@ -24,12 +24,14 @@ import {
   CheckCircle2,
   XCircle,
   MinusCircle,
+  Zap,
 } from "lucide-react"
 
 import {
   getBriefing,
   getLiveCallStatus,
   getWeeklyCallStats,
+  getBusinessBilling,
 } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { useTheme } from "@/lib/theme"
@@ -841,6 +843,147 @@ function ExceptionRow({ call }: { call: Call }) {
   )
 }
 
+// ─── Billing Widget ───────────────────────────────────────
+
+function BillingWidget() {
+  const { resolvedTheme } = useTheme()
+  const { data, isLoading } = useQuery({
+    queryKey: ["billing"],
+    queryFn: getBusinessBilling,
+    refetchInterval: 60_000,
+  })
+
+  if (isLoading) {
+    return (
+      <div className="ios-card" style={{ padding: "16px 20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div className="skeleton" style={{ width: 32, height: 32, borderRadius: 10 }} />
+          <div style={{ flex: 1 }}>
+            <div className="skeleton" style={{ height: 11, width: 80, borderRadius: 4, marginBottom: 6 }} />
+            <div className="skeleton" style={{ height: 6, width: "100%", borderRadius: 3 }} />
+          </div>
+          <div className="skeleton" style={{ height: 13, width: 60, borderRadius: 4 }} />
+        </div>
+      </div>
+    )
+  }
+
+  if (!data) return null
+
+  const secs = data.seconds_remaining
+  const mins = Math.floor(Math.abs(secs) / 60)
+  const hours = Math.floor(mins / 60)
+  const isNegative = secs < 0
+  const isExhausted = secs <= 0
+  const isLow = secs > 0 && secs <= 1800
+
+  // Display label
+  const balanceLabel = isNegative
+    ? `-${hours > 0 ? `${hours}h ${mins % 60}m` : `${mins}m`}`
+    : hours > 0
+    ? `${hours}h ${mins % 60}m`
+    : `${mins}m`
+
+  // Color scheme
+  const accent = isExhausted
+    ? "#E5484D"
+    : isLow
+    ? "#F59E0B"
+    : "#10B981"
+
+  const accentBg = isExhausted
+    ? "rgba(229,72,77,0.1)"
+    : isLow
+    ? "rgba(245,158,11,0.1)"
+    : "rgba(16,185,129,0.1)"
+
+  const accentBorder = isExhausted
+    ? "rgba(229,72,77,0.25)"
+    : isLow
+    ? "rgba(245,158,11,0.25)"
+    : "rgba(16,185,129,0.2)"
+
+  // Progress bar - cap at 0-100%, treat 5 hours as "full" for visual
+  const FULL_SECS = 5 * 60 * 60
+  const pct = isExhausted ? 0 : Math.min(100, (secs / FULL_SECS) * 100)
+
+  const statusText = isExhausted
+    ? data.allow_overage ? "Overage active - calls continuing" : "Calls paused - balance exhausted"
+    : isLow
+    ? `Low balance - ${balanceLabel} left`
+    : `${balanceLabel} remaining`
+
+  return (
+    <div
+      className="ios-card animate-fade-up"
+      style={{
+        padding: "14px 18px",
+        border: `1px solid ${accentBorder}`,
+        background: resolvedTheme === "dark" ? "var(--card)" : accentBg,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {/* Icon */}
+        <div style={{
+          width: 34, height: 34, borderRadius: 10, flexShrink: 0,
+          background: accentBg,
+          border: `1px solid ${accentBorder}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <Zap style={{ width: 15, height: 15, color: accent }} strokeWidth={2} />
+        </div>
+
+        {/* Bar + label */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>
+              Call Minutes
+            </span>
+            <span style={{
+              fontSize: 12, fontWeight: 700,
+              color: accent,
+              fontVariantNumeric: "tabular-nums",
+              letterSpacing: "-0.02em",
+            }}>
+              {statusText}
+            </span>
+          </div>
+          {/* Progress bar */}
+          <div style={{
+            height: 5, borderRadius: 3,
+            background: resolvedTheme === "dark" ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)",
+            overflow: "hidden",
+          }}>
+            <div style={{
+              height: "100%",
+              width: `${pct}%`,
+              borderRadius: 3,
+              background: accent,
+              transition: "width 0.6s ease",
+            }} />
+          </div>
+        </div>
+
+        {/* Overage pill */}
+        {data.allow_overage && (
+          <span style={{
+            fontSize: 10, fontWeight: 600,
+            padding: "3px 8px", borderRadius: 999,
+            background: "var(--muted)",
+            color: "var(--muted-foreground)",
+            border: "1px solid var(--border)",
+            flexShrink: 0,
+            whiteSpace: "nowrap",
+            letterSpacing: "0.02em",
+          }}>
+            OVERAGE ON
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Live Status Bar ──────────────────────────────────────
 
 function LiveStatusBar({ clinicActive }: { clinicActive: boolean }) {
@@ -1131,6 +1274,9 @@ export default function OverviewPage() {
           />
         </div>
       </div>{/* /overview-stat-grid */}
+
+      {/* Billing */}
+      <BillingWidget />
 
       {/* Exceptions */}
       {exceptions.length > 0 && (

@@ -8,6 +8,9 @@ export interface Business {
   timezone: string;
   settings: BusinessSettings;
   status: "active" | "inactive" | "onboarding";
+  seconds_remaining: number;
+  allow_overage: boolean;
+  owner_phone: string | null;
   created_at: string;
   updated_at: string;
 }

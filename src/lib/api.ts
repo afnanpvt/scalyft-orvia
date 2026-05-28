@@ -206,6 +206,35 @@ export async function getBusinessSettings(): Promise<Business | null> {
 // Keep old name as alias so callers that haven't been updated yet still compile
 export const getClinicSettings = getBusinessSettings;
 
+// ─── Billing ─────────────────────────────────────────────
+
+export async function getBusinessBilling(): Promise<{
+  seconds_remaining: number;
+  allow_overage: boolean;
+  owner_phone: string | null;
+} | null> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: userRow } = await supabase
+    .from("users")
+    .select("business_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!userRow) return null;
+
+  const { data } = await supabase
+    .from("businesses")
+    .select("seconds_remaining, allow_overage, owner_phone")
+    .eq("id", userRow.business_id)
+    .single();
+
+  return data ?? null;
+}
+
 // ─── Follow-up Queue ─────────────────────────────────────
 
 export async function getFollowUpQueue(): Promise<Lead[]> {
