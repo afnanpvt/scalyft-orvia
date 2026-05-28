@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { Call, Lead, Appointment, Business } from "@/lib/types";
+import type { Call, Lead, Appointment, Business, OperationalEvent, CallQueueItem } from "@/lib/types";
 
 // ─── Overview ────────────────────────────────────────────
 
@@ -390,6 +390,47 @@ export async function getBriefing() {
     businessStatus: (businessRes.data?.status as string) ?? null,
     businessHasPhone: !!(businessRes.data?.vapi_phone_id),
   };
+}
+
+// ─── Operational Events ───────────────────────────────────
+
+export async function getUnresolvedOperationalEvents(): Promise<OperationalEvent[]> {
+  const { data } = await supabase
+    .from("operational_events")
+    .select("*")
+    .eq("resolved", false)
+    .order("created_at", { ascending: false })
+    .limit(20);
+  return (data as OperationalEvent[]) ?? [];
+}
+
+export async function resolveOperationalEvent(id: string): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from("operational_events")
+    .update({ resolved: true })
+    .eq("id", id);
+  return { error: error?.message ?? null };
+}
+
+// ─── Call Queue ───────────────────────────────────────────
+
+export async function getPendingCallQueue(): Promise<CallQueueItem[]> {
+  const { data } = await supabase
+    .from("call_queue")
+    .select("*")
+    .eq("status", "pending")
+    .order("priority", { ascending: true })
+    .order("created_at", { ascending: true })
+    .limit(30);
+  return (data as CallQueueItem[]) ?? [];
+}
+
+export async function markQueueItemHandled(id: string): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from("call_queue")
+    .update({ status: "handled", handled_at: new Date().toISOString() })
+    .eq("id", id);
+  return { error: error?.message ?? null };
 }
 
 // ─── Actions ─────────────────────────────────────────────

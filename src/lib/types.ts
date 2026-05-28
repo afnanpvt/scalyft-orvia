@@ -113,8 +113,38 @@ export interface Call {
     | "missed"
     | null;
   cost_cents: number;
+  transcript_status: "pending" | "complete" | "failed";
+  ai_failure_reason: string | null;
+  was_concurrent: boolean;
+  webhook_received_at: string | null;
   created_at: string;
   is_repeat_caller?: boolean;
+}
+
+export interface OperationalEvent {
+  id: string;
+  business_id: string;
+  call_id: string | null;
+  event_type: "ai_failure" | "concurrent_call" | "partial_booking" | "transfer_unknown";
+  severity: "critical" | "warning" | "info";
+  resolved: boolean;
+  payload: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface CallQueueItem {
+  id: string;
+  business_id: string;
+  call_id: string | null;
+  queue_type: "missed_callback" | "partial_booking";
+  priority: number;
+  caller_phone: string | null;
+  caller_name: string | null;
+  service_needed: string | null;
+  status: "pending" | "handled";
+  handled_by: string | null;
+  handled_at: string | null;
+  created_at: string;
 }
 
 export interface TranscriptTurn {

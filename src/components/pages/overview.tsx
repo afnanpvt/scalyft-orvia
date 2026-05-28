@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import {
   BarChart,
@@ -87,10 +87,15 @@ import {
   getLiveCallStatus,
   getWeeklyCallStats,
   getBusinessBilling,
+  getUnresolvedOperationalEvents,
+  getPendingCallQueue,
+  resolveOperationalEvent,
+  markQueueItemHandled,
 } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { useTheme } from "@/lib/theme"
-import type { Call, Appointment } from "@/lib/types"
+import { supabase } from "@/lib/supabase"
+import type { Call, Appointment, OperationalEvent, CallQueueItem } from "@/lib/types"
 
 // ─── Helpers ─────────────────────────────────────────────
 
@@ -1125,6 +1130,303 @@ function LiveStatusBar({ clinicActive }: { clinicActive: boolean }) {
   )
 }
 
+// ─── Needs Action Panel ───────────────────────────────────
+// Shows unresolved operational events (ai_failure, partial_booking)
+// and pending callback queue items at the top of the dashboard.
+
+const EVENT_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  ai_failure:       { label: "AI Failed",       color: "#991B1B", bg: "#FEE2E2", border: "rgba(229,72,77,0.2)" },
+  partial_booking:  { label: "Partial Booking", color: "#92400E", bg: "#FEF3C7", border: "rgba(245,158,11,0.2)" },
+  concurrent_call:  { label: "Concurrent Call", color: "#1E40AF", bg: "#DBEAFE", border: "rgba(59,130,246,0.2)" },
+  transfer_unknown: { label: "Transfer ?",      color: "#92400E", bg: "#FEF3C7", border: "rgba(245,158,11,0.2)" },
+}
+
+function OperationalEventItem({ event, onResolve }: {
+  event: OperationalEvent
+  onResolve: (id: string) => void
+}) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
+  const cfg = EVENT_CONFIG[event.event_type] ?? EVENT_CONFIG.ai_failure
+  const p = event.payload ?? {}
+  const phone = (p.caller_phone as string) ?? null
+  const reason = (p.ended_reason as string) ?? null
+  const callId = event.call_id
+
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      padding: "11px 20px",
+      borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)"}`,
+    }}>
+      {/* Type badge */}
+      <span style={{
+        fontSize: 10.5,
+        fontWeight: 700,
+        padding: "3px 9px",
+        borderRadius: 999,
+        color: cfg.color,
+        background: cfg.bg,
+        border: `1px solid ${cfg.border}`,
+        whiteSpace: "nowrap",
+        flexShrink: 0,
+        letterSpacing: "0.01em",
+      }}>
+        {cfg.label}
+      </span>
+
+      {/* Details */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 13, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
+          {phone ?? "Unknown caller"}
+          {reason && <span style={{ color: "var(--muted-foreground)", marginLeft: 6, fontSize: 11.5 }}>{reason.replace(/-/g, " ")}</span>}
+        </p>
+        <p style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 1 }}>
+          {timeAgo(event.created_at)}
+        </p>
+      </div>
+
+      {/* Actions */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        {callId && (
+          <Link
+            to="/calls/$id"
+            params={{ id: callId }}
+            style={{
+              fontSize: 11.5,
+              fontWeight: 500,
+              color: "var(--muted-foreground)",
+              textDecoration: "none",
+              padding: "4px 10px",
+              borderRadius: 8,
+              border: "1px solid var(--border)",
+              background: "var(--card)",
+              letterSpacing: "-0.01em",
+              transition: "opacity 0.15s",
+              whiteSpace: "nowrap",
+            }}
+          >
+            View call
+          </Link>
+        )}
+        <button
+          type="button"
+          onClick={() => onResolve(event.id)}
+          style={{
+            fontSize: 11.5,
+            fontWeight: 500,
+            color: "var(--muted-foreground)",
+            cursor: "pointer",
+            padding: "4px 10px",
+            borderRadius: 8,
+            border: "1px solid var(--border)",
+            background: "var(--card)",
+            letterSpacing: "-0.01em",
+            transition: "opacity 0.15s",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Dismiss
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function CallbackQueueItem({ item, onHandled }: {
+  item: CallQueueItem
+  onHandled: (id: string) => void
+}) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
+  const isPartial = item.queue_type === "partial_booking"
+
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+      padding: "11px 20px",
+      borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)"}`,
+    }}>
+      {/* Phone icon circle */}
+      <div style={{
+        width: 32,
+        height: 32,
+        borderRadius: "50%",
+        background: isPartial
+          ? isDark ? "rgba(245,158,11,0.1)" : "#FEF3C7"
+          : isDark ? "rgba(255,255,255,0.06)" : "#F5F5F7",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        border: isPartial ? "1px solid rgba(245,158,11,0.2)" : "1px solid var(--border)",
+      }}>
+        <IconPhone
+          color={isPartial ? "#D97706" : "var(--muted-foreground)"}
+          size={13}
+        />
+      </div>
+
+      {/* Details */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 13, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
+          {item.caller_name ?? item.caller_phone ?? "Unknown caller"}
+          {item.queue_type === "partial_booking" && (
+            <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 700, color: "#92400E", background: "#FEF3C7", padding: "2px 7px", borderRadius: 999, border: "1px solid rgba(245,158,11,0.2)" }}>
+              Partial booking
+            </span>
+          )}
+        </p>
+        <p style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 1 }}>
+          {item.caller_phone && item.caller_name ? item.caller_phone + " · " : ""}
+          {item.service_needed ? item.service_needed + " · " : ""}
+          {timeAgo(item.created_at)}
+        </p>
+      </div>
+
+      {/* Mark handled */}
+      <button
+        type="button"
+        onClick={() => onHandled(item.id)}
+        style={{
+          fontSize: 11.5,
+          fontWeight: 500,
+          color: "var(--muted-foreground)",
+          cursor: "pointer",
+          padding: "4px 10px",
+          borderRadius: 8,
+          border: "1px solid var(--border)",
+          background: "var(--card)",
+          letterSpacing: "-0.01em",
+          transition: "opacity 0.15s",
+          whiteSpace: "nowrap",
+          flexShrink: 0,
+        }}
+      >
+        Mark handled
+      </button>
+    </div>
+  )
+}
+
+function NeedsActionPanel() {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
+  const queryClient = useQueryClient()
+
+  const { data: events = [], refetch: refetchEvents } = useQuery({
+    queryKey: ["operational-events"],
+    queryFn: getUnresolvedOperationalEvents,
+    refetchInterval: 30_000,
+  })
+
+  const { data: queue = [], refetch: refetchQueue } = useQuery({
+    queryKey: ["call-queue"],
+    queryFn: getPendingCallQueue,
+    refetchInterval: 30_000,
+  })
+
+  // Realtime subscriptions
+  useEffect(() => {
+    const eventsChannel = supabase
+      .channel("operational_events_live")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "operational_events" }, () => {
+        refetchEvents()
+      })
+      .subscribe()
+
+    const queueChannel = supabase
+      .channel("call_queue_live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "call_queue" }, () => {
+        refetchQueue()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(eventsChannel)
+      supabase.removeChannel(queueChannel)
+    }
+  }, [refetchEvents, refetchQueue])
+
+  async function handleResolveEvent(id: string) {
+    await resolveOperationalEvent(id)
+    queryClient.setQueryData<OperationalEvent[]>(["operational-events"], (prev) =>
+      (prev ?? []).filter((e) => e.id !== id)
+    )
+  }
+
+  async function handleQueueHandled(id: string) {
+    await markQueueItemHandled(id)
+    queryClient.setQueryData<CallQueueItem[]>(["call-queue"], (prev) =>
+      (prev ?? []).filter((q) => q.id !== id)
+    )
+  }
+
+  // Only render the panel if there is something actionable
+  const hasEvents = events.filter(e => e.event_type !== "concurrent_call").length > 0
+  const hasQueue = queue.length > 0
+
+  if (!hasEvents && !hasQueue) return null
+
+  const actionCount = events.filter(e => e.event_type !== "concurrent_call").length + queue.length
+
+  return (
+    <div
+      className="ios-card animate-fade-up"
+      style={{
+        padding: 0,
+        overflow: "hidden",
+        border: `1px solid ${isDark ? "rgba(229,72,77,0.2)" : "rgba(229,72,77,0.18)"}`,
+      }}
+    >
+      {/* Header */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "13px 20px",
+        borderBottom: `1px solid ${isDark ? "rgba(229,72,77,0.12)" : "rgba(229,72,77,0.1)"}`,
+        background: isDark
+          ? "rgba(229,72,77,0.06)"
+          : "linear-gradient(135deg, #FFF1F2 0%, #FFF5F5 100%)",
+      }}>
+        <AlertTriangle style={{ width: 14, height: 14, color: "#E5484D" }} strokeWidth={1.75} />
+        <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--foreground)", letterSpacing: "-0.01em" }}>
+          Needs Action
+        </span>
+        <span style={{
+          fontSize: 10.5,
+          color: "#FFFFFF",
+          background: "#E5484D",
+          padding: "2px 8px",
+          borderRadius: 999,
+          fontWeight: 700,
+          letterSpacing: "0.02em",
+        }}>
+          {actionCount}
+        </span>
+      </div>
+
+      {/* Operational events (ai_failure, partial_booking) - not concurrent_call which is just info */}
+      {events
+        .filter(e => e.event_type !== "concurrent_call")
+        .map((event) => (
+          <OperationalEventItem key={event.id} event={event} onResolve={handleResolveEvent} />
+        ))
+      }
+
+      {/* Callback queue */}
+      {queue.map((item) => (
+        <CallbackQueueItem key={item.id} item={item} onHandled={handleQueueHandled} />
+      ))}
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────
 
 export default function OverviewPage() {
@@ -1361,37 +1663,8 @@ export default function OverviewPage() {
       {/* Billing - inline quiet strip or alert card */}
       <BillingWidget />
 
-      {/* ── Section: Needs Attention ───────────────────────── */}
-      {exceptions.length > 0 && (
-        <div
-          className="ios-card animate-fade-up"
-          style={{ padding: 0, overflow: "hidden", border: "1px solid rgba(245,158,11,0.25)" }}
-        >
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "13px 20px",
-            borderBottom: "1px solid rgba(245,158,11,0.15)",
-            background: "linear-gradient(135deg, #FFFBEB 0%, #FEF9EC 100%)",
-          }}>
-            <AlertTriangle style={{ width: 14, height: 14, color: "#D97706" }} strokeWidth={1.75} />
-            <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--foreground)", letterSpacing: "-0.01em" }}>Needs Review</span>
-            <span style={{
-              fontSize: 10.5,
-              color: "#FFFFFF",
-              background: "#F59E0B",
-              padding: "2px 8px",
-              borderRadius: 999,
-              fontWeight: 700,
-              letterSpacing: "0.02em",
-            }}>
-              {exceptions.length}
-            </span>
-          </div>
-          {exceptions.map((call) => <ExceptionRow key={call.id} call={call} />)}
-        </div>
-      )}
+      {/* ── Section: Needs Action (operational events + callback queue) ── */}
+      <NeedsActionPanel />
 
       {/* ── Section: Schedule + Performance ───────────────── */}
       <div>
