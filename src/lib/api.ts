@@ -354,7 +354,7 @@ export async function getBriefing() {
       .limit(10),
     supabase
       .from("businesses")
-      .select("status, vapi_phone_id")
+      .select("status, vapi_phone_id, seconds_remaining, allow_overage")
       .limit(1)
       .maybeSingle(),
   ]);
@@ -379,6 +379,11 @@ export async function getBriefing() {
     ? Math.round(todayCallDurations.reduce((a, b) => a + b, 0) / todayCallDurations.length)
     : null;
 
+  const biz = businessRes.data;
+  const secondsRemaining = (biz?.seconds_remaining as number) ?? 0;
+  const allowOverage = !!(biz?.allow_overage);
+  const hasCredits = secondsRemaining > 0 || allowOverage;
+
   return {
     callsToday: callsRes.count ?? 0,
     leadsToday: leadsRes.count ?? 0,
@@ -387,8 +392,11 @@ export async function getBriefing() {
     exceptionCalls: (exceptionsRes.data as Call[]) ?? [],
     recentCalls,
     avgCallSecs,
-    businessStatus: (businessRes.data?.status as string) ?? null,
-    businessHasPhone: !!(businessRes.data?.vapi_phone_id),
+    businessStatus: (biz?.status as string) ?? null,
+    businessHasPhone: !!(biz?.vapi_phone_id),
+    secondsRemaining,
+    allowOverage,
+    hasCredits,
   };
 }
 

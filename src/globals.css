@@ -95,13 +95,13 @@
 
   --radius: 0.875rem;
 
-  --sidebar: #FFFFFF;
+  --sidebar: #FAFAFA;
   --sidebar-foreground: #0A0A0B;
   --sidebar-primary: #0A0A0B;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F0F0F2;
+  --sidebar-accent: #F2F2F4;
   --sidebar-accent-foreground: #0A0A0B;
-  --sidebar-border: rgba(0, 0, 0, 0.05);
+  --sidebar-border: rgba(0, 0, 0, 0.06);
   --sidebar-ring: #0A0A0B;
 }
 
@@ -162,8 +162,9 @@
   border-radius: 18px;
   border: 1px solid var(--border);
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.03),
-    0 4px 16px rgba(0, 0, 0, 0.04);
+    0 1px 1px rgba(0, 0, 0, 0.02),
+    0 2px 8px rgba(0, 0, 0, 0.03),
+    0 8px 24px rgba(0, 0, 0, 0.04);
 }
 
 .ios-card-interactive {

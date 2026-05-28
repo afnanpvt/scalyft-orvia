@@ -1392,7 +1392,8 @@ export default function OverviewPage() {
   const upcomingAppointments = d?.upcomingAppointments ?? []
   const exceptions = d?.exceptionCalls ?? []
   const recentCalls = d?.recentCalls ?? []
-  const clinicActive = d?.businessStatus === "active" && d?.businessHasPhone
+  // Live = DB status active + phone provisioned + credits available (or overage enabled)
+  const clinicActive = d?.businessStatus === "active" && d?.businessHasPhone && (d?.hasCredits ?? false)
 
   const avgCallDisplay = avgCallSecs != null ? formatDuration(avgCallSecs) : "--"
   const greeting = getGreeting(profile.fullName)
@@ -1502,26 +1503,21 @@ export default function OverviewPage() {
           <div style={{
             display: "flex",
             alignItems: "center",
-            gap: 7,
+            gap: 6,
             background: "var(--card)",
             border: `1px solid ${clinicActive ? "rgba(16,185,129,0.2)" : "rgba(229,72,77,0.15)"}`,
-            padding: "7px 14px",
+            padding: "6px 12px",
             borderRadius: 999,
-            boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
           }}>
-            {clinicActive ? (
-              <>
-                <span className="animate-live-pulse" style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", flexShrink: 0, display: "block" }} />
-                <span style={{ fontSize: 12.5, fontWeight: 500, color: "var(--foreground)", opacity: 0.6, letterSpacing: "-0.01em" }}>AI Agent</span>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: "#065F46", letterSpacing: "-0.01em" }}>Live</span>
-              </>
-            ) : (
-              <>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#E5484D", flexShrink: 0, display: "block" }} />
-                <span style={{ fontSize: 12.5, fontWeight: 500, color: "var(--foreground)", opacity: 0.6, letterSpacing: "-0.01em" }}>AI Agent</span>
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: "#E5484D", letterSpacing: "-0.01em" }}>Offline</span>
-              </>
-            )}
+            {clinicActive
+              ? <span className="animate-live-pulse" style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", flexShrink: 0, display: "block" }} />
+              : <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#E5484D", flexShrink: 0, display: "block" }} />
+            }
+            <span style={{ fontSize: 12, fontWeight: 500, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>AI Agent</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: clinicActive ? "#065F46" : "#E5484D", letterSpacing: "-0.01em" }}>
+              {clinicActive ? "Live" : "Paused"}
+            </span>
           </div>
         </div>
       </div>

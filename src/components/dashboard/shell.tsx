@@ -270,47 +270,50 @@ function AgentCard() {
   const statusText = isExhausted ? "PAUSED" : "LIVE";
 
   return (
-    <div style={{ margin: "8px 10px" }}>
+    <div style={{ margin: "6px 8px 10px" }}>
       <div style={{
-        background: "var(--accent)", border: "1px solid var(--border)",
-        borderRadius: 14, padding: 14,
+        background: "var(--accent)",
+        border: "1px solid var(--sidebar-border)",
+        borderRadius: 16,
+        padding: "12px 12px 10px",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
       }}>
         {/* Header row */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <Bot style={{ width: 13, height: 13, color: "var(--foreground)" }} strokeWidth={1.5} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", letterSpacing: "-0.01em" }}>AI Agent</span>
+            <Bot style={{ width: 12, height: 12, color: "var(--muted-foreground)" }} strokeWidth={1.5} />
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--foreground)", letterSpacing: "-0.01em" }}>AI Agent</span>
           </div>
           <div style={{
-            display: "flex", alignItems: "center", gap: 5,
-            background: statusBg, padding: "3px 9px", borderRadius: 999,
+            display: "flex", alignItems: "center", gap: 4,
+            background: statusBg, padding: "2px 8px", borderRadius: 999,
             border: `1px solid ${statusBorder}`,
           }}>
             <span
               className={isExhausted ? undefined : "animate-live-pulse"}
               style={{ width: 5, height: 5, borderRadius: "50%", background: statusDot, flexShrink: 0, display: "block" }}
             />
-            <span style={{ fontSize: 10.5, fontWeight: 700, color: statusColor, letterSpacing: "0.02em" }}>{statusText}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: statusColor, letterSpacing: "0.04em" }}>{statusText}</span>
           </div>
         </div>
 
         {/* Minutes meter */}
         {secs !== null && (
-          <div style={{ marginBottom: 11 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 10.5, color: "var(--muted-foreground)", letterSpacing: "0.03em", textTransform: "uppercase", fontWeight: 600 }}>
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+              <span style={{ fontSize: 10, color: "var(--muted-foreground)", letterSpacing: "0.04em", textTransform: "uppercase", fontWeight: 600, opacity: 0.7 }}>
                 Minutes
               </span>
-              <span style={{ fontSize: 11, fontWeight: 600, color: accentColor, fontVariantNumeric: "tabular-nums" }}>
+              <span style={{ fontSize: 10.5, fontWeight: 600, color: accentColor, fontVariantNumeric: "tabular-nums" }}>
                 {balanceLabel}
               </span>
             </div>
             <div style={{ display: "flex", gap: 2 }}>
               {Array.from({ length: SEGMENTS }).map((_, i) => (
                 <div key={i} style={{
-                  flex: 1, height: 4, borderRadius: 2,
+                  flex: 1, height: 3, borderRadius: 2,
                   background: i < filledCount ? accentColor : "var(--border)",
-                  opacity: i < filledCount ? (i === filledCount - 1 ? 0.55 : 1) : 0.4,
+                  opacity: i < filledCount ? (i === filledCount - 1 ? 0.5 : 0.9) : 0.35,
                   transition: "background 0.3s",
                 }} />
               ))}
@@ -321,15 +324,15 @@ function AgentCard() {
         {/* Configure button */}
         <Link to="/settings"
           style={{
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            padding: "7px 0", borderRadius: 10, background: "var(--foreground)", color: "var(--background)",
-            fontSize: 12, fontWeight: 600, textDecoration: "none", transition: "opacity 0.15s",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
+            padding: "6px 0", borderRadius: 9, background: "var(--foreground)", color: "var(--background)",
+            fontSize: 11.5, fontWeight: 600, textDecoration: "none", transition: "opacity 0.15s",
             letterSpacing: "-0.01em",
           }}
           onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = "0.8")}
           onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = "1")}
         >
-          <Settings style={{ width: 11, height: 11 }} strokeWidth={2} />
+          <Settings style={{ width: 10, height: 10 }} strokeWidth={2} />
           Configure
         </Link>
       </div>
@@ -467,24 +470,24 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* Sidebar */}
       <aside className="hidden lg:flex" style={{
-        width: 224, flexShrink: 0, flexDirection: "column",
+        width: 220, flexShrink: 0, flexDirection: "column",
         background: "var(--sidebar)", borderRight: "1px solid var(--sidebar-border)",
       }}>
         {/* Brand */}
-        <div style={{ padding: "22px 20px 18px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        <div style={{ padding: "20px 16px 14px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{
-              width: 34, height: 34, borderRadius: 10, background: "var(--foreground)",
+              width: 32, height: 32, borderRadius: 9, background: "var(--foreground)",
               display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 2px 6px rgba(0,0,0,0.2)",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.1), 0 2px 8px rgba(0,0,0,0.18)",
             }}>
-              <Zap style={{ width: 16, height: 16, color: "var(--background)" }} strokeWidth={2.5} />
+              <Zap style={{ width: 14, height: 14, color: "var(--background)" }} strokeWidth={2.5} />
             </div>
-            <div>
-              <span style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.5px", color: "var(--foreground)", display: "block", lineHeight: 1.1 }}>
+            <div style={{ lineHeight: 1 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.4px", color: "var(--foreground)", display: "block" }}>
                 Orvia
               </span>
-              <span style={{ fontSize: 10, color: "var(--muted-foreground)", letterSpacing: "0.04em", textTransform: "uppercase", fontWeight: 500 }}>
+              <span style={{ fontSize: 10, color: "var(--muted-foreground)", letterSpacing: "0.03em", fontWeight: 500, opacity: 0.7 }}>
                 AI Receptionist
               </span>
             </div>
@@ -492,11 +495,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Nav */}
-        <nav style={{ flex: 1, padding: "4px 10px", overflowY: "auto" }}>
+        <nav style={{ flex: 1, padding: "2px 8px", overflowY: "auto" }}>
           <div>
             {NAV_MAIN.map(item => <NavItem key={item.to} {...item} pathname={pathname} />)}
           </div>
-          <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--sidebar-border)" }}>
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--sidebar-border)" }}>
             {NAV_OTHER.map(item => <NavItem key={item.to} {...item} pathname={pathname} />)}
           </div>
         </nav>
@@ -505,7 +508,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         <AgentCard />
 
         {/* User */}
-        <div style={{ padding: "8px 8px 14px", borderTop: "1px solid var(--sidebar-border)" }}>
+        <div style={{ padding: "6px 8px 12px", borderTop: "1px solid var(--sidebar-border)" }}>
           <UserDropdown />
         </div>
       </aside>
