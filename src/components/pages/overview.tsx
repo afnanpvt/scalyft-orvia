@@ -86,7 +86,6 @@ import {
   getBriefing,
   getLiveCallStatus,
   getWeeklyCallStats,
-  getBusinessBilling,
   getUnresolvedOperationalEvents,
   getPendingCallQueue,
   resolveOperationalEvent,
@@ -919,163 +918,6 @@ function ExceptionRow({ call }: { call: Call }) {
   )
 }
 
-// ─── Billing Widget ───────────────────────────────────────
-// Usage meter card. Same design language as stat cards.
-// Segmented arc-style track shows remaining minutes at a glance.
-// No alarmist copy - the visual does the talking.
-
-function BillingWidget() {
-  const { resolvedTheme } = useTheme()
-  const isDark = resolvedTheme === "dark"
-  const { data, isLoading } = useQuery({
-    queryKey: ["billing"],
-    queryFn: getBusinessBilling,
-    refetchInterval: 60_000,
-  })
-
-  if (isLoading) return (
-    <div style={{
-      height: 72,
-      borderRadius: 22,
-      background: isDark ? "rgba(255,255,255,0.04)" : "#f5f5f7",
-      border: isDark ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.05)",
-    }} className="skeleton" />
-  )
-  if (!data) return null
-
-  const secs = data.seconds_remaining
-  const mins = Math.floor(Math.abs(secs) / 60)
-  const hours = Math.floor(mins / 60)
-  const isExhausted = secs <= 0
-  const isLow = secs > 0 && secs <= 1800
-
-  const FULL_SECS = 5 * 60 * 60
-  const pct = isExhausted ? 0 : Math.min(100, (secs / FULL_SECS) * 100)
-
-  // Semantic colors - confident, not alarming
-  const accentColor = isExhausted ? "#E5484D" : isLow ? "#F59E0B" : "#10B981"
-  const accentBg = isExhausted
-    ? isDark ? "rgba(229,72,77,0.12)" : "#FFF1F2"
-    : isLow
-    ? isDark ? "rgba(245,158,11,0.12)" : "#FFFBEB"
-    : isDark ? "rgba(16,185,129,0.12)" : "#ECFDF5"
-  const accentBorder = isExhausted
-    ? isDark ? "rgba(229,72,77,0.2)" : "rgba(229,72,77,0.15)"
-    : isLow
-    ? isDark ? "rgba(245,158,11,0.2)" : "rgba(245,158,11,0.2)"
-    : isDark ? "rgba(16,185,129,0.15)" : "rgba(16,185,129,0.2)"
-
-  const balanceDisplay = isExhausted
-    ? "0 min"
-    : hours > 0
-    ? `${hours}h ${mins % 60}m`
-    : `${mins} min`
-
-  const statusLabel = isExhausted
-    ? data.allow_overage ? "Overage active" : "Calls paused"
-    : isLow
-    ? "Running low"
-    : "Available"
-
-  // Segment track: 20 segments, filled = remaining
-  const SEGMENTS = 20
-  const filledCount = Math.round((pct / 100) * SEGMENTS)
-
-  return (
-    <div
-      style={{
-        padding: 2,
-        borderRadius: 22,
-        background: isDark ? "rgba(255,255,255,0.04)" : accentBg,
-        border: `1px solid ${accentBorder}`,
-        boxShadow: isDark
-          ? "0 1px 3px rgba(0,0,0,0.2), 0 8px 24px rgba(0,0,0,0.12)"
-          : "0 1px 2px rgba(0,0,0,0.03), 0 8px 24px rgba(0,0,0,0.05)",
-      }}
-    >
-      <div style={{
-        borderRadius: 20,
-        padding: "16px 20px",
-        background: isDark ? "var(--card)" : "#ffffff",
-        boxShadow: isDark
-          ? "inset 0 1px 0 rgba(255,255,255,0.06)"
-          : "inset 0 1px 0 rgba(255,255,255,0.9)",
-        display: "flex",
-        alignItems: "center",
-        gap: 16,
-      }}>
-        {/* Icon badge */}
-        <div style={{
-          width: 36,
-          height: 36,
-          borderRadius: 10,
-          background: isDark ? "rgba(255,255,255,0.06)" : accentBg,
-          border: `1px solid ${accentBorder}`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}>
-          <IconZap color={accentColor} size={15} />
-        </div>
-
-        {/* Label + status */}
-        <div style={{ flexShrink: 0 }}>
-          <p style={{ fontSize: 11, fontWeight: 600, color: isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.36)", letterSpacing: "0.05em", textTransform: "uppercase", marginBottom: 3 }}>
-            Call Minutes
-          </p>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-            <span style={{ fontSize: 22, fontWeight: 700, color: isDark ? "#F2F2F7" : "#0A0A0B", fontFamily: "Geist Mono, monospace", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em", lineHeight: 1 }}>
-              {balanceDisplay}
-            </span>
-            <span style={{
-              fontSize: 11,
-              fontWeight: 600,
-              padding: "2px 8px",
-              borderRadius: 999,
-              color: accentColor,
-              background: isDark ? "rgba(255,255,255,0.06)" : accentBg,
-              border: `1px solid ${accentBorder}`,
-              letterSpacing: "0.02em",
-              whiteSpace: "nowrap",
-            }}>
-              {statusLabel}
-            </span>
-            {data.allow_overage && !isExhausted && (
-              <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 7px", borderRadius: 999, color: "var(--muted-foreground)", background: "var(--muted)", border: "1px solid var(--border)", letterSpacing: "0.03em" }}>
-                OVERAGE
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Segmented track - the visual story */}
-        <div style={{ flex: 1, display: "flex", gap: 3, alignItems: "center" }}>
-          {Array.from({ length: SEGMENTS }).map((_, i) => {
-            const filled = i < filledCount
-            const isLast = i === filledCount - 1
-            return (
-              <div
-                key={i}
-                style={{
-                  flex: 1,
-                  height: 6,
-                  borderRadius: 3,
-                  background: filled
-                    ? accentColor
-                    : isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)",
-                  opacity: filled ? (isLast ? 0.6 : 1) : 0.5,
-                  transition: "background 0.3s ease",
-                }}
-              />
-            )
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── Live Status Bar ──────────────────────────────────────
 
 function LiveStatusBar({ clinicActive }: { clinicActive: boolean }) {
@@ -1733,9 +1575,6 @@ export default function OverviewPage() {
           />
         </div>
       </div>
-
-      {/* Billing - inline quiet strip or alert card */}
-      <BillingWidget />
 
       {/* ── Section: Needs Action (operational events + callback queue) ── */}
       <NeedsActionPanel />

@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth";
+import { useQuery } from "@tanstack/react-query";
+import { getBusinessBilling } from "@/lib/api";
 import {
   LayoutDashboard,
   Phone,
@@ -232,6 +234,109 @@ function NavItem({ label, to, icon: Icon, pathname }: { label: string; to: strin
   );
 }
 
+// ─── Agent Card (sidebar) ─────────────────────────────
+
+function AgentCard() {
+  const { data: billing } = useQuery({
+    queryKey: ["billing"],
+    queryFn: getBusinessBilling,
+    refetchInterval: 60_000,
+  });
+
+  const secs = billing?.seconds_remaining ?? null;
+  const isExhausted = secs !== null && secs <= 0;
+  const isLow = secs !== null && secs > 0 && secs <= 1800;
+
+  const accentColor = isExhausted ? "#E5484D" : isLow ? "#F59E0B" : "#10B981";
+  const FULL_SECS = 5 * 60 * 60;
+  const SEGMENTS = 12;
+  const pct = secs === null ? 1 : isExhausted ? 0 : Math.min(1, secs / FULL_SECS);
+  const filledCount = Math.round(pct * SEGMENTS);
+
+  const mins = secs !== null ? Math.floor(Math.abs(secs) / 60) : null;
+  const hours = mins !== null ? Math.floor(mins / 60) : null;
+  const balanceLabel = secs === null
+    ? null
+    : isExhausted
+    ? (billing?.allow_overage ? "Overage" : "Paused")
+    : hours && hours > 0
+    ? `${hours}h ${mins! % 60}m left`
+    : `${mins}m left`;
+
+  const statusBg = isExhausted ? "#FEE2E2" : "#D1FAE5";
+  const statusBorder = isExhausted ? "rgba(229,72,77,0.2)" : "rgba(16,185,129,0.2)";
+  const statusColor = isExhausted ? "#991B1B" : "#065F46";
+  const statusDot = isExhausted ? "#E5484D" : "#10B981";
+  const statusText = isExhausted ? "PAUSED" : "LIVE";
+
+  return (
+    <div style={{ margin: "8px 10px" }}>
+      <div style={{
+        background: "var(--accent)", border: "1px solid var(--border)",
+        borderRadius: 14, padding: 14,
+      }}>
+        {/* Header row */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Bot style={{ width: 13, height: 13, color: "var(--foreground)" }} strokeWidth={1.5} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", letterSpacing: "-0.01em" }}>AI Agent</span>
+          </div>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 5,
+            background: statusBg, padding: "3px 9px", borderRadius: 999,
+            border: `1px solid ${statusBorder}`,
+          }}>
+            <span
+              className={isExhausted ? undefined : "animate-live-pulse"}
+              style={{ width: 5, height: 5, borderRadius: "50%", background: statusDot, flexShrink: 0, display: "block" }}
+            />
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: statusColor, letterSpacing: "0.02em" }}>{statusText}</span>
+          </div>
+        </div>
+
+        {/* Minutes meter */}
+        {secs !== null && (
+          <div style={{ marginBottom: 11 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <span style={{ fontSize: 10.5, color: "var(--muted-foreground)", letterSpacing: "0.03em", textTransform: "uppercase", fontWeight: 600 }}>
+                Minutes
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: accentColor, fontVariantNumeric: "tabular-nums" }}>
+                {balanceLabel}
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: 2 }}>
+              {Array.from({ length: SEGMENTS }).map((_, i) => (
+                <div key={i} style={{
+                  flex: 1, height: 4, borderRadius: 2,
+                  background: i < filledCount ? accentColor : "var(--border)",
+                  opacity: i < filledCount ? (i === filledCount - 1 ? 0.55 : 1) : 0.4,
+                  transition: "background 0.3s",
+                }} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Configure button */}
+        <Link to="/settings"
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            padding: "7px 0", borderRadius: 10, background: "var(--foreground)", color: "var(--background)",
+            fontSize: 12, fontWeight: 600, textDecoration: "none", transition: "opacity 0.15s",
+            letterSpacing: "-0.01em",
+          }}
+          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = "0.8")}
+          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = "1")}
+        >
+          <Settings style={{ width: 11, height: 11 }} strokeWidth={2} />
+          Configure
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 // ─── Shell ────────────────────────────────────────────
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -396,44 +501,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </nav>
 
-        {/* AI Agent status */}
-        <div style={{ margin: "8px 10px" }}>
-          <div style={{
-            background: "var(--accent)", border: "1px solid var(--border)",
-            borderRadius: 14, padding: 14,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <Bot style={{ width: 13, height: 13, color: "var(--foreground)" }} strokeWidth={1.5} />
-                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", letterSpacing: "-0.01em" }}>AI Agent</span>
-              </div>
-              <div style={{
-                display: "flex", alignItems: "center", gap: 5,
-                background: "#D1FAE5", padding: "3px 9px", borderRadius: 999,
-                border: "1px solid rgba(16,185,129,0.2)",
-              }}>
-                <span className="animate-live-pulse" style={{ width: 5, height: 5, borderRadius: "50%", background: "#10B981", flexShrink: 0, display: "block" }} />
-                <span style={{ fontSize: 10.5, fontWeight: 700, color: "#065F46", letterSpacing: "0.02em" }}>LIVE</span>
-              </div>
-            </div>
-            <p style={{ fontSize: 11.5, color: "var(--muted-foreground)", lineHeight: 1.5, marginBottom: 11 }}>
-              Handling calls 24/7
-            </p>
-            <Link to="/settings"
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                padding: "7px 0", borderRadius: 10, background: "var(--foreground)", color: "var(--background)",
-                fontSize: 12, fontWeight: 600, textDecoration: "none", transition: "opacity 0.15s",
-                letterSpacing: "-0.01em",
-              }}
-              onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = "0.8")}
-              onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = "1")}
-            >
-              <Settings style={{ width: 11, height: 11 }} strokeWidth={2} />
-              Configure
-            </Link>
-          </div>
-        </div>
+        {/* AI Agent status + minutes meter */}
+        <AgentCard />
 
         {/* User */}
         <div style={{ padding: "8px 8px 14px", borderTop: "1px solid var(--sidebar-border)" }}>
