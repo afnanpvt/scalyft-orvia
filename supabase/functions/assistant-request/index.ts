@@ -63,9 +63,14 @@ interface Clinic {
   timezone: string;
   settings: ClinicSettings;
   status: "active" | "inactive" | "onboarding";
+  seconds_remaining: number;
+  allow_overage: boolean;
+  owner_phone: string | null;
   created_at: string;
   updated_at: string;
 }
+
+declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void };
 
 // ── Assistant config builder (ported from src/lib/vapi/build-assistant-config.ts) ─
 
@@ -564,10 +569,55 @@ Deno.serve(async (req: Request) => {
     );
   }
 
-  const assistantConfig = buildAssistantConfig(clinic as Clinic, supabaseUrl);
+  // ── Billing gate ──────────────────────────────────────────────────────────
+  const typedClinic = clinic as Clinic;
+  const secondsRemaining = typedClinic.seconds_remaining ?? 0;
+
+  if (secondsRemaining <= 0) {
+    if (!typedClinic.allow_overage) {
+      console.log("billing gate: hard block for", typedClinic.id, "seconds_remaining:", secondsRemaining);
+      return new Response(
+        JSON.stringify({ error: "Service is temporarily paused. Please contact us to restore access." }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // Overage is allowed — call continues but alert the owner
+    console.log("billing gate: overage active for", typedClinic.id);
+    if (typedClinic.owner_phone) {
+      const twilioSid  = Deno.env.get("TWILIO_ACCOUNT_SID");
+      const twilioAuth = Deno.env.get("TWILIO_AUTH_TOKEN");
+      const twilioFrom = Deno.env.get("TWILIO_FROM_NUMBER");
+      if (twilioSid && twilioAuth && twilioFrom) {
+        const smsPromise = fetch(
+          `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: "Basic " + btoa(`${twilioSid}:${twilioAuth}`),
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({
+              From: twilioFrom,
+              To: typedClinic.owner_phone,
+              Body: `Orvia alert: ${typedClinic.name} has run out of call minutes. Overage is on — calls are still going through. Top up to avoid interruption.`,
+            }),
+          }
+        );
+        try {
+          EdgeRuntime.waitUntil(smsPromise);
+        } catch {
+          smsPromise.catch(() => {});
+        }
+      }
+    }
+  }
+
+  const assistantConfig = buildAssistantConfig(typedClinic, supabaseUrl);
 
   return new Response(
     JSON.stringify({ assistant: assistantConfig }),
     { status: 200, headers: { "Content-Type": "application/json" } }
   );
 });
+
