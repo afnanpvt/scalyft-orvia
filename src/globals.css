@@ -190,6 +190,12 @@
   letter-spacing: -0.04em;
 }
 
+/* ─── Spinner ─── */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
 /* ─── Fade up entrance - snappier ─── */
 @keyframes fadeUp {
   from {

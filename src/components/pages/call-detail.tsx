@@ -11,6 +11,7 @@ import {
   Phone,
   Clock,
   Calendar,
+  Loader2,
 } from "lucide-react"
 
 import {
@@ -321,7 +322,12 @@ export default function CallDetailPage() {
   const { id } = useParams({ from: "/_dashboard/calls_/$id" })
   const queryClient = useQueryClient()
 
-  const callQuery = useQuery({ queryKey: ["call", id], queryFn: () => getCallById(id), enabled: !!id })
+  const callQuery = useQuery({
+    queryKey: ["call", id],
+    queryFn: () => getCallById(id),
+    enabled: !!id,
+    refetchInterval: (query) => query.state.data?.transcript_status === "pending" ? 15_000 : false,
+  })
   const leadQuery = useQuery({ queryKey: ["lead-by-call", id], queryFn: () => getLeadByCallId(id), enabled: !!id })
   const appointmentQuery = useQuery({ queryKey: ["appointment-by-call", id], queryFn: () => getAppointmentByCallId(id), enabled: !!id })
 
@@ -502,6 +508,16 @@ export default function CallDetailPage() {
                     {call.transcript.map((turn: TranscriptTurn, i: number) => (
                       <ChatBubble key={i} turn={turn} callerName={(call.extracted_data as Record<string, unknown>)?.caller_name as string | null} />
                     ))}
+                  </div>
+                </DetailCard>
+              ) : !isLoading && call?.transcript_status === "pending" ? (
+                <DetailCard title="Conversation" icon={Phone}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px 0", gap: 12 }}>
+                    <Loader2 style={{ width: 24, height: 24, color: "var(--muted-foreground)", animation: "spin 1s linear infinite" }} strokeWidth={1.5} />
+                    <div style={{ textAlign: "center" }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", marginBottom: 4 }}>Transcript processing</p>
+                      <p style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Usually ready within 1-2 minutes after the call ends</p>
+                    </div>
                   </div>
                 </DetailCard>
               ) : !isLoading && call ? (
