@@ -1427,10 +1427,65 @@ function NeedsActionPanel() {
   )
 }
 
+// ─── Mock data (dev only) ─────────────────────────────────
+
+const MOCK_EVENTS: OperationalEvent[] = [
+  {
+    id: "mock-1",
+    business_id: "mock",
+    call_id: null,
+    event_type: "ai_failure",
+    severity: "warning",
+    resolved: false,
+    payload: { caller_phone: "+1 (512) 555-0192", ended_reason: "silence-timed-out" },
+    created_at: new Date(Date.now() - 8 * 60_000).toISOString(),
+  },
+  {
+    id: "mock-2",
+    business_id: "mock",
+    call_id: null,
+    event_type: "partial_booking",
+    severity: "warning",
+    resolved: false,
+    payload: { caller_phone: "+1 (737) 555-0847", service_needed: "Pipe repair" },
+    created_at: new Date(Date.now() - 23 * 60_000).toISOString(),
+  },
+]
+
+const MOCK_QUEUE: CallQueueItem[] = [
+  {
+    id: "mock-q-1",
+    business_id: "mock",
+    call_id: null,
+    queue_type: "missed_callback",
+    priority: 5,
+    caller_phone: "+1 (210) 555-0374",
+    caller_name: "Marcus Webb",
+    service_needed: "Water heater install",
+    status: "pending",
+    handled_by: null,
+    handled_at: null,
+    created_at: new Date(Date.now() - 4 * 60_000).toISOString(),
+  },
+]
+
 // ─── Page ─────────────────────────────────────────────────
 
 export default function OverviewPage() {
   const { profile } = useAuth()
+  const queryClient = useQueryClient()
+  const [mockActive, setMockActive] = useState(false)
+
+  function toggleMock() {
+    if (!mockActive) {
+      queryClient.setQueryData(["operational-events"], MOCK_EVENTS)
+      queryClient.setQueryData(["call-queue"], MOCK_QUEUE)
+    } else {
+      queryClient.setQueryData(["operational-events"], [])
+      queryClient.setQueryData(["call-queue"], [])
+    }
+    setMockActive(!mockActive)
+  }
 
   const briefing = useQuery({
     queryKey: ["briefing"],
@@ -1581,8 +1636,27 @@ export default function OverviewPage() {
           </p>
         </div>
 
-        {/* Status pill - real data */}
+        {/* Dev mock toggle + status pill */}
         <div className="overview-header-status" style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          {import.meta.env.DEV && (
+            <button
+              onClick={toggleMock}
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                padding: "5px 11px",
+                borderRadius: 999,
+                border: `1px solid ${mockActive ? "rgba(229,72,77,0.3)" : "var(--border)"}`,
+                background: mockActive ? "rgba(229,72,77,0.08)" : "var(--card)",
+                color: mockActive ? "#E5484D" : "var(--muted-foreground)",
+                cursor: "pointer",
+                letterSpacing: "0.02em",
+                transition: "all 0.15s",
+              }}
+            >
+              {mockActive ? "Clear mock" : "Mock alerts"}
+            </button>
+          )}
           <div style={{
             display: "flex",
             alignItems: "center",
