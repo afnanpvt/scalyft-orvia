@@ -1,5 +1,27 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void };
+
+const LOW_BALANCE_THRESHOLD_SECS = 1800; // 30 minutes
+
+async function sendTwilioSms(to: string, body: string): Promise<void> {
+  const twilioSid  = Deno.env.get("TWILIO_ACCOUNT_SID");
+  const twilioAuth = Deno.env.get("TWILIO_AUTH_TOKEN");
+  const twilioFrom = Deno.env.get("TWILIO_FROM_NUMBER");
+  if (!twilioSid || !twilioAuth || !twilioFrom) return;
+  await fetch(
+    `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: "Basic " + btoa(`${twilioSid}:${twilioAuth}`),
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({ From: twilioFrom, To: to, Body: body }),
+    }
+  );
+}
+
 // Handles Vapi call lifecycle webhooks.
 //
 // Events handled:
@@ -312,6 +334,53 @@ Deno.serve(async (req: Request) => {
     }
 
     console.log("end-of-call-report: upserted", vapiCallId, "outcome:", outcome, "cost:", costCents, "cents");
+
+    // ── Billing deduction ─────────────────────────────────────────────────
+    if (clinicId && durationSecs && durationSecs > 0) {
+      const { data: newBalance, error: deductErr } = await supabase.rpc("deduct_call_seconds", {
+        p_business_id: clinicId,
+        p_seconds: durationSecs,
+      });
+
+      if (deductErr) {
+        console.error("billing deduction error:", deductErr.message);
+      } else {
+        const balanceBefore = (newBalance as number) + durationSecs;
+        console.log("billing: deducted", durationSecs, "s for", clinicId, "| before:", balanceBefore, "after:", newBalance);
+
+        // Fetch owner contact info for threshold alerts
+        const crossedLow = balanceBefore > LOW_BALANCE_THRESHOLD_SECS && (newBalance as number) <= LOW_BALANCE_THRESHOLD_SECS;
+        const crossedZero = balanceBefore > 0 && (newBalance as number) <= 0;
+
+        if (crossedLow || crossedZero) {
+          const { data: biz } = await supabase
+            .from("businesses")
+            .select("name, owner_phone, allow_overage")
+            .eq("id", clinicId)
+            .single();
+
+          if (biz?.owner_phone) {
+            const minLeft = Math.max(0, Math.floor((newBalance as number) / 60));
+            let smsText = "";
+
+            if (crossedZero) {
+              smsText = biz.allow_overage
+                ? `Orvia alert: ${biz.name} has run out of call minutes (overage active, calls continuing). Top up to avoid interruption.`
+                : `Orvia alert: ${biz.name} has run out of call minutes. New calls will be blocked until you top up.`;
+            } else {
+              smsText = `Orvia: ${biz.name} is running low — about ${minLeft} minutes of call time remaining. Top up soon to keep calls going.`;
+            }
+
+            const smsPromise = sendTwilioSms(biz.owner_phone, smsText);
+            try {
+              EdgeRuntime.waitUntil(smsPromise);
+            } catch {
+              smsPromise.catch(() => {});
+            }
+          }
+        }
+      }
+    }
 
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
