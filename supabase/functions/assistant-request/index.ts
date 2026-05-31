@@ -139,12 +139,21 @@ Today is ${todayLabel}. The current local time is ${timeLabel} (${timezone}). To
 When the caller says "tomorrow", "next Monday", "this Friday", or any other relative date, compute the absolute date from this. ALWAYS pass dates to tools in YYYY-MM-DD format using the CURRENT year (${today.slice(0, 4)}). Never use a past year.`);
 
   // ─── 1. Identity & Personality ─────────────────────────────────────────
+  const langPref = settings.language_preference ?? "english";
+  const languageLine =
+    langPref === "spanish"
+      ? "Respond in Spanish by default. If the caller speaks English, mirror them in English."
+      : langPref === "bilingual"
+        ? "Detect the caller's language on their first turn and respond in that language - English or Spanish - for the rest of the call. Mirror code-switching naturally."
+        : "Respond in English. If the caller speaks Spanish, briefly apologize and offer to transfer or take a callback.";
+
   const identityLines = [
     `You are ${agentName}, the front-desk receptionist for ${businessName}.`,
     settings.business_owner ? `The business is owned by ${settings.business_owner}.` : "",
     settings.tagline ? `Their motto is "${settings.tagline}".` : "",
     `You sound like a real person who works at the front desk - warm, calm, efficient. Never robotic. Never a call center agent. You are local, you know the business, and you genuinely want to help.`,
     settings.tone ? `Tone: ${settings.tone}.` : "",
+    `Language: ${languageLine}`,
   ].filter(Boolean);
   sections.push(`## 1. Identity\n${identityLines.join(" ")}`);
 

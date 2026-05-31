@@ -112,6 +112,42 @@ export async function getAppointmentByCallId(
   return (data as Appointment) ?? null;
 }
 
+export async function getAppointments(opts?: {
+  range?: "upcoming" | "past" | "all";
+  status?: Appointment["status"];
+}): Promise<Appointment[]> {
+  let query = supabase.from("appointments").select("*");
+
+  const range = opts?.range ?? "all";
+  if (range === "upcoming") {
+    query = query
+      .gte("scheduled_start", new Date().toISOString())
+      .order("scheduled_start", { ascending: true });
+  } else if (range === "past") {
+    query = query
+      .lt("scheduled_start", new Date().toISOString())
+      .order("scheduled_start", { ascending: false });
+  } else {
+    query = query.order("scheduled_start", { ascending: true });
+  }
+
+  if (opts?.status) query = query.eq("status", opts.status);
+
+  const { data } = await query.limit(100);
+  return (data as Appointment[]) ?? [];
+}
+
+export async function updateAppointmentStatus(
+  id: string,
+  status: Appointment["status"],
+) {
+  const { error } = await supabase
+    .from("appointments")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  return { error: error?.message ?? null };
+}
+
 // ─── Charts ──────────────────────────────────────────────
 
 export async function getWeeklyCallStats() {
@@ -494,3 +530,93 @@ export async function updateBusinessTopLevel(
 // Keep old names as aliases for any callers not yet updated
 export const updateClinicSettings = updateBusinessSettings;
 export const updateClinicTopLevel = updateBusinessTopLevel;
+
+// ─── Global Search ───────────────────────────────────────
+
+export type SearchResult =
+  | { kind: "call"; id: string; title: string; subtitle: string; href: string }
+  | { kind: "appointment"; id: string; title: string; subtitle: string; href: string }
+  | { kind: "lead"; id: string; title: string; subtitle: string; href: string };
+
+export async function globalSearch(q: string): Promise<SearchResult[]> {
+  const term = q.trim();
+  if (term.length < 2) return [];
+  const like = `%${term}%`;
+
+  const [callsRes, apptsRes, leadsRes] = await Promise.all([
+    supabase
+      .from("calls")
+      .select("id, caller_phone, summary, outcome, created_at")
+      .or(`caller_phone.ilike.${like},summary.ilike.${like}`)
+      .order("created_at", { ascending: false })
+      .limit(8),
+    supabase
+      .from("appointments")
+      .select("id, customer_name, customer_phone, service_type, scheduled_start")
+      .or(`customer_name.ilike.${like},customer_phone.ilike.${like},service_type.ilike.${like}`)
+      .order("scheduled_start", { ascending: true })
+      .limit(8),
+    supabase
+      .from("leads")
+      .select("id, name, phone, service_needed, status")
+      .or(`name.ilike.${like},phone.ilike.${like},service_needed.ilike.${like}`)
+      .order("created_at", { ascending: false })
+      .limit(8),
+  ]);
+
+  const results: SearchResult[] = [];
+
+  for (const c of (callsRes.data ?? []) as Array<{
+    id: string;
+    caller_phone: string | null;
+    summary: string | null;
+    outcome: string | null;
+  }>) {
+    results.push({
+      kind: "call",
+      id: c.id,
+      title: c.caller_phone ?? "Unknown caller",
+      subtitle: c.summary ?? c.outcome ?? "Call",
+      href: `/calls/${c.id}`,
+    });
+  }
+
+  for (const a of (apptsRes.data ?? []) as Array<{
+    id: string;
+    customer_name: string;
+    service_type: string | null;
+    scheduled_start: string;
+  }>) {
+    const when = new Date(a.scheduled_start).toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    results.push({
+      kind: "appointment",
+      id: a.id,
+      title: a.customer_name,
+      subtitle: `${a.service_type ?? "Appointment"} · ${when}`,
+      href: `/appointments`,
+    });
+  }
+
+  for (const l of (leadsRes.data ?? []) as Array<{
+    id: string;
+    name: string | null;
+    phone: string;
+    service_needed: string | null;
+    status: string;
+  }>) {
+    results.push({
+      kind: "lead",
+      id: l.id,
+      title: l.name ?? l.phone,
+      subtitle: `${l.service_needed ?? "Lead"} · ${l.status}`,
+      href: `/leads`,
+    });
+  }
+
+  return results;
+}

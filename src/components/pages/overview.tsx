@@ -13,16 +13,19 @@ import {
 } from "recharts"
 import {
   Phone,
-  AlertTriangle,
   TrendingUp,
+  TrendingDown,
+  Minus,
   ArrowRight,
+  ChevronRight,
   CheckCircle2,
   XCircle,
-  Zap,
+  AlertTriangle,
+  Bell,
+  Clock,
 } from "lucide-react"
 
 // ─── Premium SVG Icons ────────────────────────────────────
-// Hand-crafted SVGs, not generic icon library defaults
 
 function IconPhoneCall({ color, size = 14 }: { color: string; size?: number }) {
   return (
@@ -66,14 +69,6 @@ function IconClock({ color, size = 14 }: { color: string; size?: number }) {
   )
 }
 
-function IconZap({ color, size = 14 }: { color: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-    </svg>
-  )
-}
-
 function IconPhone({ color, size = 14 }: { color: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -109,11 +104,6 @@ function timeAgo(iso: string): string {
   return `${Math.floor(diffHr / 24)}d ago`
 }
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
-}
-
-// "10:00 AM" if today, "Tomorrow 10:00 AM" if tomorrow, "Mon May 25 10:00 AM" otherwise
 function formatScheduleSlot(iso: string): { day: string | null; time: string } {
   const d = new Date(iso)
   const now = new Date()
@@ -121,7 +111,6 @@ function formatScheduleSlot(iso: string): { day: string | null; time: string } {
   const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000)
   const dayOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate())
   const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
-
   if (dayOnly.getTime() === today.getTime()) return { day: null, time }
   if (dayOnly.getTime() === tomorrow.getTime()) return { day: "Tomorrow", time }
   return { day: d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }), time }
@@ -154,25 +143,33 @@ function buildCallSummary(call: Call): string {
     missed: "Missed",
   }
   const outcome = call.outcome ? outcomeMap[call.outcome] ?? call.outcome.replace(/_/g, " ") : ""
-  if (service) return `${name} - ${service} - ${outcome}`
-  return `${name} - ${outcome}`
+  if (service) return `${name} · ${service}`
+  return `${name} · ${outcome}`
 }
 
 function getGreeting(name: string | null): string {
   const firstName = name?.split(" ")[0] ?? null
   const hour = new Date().getHours()
-  const label = firstName
+  return firstName
     ? (hour < 12 ? `Good morning, ${firstName}` : hour < 17 ? `Good afternoon, ${firstName}` : `Good evening, ${firstName}`)
     : (hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening")
-  return label
+}
+
+function timeUntil(iso: string): string {
+  const diffMs = new Date(iso).getTime() - Date.now()
+  if (diffMs <= 0) return ""
+  const mins = Math.floor(diffMs / 60_000)
+  if (mins < 60) return `In ${mins}m`
+  const hrs = Math.floor(mins / 60)
+  const rem = mins % 60
+  return rem > 0 ? `In ${hrs}h ${rem}m` : `In ${hrs}h`
 }
 
 // ─── Outcome config ───────────────────────────────────────
 
 const OUTCOME_CONFIG: Record<string, {
   bg: string; color: string; label: string;
-  iconBg: string; iconColor: string; dot: string;
-  border: string;
+  iconBg: string; iconColor: string; dot: string; border: string;
 }> = {
   appointment_booked: { bg: "#D1FAE5", color: "#065F46", label: "Booked",   iconBg: "#D1FAE5", iconColor: "#10B981", dot: "#10B981", border: "rgba(16,185,129,0.2)" },
   lead_captured:      { bg: "var(--muted)", color: "var(--foreground)", label: "Lead",     iconBg: "var(--muted)", iconColor: "var(--foreground)", dot: "var(--foreground)", border: "var(--border)" },
@@ -186,19 +183,12 @@ function OutcomeBadge({ outcome }: { outcome: Call["outcome"] }) {
   if (!cfg) return null
   return (
     <span style={{
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 5,
-      fontSize: 11,
-      fontWeight: 600,
-      padding: "3px 9px",
-      borderRadius: 999,
-      background: cfg.bg,
-      color: cfg.color,
+      display: "inline-flex", alignItems: "center",
+      fontSize: 11, fontWeight: 600,
+      padding: "2px 8px", borderRadius: 999,
+      background: cfg.bg, color: cfg.color,
       border: `1px solid ${cfg.border}`,
-      whiteSpace: "nowrap",
-      flexShrink: 0,
-      letterSpacing: "0.01em",
+      whiteSpace: "nowrap", flexShrink: 0, letterSpacing: "0.01em",
     }}>
       {cfg.label}
     </span>
@@ -211,36 +201,79 @@ function Sparkline({ data, color, gradientId }: { data: number[]; color: string;
   if (!data.length || !data.some(v => v > 0)) return null
   const pts = data.map((v, i) => ({ i, v }))
   return (
-    <ResponsiveContainer width="100%" height={60}>
+    <ResponsiveContainer width="100%" height={56}>
       <AreaChart data={pts} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity={0.35} />
-            <stop offset="75%" stopColor={color} stopOpacity={0.06} />
+            <stop offset="0%" stopColor={color} stopOpacity={0.28} />
             <stop offset="100%" stopColor={color} stopOpacity={0} />
           </linearGradient>
         </defs>
-        <Area
-          type="monotone"
-          dataKey="v"
-          stroke={color}
-          strokeWidth={2}
-          fill={`url(#${gradientId})`}
-          dot={false}
-          isAnimationActive={false}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.75}
+          fill={`url(#${gradientId})`} dot={false} isAnimationActive={false}
+          strokeLinecap="round" strokeLinejoin="round" />
       </AreaChart>
     </ResponsiveContainer>
   )
 }
 
-// ─── Stat Card ────────────────────────────────────────────
-// Double-bezel: outer shell (tinted bg + hairline border) wraps inner white core.
-// Sparkline bleeds full-width to card bottom edge - no padding clipping it.
+// ─── Trend Badge ──────────────────────────────────────────
 
-function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, sparkData, sparkColor, gradientId }: {
+function TrendBadge({ today, yesterday }: { today: number; yesterday: number }) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
+  if (today === 0 && yesterday === 0) return null
+  const diff = today - yesterday
+  // Don't fabricate percentages off a zero baseline — "growth from zero" is undefined.
+  // Cap displayed pct at 999% so a hot day never breaks the layout.
+  const pct = yesterday > 0 ? Math.min(999, Math.round(Math.abs(diff / yesterday) * 100)) : null
+  const label = pct !== null ? `${pct}%` : "New"
+
+  if (diff > 0) return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 3,
+      fontSize: 10.5, fontWeight: 600, padding: "2px 7px", borderRadius: 999,
+      color: "#065F46", background: "#D1FAE5", border: "1px solid rgba(16,185,129,0.2)",
+      letterSpacing: "0.01em", whiteSpace: "nowrap",
+    }}>
+      <TrendingUp style={{ width: 9, height: 9 }} strokeWidth={2} />
+      {label}
+    </span>
+  )
+
+  if (diff < 0) return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 3,
+      fontSize: 10.5, fontWeight: 600, padding: "2px 7px", borderRadius: 999,
+      color: isDark ? "#FCA5A5" : "#991B1B",
+      background: isDark ? "rgba(229,72,77,0.1)" : "#FEE2E2",
+      border: "1px solid rgba(229,72,77,0.18)",
+      letterSpacing: "0.01em", whiteSpace: "nowrap",
+    }}>
+      <TrendingDown style={{ width: 9, height: 9 }} strokeWidth={2} />
+      {label}
+    </span>
+  )
+
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 3,
+      fontSize: 10.5, fontWeight: 600, padding: "2px 7px", borderRadius: 999,
+      color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)",
+      background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+      border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)"}`,
+      letterSpacing: "0.01em", whiteSpace: "nowrap",
+    }}>
+      <Minus style={{ width: 8, height: 8 }} strokeWidth={2} />
+      Same
+    </span>
+  )
+}
+
+// ─── Stat Card ────────────────────────────────────────────
+
+function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg,
+  sparkData, sparkColor, gradientId, trendToday, trendYesterday }: {
   value: number | string
   label: string
   sublabel?: string
@@ -250,517 +283,866 @@ function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg, spark
   sparkData?: number[]
   sparkColor?: string
   gradientId?: string
+  trendToday?: number
+  trendYesterday?: number
 }) {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === "dark"
   const hasSpark = sparkData && sparkData.length > 1 && sparkData.some(v => v > 0)
+  const showTrend = trendToday !== undefined && trendYesterday !== undefined
 
   return (
-    // Outer shell - tinted to card accent color, hairline border
-    <div
-      className="stat-card-root"
-      style={{
-        padding: 2,
-        borderRadius: 22,
-        background: isDark ? "rgba(255,255,255,0.04)" : cardBg,
-        border: isDark ? "1px solid rgba(255,255,255,0.07)" : `1px solid ${cardBg}`,
-        boxShadow: isDark
-          ? "0 1px 3px rgba(0,0,0,0.2), 0 8px 24px rgba(0,0,0,0.12)"
-          : "0 1px 2px rgba(0,0,0,0.03), 0 8px 24px rgba(0,0,0,0.05)",
-        minHeight: 170,
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        transition: "box-shadow 0.2s cubic-bezier(0.32,0.72,0,1), transform 0.2s cubic-bezier(0.32,0.72,0,1)",
-        cursor: "default",
-      }}
-    >
-      {/* Inner core - white card with inner highlight */}
-      <div
-        style={{
-          flex: 1,
-          borderRadius: 20,
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-          background: isDark ? "var(--card)" : "#ffffff",
-          boxShadow: isDark
-            ? "inset 0 1px 0 rgba(255,255,255,0.06)"
-            : "inset 0 1px 0 rgba(255,255,255,0.9)",
-        }}
-      >
-        <div className="stat-card-inner" style={{ padding: "20px 20px 14px", flex: 1, display: "flex", flexDirection: "column" }}>
-          {/* Icon + label row */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-            <div style={{
-              width: 28,
-              height: 28,
-              borderRadius: 8,
-              background: isDark ? "rgba(255,255,255,0.08)" : cardBg,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              border: isDark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.04)",
-              flexShrink: 0,
-            }}>
-              <Icon color={iconColor} size={13} />
+    <div className="stat-card-root" style={{
+      padding: 2, borderRadius: 22,
+      background: isDark ? "rgba(255,255,255,0.04)" : cardBg,
+      border: isDark ? "1px solid rgba(255,255,255,0.07)" : `1px solid ${cardBg}`,
+      boxShadow: isDark
+        ? "0 1px 3px rgba(0,0,0,0.2), 0 8px 24px rgba(0,0,0,0.12)"
+        : "0 1px 2px rgba(0,0,0,0.03), 0 8px 24px rgba(0,0,0,0.05)",
+      minHeight: 165, height: "100%",
+      display: "flex", flexDirection: "column",
+      cursor: "default",
+    }}>
+      <div style={{
+        flex: 1, borderRadius: 20, overflow: "hidden",
+        display: "flex", flexDirection: "column",
+        background: isDark ? "var(--card)" : "#ffffff",
+        boxShadow: isDark ? "inset 0 1px 0 rgba(255,255,255,0.06)" : "inset 0 1px 0 rgba(255,255,255,0.9)",
+      }}>
+        <div className="stat-card-inner" style={{ padding: "18px 18px 12px", flex: 1, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <div style={{
+                width: 26, height: 26, borderRadius: 7,
+                background: isDark ? "rgba(255,255,255,0.07)" : cardBg,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                border: isDark ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.04)",
+                flexShrink: 0,
+              }}>
+                <Icon color={iconColor} size={12} />
+              </div>
+              <p style={{
+                fontSize: 10.5, fontWeight: 600,
+                color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.32)",
+                letterSpacing: "0.05em", textTransform: "uppercase",
+              }}>
+                {label}
+              </p>
             </div>
-            <p style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.36)",
-              letterSpacing: "0.05em",
-              textTransform: "uppercase",
-            }}>
-              {label}
-            </p>
+            {showTrend && typeof trendToday === "number" && typeof trendYesterday === "number" && (
+              <TrendBadge today={trendToday} yesterday={trendYesterday} />
+            )}
           </div>
 
-          {/* Value */}
           <p className="stat-card-value" style={{
-            fontSize: 42,
-            fontWeight: 700,
+            fontSize: 40, fontWeight: 700,
             color: isDark ? "#F2F2F7" : "#0A0A0B",
-            lineHeight: 1,
-            fontFamily: "Geist Mono, monospace",
-            fontVariantNumeric: "tabular-nums",
-            letterSpacing: "-0.03em",
-            marginBottom: 5,
+            lineHeight: 1, fontFamily: "Geist Mono, monospace",
+            fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em", marginBottom: 4,
           }}>
             {value === "--" ? (
-              <span style={{ display: "inline-block", width: 28, height: 3, background: "currentColor", borderRadius: 2, opacity: 0.2, verticalAlign: "middle" }} />
+              <span style={{ display: "inline-block", width: 24, height: 3, background: "currentColor", borderRadius: 2, opacity: 0.18, verticalAlign: "middle" }} />
             ) : value}
           </p>
 
           {sublabel && (
-            <p style={{ fontSize: 11.5, color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.36)", letterSpacing: "-0.01em" }}>
+            <p style={{ fontSize: 11, color: isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.32)", letterSpacing: "-0.01em" }}>
               {sublabel}
             </p>
           )}
-
           <div style={{ flex: 1 }} />
         </div>
 
-        {/* Sparkline bleeds full width to card bottom - no padding */}
         {hasSpark && gradientId ? (
-          <div style={{ marginTop: -14 }}>
+          <div style={{ marginTop: -10 }}>
             <Sparkline data={sparkData!} color={sparkColor ?? iconColor} gradientId={gradientId} />
           </div>
         ) : (
-          <div style={{ height: 16 }} />
+          <div style={{ height: 14 }} />
         )}
       </div>
     </div>
   )
 }
 
-// ─── Skeletons ────────────────────────────────────────────
+// ─── Skeleton ─────────────────────────────────────────────
 
 function StatSkeleton() {
   return (
-    <div className="ios-card" style={{ padding: "20px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-        <div className="skeleton" style={{ width: 38, height: 38, borderRadius: 11 }} />
-        <div className="skeleton" style={{ width: 44, height: 20, borderRadius: 999 }} />
+    <div className="ios-card" style={{ padding: "18px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div className="skeleton" style={{ width: 26, height: 26, borderRadius: 7 }} />
+        <div className="skeleton" style={{ width: 40, height: 18, borderRadius: 999 }} />
       </div>
-      <div className="skeleton" style={{ height: 11, width: 72, marginBottom: 8, borderRadius: 6 }} />
-      <div className="skeleton" style={{ height: 38, width: 52, marginBottom: 6, borderRadius: 6 }} />
-      <div className="skeleton" style={{ height: 10, width: 88, borderRadius: 6 }} />
+      <div className="skeleton" style={{ height: 36, width: 48, marginBottom: 6, borderRadius: 6 }} />
+      <div className="skeleton" style={{ height: 10, width: 80, borderRadius: 6 }} />
     </div>
   )
 }
 
-// ─── Section Card ─────────────────────────────────────────
+// ─── Status Strip ─────────────────────────────────────────
+// Calm 3-card operational reassurance band. Passive by default.
 
-function SectionCard({ title, icon: Icon, count, action, subtitle, children, style: extraStyle }: {
-  title: string
-  icon?: React.ElementType
-  count?: number
-  action?: React.ReactNode
-  subtitle?: string
-  children: React.ReactNode
-  style?: React.CSSProperties
+function StatusStrip({ clinicActive, actionCount, nextAppointment, liveCall, elapsed }: {
+  clinicActive: boolean
+  actionCount: number
+  nextAppointment: Appointment | null
+  liveCall: Call | null
+  elapsed: string
 }) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
+
+  const slot = nextAppointment ? formatScheduleSlot(nextAppointment.scheduled_start) : null
+  const countdown = nextAppointment ? timeUntil(nextAppointment.scheduled_start) : null
+
+  // Subtle, monochrome shell. Color reserved for the status dot only.
+  const stripCard: React.CSSProperties = {
+    flex: 1,
+    borderRadius: 14,
+    background: isDark ? "var(--card)" : "#ffffff",
+    border: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"}`,
+    boxShadow: isDark ? "none" : "0 1px 2px rgba(0,0,0,0.025)",
+    padding: "14px 16px",
+    minWidth: 0,
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  }
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: 10.5, fontWeight: 600,
+    color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.42)",
+    letterSpacing: "0.06em", textTransform: "uppercase",
+  }
+
+  const primaryStyle: React.CSSProperties = {
+    fontSize: 15, fontWeight: 600,
+    color: isDark ? "#F2F2F7" : "#0A0A0B",
+    letterSpacing: "-0.02em", lineHeight: 1.25,
+    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+  }
+
+  const metaStyle: React.CSSProperties = {
+    fontSize: 11.5,
+    color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.42)",
+    letterSpacing: "-0.01em", lineHeight: 1.3,
+    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+  }
+
+  const aiDotColor = liveCall ? "#10B981" : clinicActive ? "#10B981" : "#E5484D"
+  const aiPrimary = liveCall ? `On call · ${elapsed || "…"}` : clinicActive ? "Live" : "Offline"
+  const aiMeta = liveCall ? "Active conversation" : clinicActive ? "Answering calls" : "Not accepting calls"
+
+  const needsDotColor = actionCount > 0 ? "#F59E0B" : "#10B981"
+  const needsPrimary = actionCount > 0
+    ? `${actionCount} ${actionCount === 1 ? "item" : "items"} to review`
+    : "All clear"
+  const needsMeta = actionCount > 0 ? "Open Needs Action →" : "No issues right now"
+
   return (
-    <div className="ios-card animate-fade-up" style={{ padding: 0, overflow: "hidden", ...extraStyle }}>
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "15px 20px",
-        borderBottom: "1px solid var(--border)",
+    <div style={{ display: "flex", gap: 10 }} className="status-strip">
+      {/* AI Agent */}
+      <div style={stripCard}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <span
+            className={liveCall || clinicActive ? "animate-live-pulse" : undefined}
+            style={{ width: 6, height: 6, borderRadius: "50%", background: aiDotColor, flexShrink: 0 }}
+          />
+          <p style={labelStyle}>AI Agent</p>
+        </div>
+        <p style={primaryStyle}>{aiPrimary}</p>
+        <p style={metaStyle}>{aiMeta}</p>
+      </div>
+
+      {/* Needs Attention */}
+      <Link to="/needs-action" style={{
+        ...stripCard,
+        textDecoration: "none",
+        cursor: actionCount > 0 ? "pointer" : "default",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {Icon && <Icon style={{ width: 14, height: 14, color: "var(--muted-foreground)", flexShrink: 0 }} strokeWidth={1.5} />}
-          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)", letterSpacing: "-0.02em" }}>
-            {title}
-          </span>
-          {count != null && count > 0 && (
-            <span style={{
-              fontSize: 10.5,
-              color: "var(--primary-foreground)",
-              background: "var(--foreground)",
-              padding: "2px 7px",
-              borderRadius: 999,
-              fontWeight: 700,
-              lineHeight: "17px",
-              display: "inline-block",
-              letterSpacing: "0.02em",
-            }}>
-              {count}
-            </span>
-          )}
-          {subtitle && (
-            <span style={{ fontSize: 12, color: "var(--muted-foreground)", fontWeight: 400 }}>{subtitle}</span>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 7 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: needsDotColor, flexShrink: 0 }} />
+            <p style={labelStyle}>Needs Attention</p>
+          </div>
+          {actionCount > 0 && (
+            <ChevronRight style={{ width: 12, height: 12, color: "var(--muted-foreground)", flexShrink: 0 }} strokeWidth={1.75} />
           )}
         </div>
-        {action}
+        <p style={primaryStyle}>{needsPrimary}</p>
+        <p style={metaStyle}>{needsMeta}</p>
+      </Link>
+
+      {/* Next Appointment */}
+      <div style={stripCard}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <span style={{
+            width: 6, height: 6, borderRadius: "50%",
+            background: nextAppointment ? "#6366F1" : (isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.18)"),
+            flexShrink: 0,
+          }} />
+          <p style={labelStyle}>Next Appointment</p>
+        </div>
+        {nextAppointment && slot ? (
+          <>
+            <p style={primaryStyle}>{nextAppointment.customer_name}</p>
+            <p style={metaStyle}>
+              {slot.day ? `${slot.day} · ` : ""}{slot.time}
+              {countdown && (
+                <>
+                  <span style={{ margin: "0 6px", opacity: 0.4 }}>·</span>
+                  <span style={{ color: isDark ? "#A5B4FC" : "#4F46E5", fontWeight: 600 }}>{countdown}</span>
+                </>
+              )}
+            </p>
+          </>
+        ) : (
+          <>
+            <p style={{ ...primaryStyle, color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)" }}>
+              Nothing scheduled
+            </p>
+            <p style={metaStyle}>Bookings will land here</p>
+          </>
+        )}
       </div>
-      <div>{children}</div>
+    </div>
+  )
+}
+
+// ─── Notification Bell ────────────────────────────────────
+
+const EVENT_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  ai_failure:       { label: "AI Failed",       color: "#991B1B", bg: "#FEE2E2", border: "rgba(229,72,77,0.2)" },
+  partial_booking:  { label: "Partial Booking", color: "#92400E", bg: "#FEF3C7", border: "rgba(245,158,11,0.2)" },
+  concurrent_call:  { label: "Concurrent",      color: "#1E40AF", bg: "#DBEAFE", border: "rgba(59,130,246,0.2)" },
+  transfer_unknown: { label: "Transfer ?",      color: "#92400E", bg: "#FEF3C7", border: "rgba(245,158,11,0.2)" },
+}
+
+function NotificationBell() {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const queryClient = useQueryClient()
+
+  const { data: events = [], refetch: refetchEvents } = useQuery({
+    queryKey: ["operational-events"],
+    queryFn: getUnresolvedOperationalEvents,
+    refetchInterval: 30_000,
+  })
+  const { data: queue = [], refetch: refetchQueue } = useQuery({
+    queryKey: ["call-queue"],
+    queryFn: getPendingCallQueue,
+    refetchInterval: 30_000,
+  })
+
+  useEffect(() => {
+    const eventsChannel = supabase
+      .channel("operational_events_live_bell")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "operational_events" }, () => refetchEvents())
+      .subscribe()
+    const queueChannel = supabase
+      .channel("call_queue_live_bell")
+      .on("postgres_changes", { event: "*", schema: "public", table: "call_queue" }, () => refetchQueue())
+      .subscribe()
+    return () => { supabase.removeChannel(eventsChannel); supabase.removeChannel(queueChannel) }
+  }, [refetchEvents, refetchQueue])
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [])
+
+  async function handleResolveEvent(id: string) {
+    await resolveOperationalEvent(id)
+    queryClient.setQueryData<OperationalEvent[]>(["operational-events"], prev => (prev ?? []).filter(e => e.id !== id))
+  }
+  async function handleQueueHandled(id: string) {
+    await markQueueItemHandled(id)
+    queryClient.setQueryData<CallQueueItem[]>(["call-queue"], prev => (prev ?? []).filter(q => q.id !== id))
+  }
+
+  const actionableEvents = events.filter(e => e.event_type !== "concurrent_call")
+  const totalCount = actionableEvents.length + queue.length
+  const hasItems = totalCount > 0
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button type="button" onClick={() => setOpen(v => !v)} aria-label="Notifications"
+        style={{
+          position: "relative", width: 34, height: 34, borderRadius: 10,
+          background: open
+            ? (isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)")
+            : (isDark ? "rgba(255,255,255,0.04)" : "var(--card)"),
+          border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "var(--border)"}`,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: "pointer", transition: "background 0.15s", flexShrink: 0,
+          boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+        }}
+      >
+        <Bell style={{ width: 14, height: 14, color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)" }} strokeWidth={1.75} />
+        {hasItems && (
+          <span style={{
+            position: "absolute", top: -4, right: -4,
+            minWidth: 15, height: 15, borderRadius: 999,
+            background: "#E5484D", color: "#fff",
+            fontSize: 9, fontWeight: 700,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: "0 3.5px", letterSpacing: "0.02em",
+            border: `2px solid ${isDark ? "var(--background)" : "#F5F5F7"}`,
+            lineHeight: 1,
+          }}>
+            {totalCount > 9 ? "9+" : totalCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="animate-scale-in" style={{
+          position: "absolute", top: "calc(100% + 8px)", right: 0, width: 340,
+          background: isDark ? "var(--popover)" : "#fff",
+          borderRadius: 16,
+          border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
+          boxShadow: "0 8px 40px rgba(0,0,0,0.13), 0 2px 8px rgba(0,0,0,0.07)",
+          overflow: "hidden", zIndex: 100,
+        }}>
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "13px 16px 11px",
+            borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
+          }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", letterSpacing: "-0.02em" }}>
+              Needs Attention
+            </span>
+            {hasItems && (
+              <span style={{
+                fontSize: 9.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999,
+                background: "#E5484D", color: "#fff", letterSpacing: "0.02em",
+              }}>
+                {totalCount} item{totalCount !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+
+          {!hasItems ? (
+            <div style={{ padding: "28px 20px", textAlign: "center" }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: isDark ? "rgba(16,185,129,0.08)" : "#ECFDF5",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                margin: "0 auto 10px",
+                border: "1px solid rgba(16,185,129,0.15)",
+              }}>
+                <CheckCircle2 style={{ width: 16, height: 16, color: "#10B981" }} strokeWidth={1.5} />
+              </div>
+              <p style={{ fontSize: 13, fontWeight: 500, color: "var(--foreground)", letterSpacing: "-0.01em", marginBottom: 3 }}>
+                All clear
+              </p>
+              <p style={{ fontSize: 11.5, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>
+                No items need your attention
+              </p>
+            </div>
+          ) : (
+            <div style={{ maxHeight: 360, overflowY: "auto" }}>
+              {actionableEvents.map((event) => {
+                const cfg = EVENT_CONFIG[event.event_type] ?? EVENT_CONFIG.ai_failure
+                const p = event.payload ?? {}
+                const phone = (p.caller_phone as string) ?? null
+                const reason = (p.ended_reason as string) ?? null
+                const callId = event.call_id
+                return (
+                  <div key={event.id} style={{
+                    display: "flex", alignItems: "flex-start", gap: 11,
+                    padding: "11px 16px",
+                    borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)"}`,
+                  }}>
+                    <div style={{
+                      width: 30, height: 30, borderRadius: "50%", flexShrink: 0, marginTop: 1,
+                      background: isDark ? "rgba(229,72,77,0.1)" : "#FEE2E2",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      border: "1px solid rgba(229,72,77,0.2)",
+                    }}>
+                      <AlertTriangle style={{ width: 12, height: 12, color: "#E5484D" }} strokeWidth={1.75} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                        <span style={{
+                          fontSize: 10.5, fontWeight: 700, padding: "2px 7px", borderRadius: 999,
+                          color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}`,
+                          whiteSpace: "nowrap", letterSpacing: "0.01em",
+                        }}>
+                          {cfg.label}
+                        </span>
+                        <span style={{ fontSize: 10.5, color: "var(--muted-foreground)" }}>{timeAgo(event.created_at)}</span>
+                      </div>
+                      <p style={{ fontSize: 12.5, color: "var(--foreground)", letterSpacing: "-0.01em", marginBottom: 7 }}>
+                        {phone ?? "Unknown caller"}
+                        {reason && <span style={{ color: "var(--muted-foreground)", marginLeft: 5, fontSize: 11 }}>{reason.replace(/-/g, " ")}</span>}
+                      </p>
+                      <div style={{ display: "flex", gap: 6 }}>
+                        {callId && (
+                          <Link to="/calls/$id" params={{ id: callId }} onClick={() => setOpen(false)} style={{
+                            fontSize: 11, fontWeight: 500, color: "var(--muted-foreground)",
+                            textDecoration: "none", padding: "3px 9px", borderRadius: 7,
+                            border: "1px solid var(--border)", background: "var(--card)",
+                            letterSpacing: "-0.01em", whiteSpace: "nowrap",
+                          }}>
+                            View
+                          </Link>
+                        )}
+                        <button type="button" onClick={() => handleResolveEvent(event.id)} style={{
+                          fontSize: 11, fontWeight: 500, color: "var(--muted-foreground)",
+                          cursor: "pointer", padding: "3px 9px", borderRadius: 7,
+                          border: "1px solid var(--border)", background: "var(--card)",
+                          letterSpacing: "-0.01em", whiteSpace: "nowrap",
+                        }}>
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+              {queue.map((item) => {
+                const isPartial = item.queue_type === "partial_booking"
+                return (
+                  <div key={item.id} style={{
+                    display: "flex", alignItems: "flex-start", gap: 11,
+                    padding: "11px 16px",
+                    borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)"}`,
+                  }}>
+                    <div style={{
+                      width: 30, height: 30, borderRadius: "50%", flexShrink: 0, marginTop: 1,
+                      background: isPartial ? (isDark ? "rgba(245,158,11,0.1)" : "#FEF3C7") : (isDark ? "rgba(255,255,255,0.06)" : "#F5F5F7"),
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      border: isPartial ? "1px solid rgba(245,158,11,0.2)" : "1px solid var(--border)",
+                    }}>
+                      <IconPhone color={isPartial ? "#D97706" : "var(--muted-foreground)"} size={12} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 12.5, fontWeight: 500, color: "var(--foreground)", letterSpacing: "-0.01em", marginBottom: 2 }}>
+                        {item.caller_name ?? item.caller_phone ?? "Unknown caller"}
+                        {isPartial && (
+                          <span style={{
+                            marginLeft: 6, fontSize: 10.5, fontWeight: 700, color: "#92400E",
+                            background: "#FEF3C7", padding: "1px 6px", borderRadius: 999,
+                            border: "1px solid rgba(245,158,11,0.2)",
+                          }}>
+                            Partial booking
+                          </span>
+                        )}
+                      </p>
+                      <p style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 7, letterSpacing: "-0.01em" }}>
+                        {item.service_needed ? `${item.service_needed} · ` : ""}{timeAgo(item.created_at)}
+                      </p>
+                      <button type="button" onClick={() => handleQueueHandled(item.id)} style={{
+                        fontSize: 11, fontWeight: 500, color: "var(--muted-foreground)",
+                        cursor: "pointer", padding: "3px 9px", borderRadius: 7,
+                        border: "1px solid var(--border)", background: "var(--card)",
+                        letterSpacing: "-0.01em", whiteSpace: "nowrap",
+                      }}>
+                        Mark handled
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+              <Link to="/needs-action" onClick={() => setOpen(false)} style={{
+                display: "flex", alignItems: "center", justifyContent: "center",
+                padding: "10px 16px",
+                fontSize: 11.5, fontWeight: 600, color: "var(--muted-foreground)",
+                textDecoration: "none", letterSpacing: "-0.01em",
+                background: isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.015)",
+                borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"}`,
+              }}>
+                View all in Needs Action
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
 // ─── Weekly Chart ─────────────────────────────────────────
+// Compact executive summary: KPI on left, mini bar chart on right
 
 type WeekDay = { date: string; calls: number; leads: number; appointments: number }
 
 function WeeklyChart() {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === "dark"
-
-  const { data: raw, isLoading } = useQuery({
-    queryKey: ["weekly-stats"],
-    queryFn: getWeeklyCallStats,
-  })
-
+  const { data: raw, isLoading } = useQuery({ queryKey: ["weekly-stats"], queryFn: getWeeklyCallStats })
   const days: WeekDay[] = raw ?? []
   const totalCalls = days.reduce((s, d) => s + d.calls, 0)
   const totalBooked = days.reduce((s, d) => s + d.appointments, 0)
-  const bookingRate = totalCalls > 0 ? Math.round((totalBooked / totalCalls) * 100) : 0
+  // Cap at 100% — see note in OverviewPage. Inconsistent seeds can push booked > calls.
+  const rawRate = totalCalls > 0 ? Math.round((totalBooked / totalCalls) * 100) : null
+  const bookingRate = rawRate !== null && rawRate >= 0 && rawRate <= 100 ? rawRate : null
+  const bookingRateDisplay = bookingRate !== null ? `${bookingRate}%` : "--"
+
+  // Single-day "today vs yesterday" comparison as a lightweight trend signal.
+  // Skip if yesterday was zero — growth-from-zero isn't a meaningful percentage.
+  const todayCalls = days[6]?.calls ?? 0
+  const yestCalls = days[5]?.calls ?? 0
+  const trendDiff = yestCalls > 0
+    ? Math.max(-999, Math.min(999, Math.round(((todayCalls - yestCalls) / yestCalls) * 100)))
+    : null
 
   return (
-    <div className="ios-card" style={{ overflow: "hidden", padding: 0 }}>
-        {/* Header row - title left, metrics right */}
-        <div style={{
-          display: "flex",
-          alignItems: "flex-start",
-          justifyContent: "space-between",
-          padding: "18px 20px 0",
-        }}>
-          <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
-              <TrendingUp style={{ width: 13, height: 13, color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)" }} strokeWidth={1.5} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.36)", letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                This Week
-              </span>
-            </div>
-            {!isLoading && (
-              <p style={{ fontSize: 28, fontWeight: 700, color: isDark ? "#F2F2F7" : "#0A0A0B", lineHeight: 1, fontFamily: "Geist Mono, monospace", letterSpacing: "-0.04em", fontVariantNumeric: "tabular-nums" }}>
-                {totalCalls}
-                <span style={{ fontSize: 13, fontWeight: 500, color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)", letterSpacing: "-0.01em", marginLeft: 6, fontFamily: "Geist, sans-serif" }}>
-                  call{totalCalls !== 1 ? "s" : ""}
-                </span>
-              </p>
-            )}
-          </div>
-
-          {/* Metric pills - right aligned */}
-          {!isLoading && totalCalls > 0 && (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: 2, background: "#6366F1", flexShrink: 0, display: "block" }} />
-                  <span style={{ fontSize: 11, color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.38)", letterSpacing: "-0.01em" }}>Calls</span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                  <span style={{ width: 7, height: 7, borderRadius: 2, background: "#10B981", flexShrink: 0, display: "block" }} />
-                  <span style={{ fontSize: 11, color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.38)", letterSpacing: "-0.01em" }}>Booked</span>
-                </div>
-              </div>
-              <span style={{
-                fontSize: 11,
-                fontWeight: 600,
-                padding: "3px 9px",
-                borderRadius: 999,
-                color: "#065F46",
-                background: "#D1FAE5",
-                border: "1px solid rgba(16,185,129,0.2)",
-                letterSpacing: "0.01em",
-                whiteSpace: "nowrap",
-              }}>
-                {bookingRate}% booked
-              </span>
-            </div>
-          )}
+    <div className="ios-card" style={{ overflow: "hidden", padding: 0, display: "flex", flexDirection: "column" }}>
+      {/* Header: compact, KPI inline with title */}
+      <div style={{
+        padding: "14px 16px 8px",
+        display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12,
+      }}>
+        <div style={{ minWidth: 0 }}>
+          <p style={{ fontSize: 11, fontWeight: 600,
+            color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.42)",
+            letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4 }}>
+            This Week
+          </p>
+          <p style={{ fontSize: 11.5, color: "var(--muted-foreground)", letterSpacing: "-0.01em", fontVariantNumeric: "tabular-nums" }}>
+            {isLoading ? "—" : `${totalCalls} call${totalCalls !== 1 ? "s" : ""} · ${totalBooked} booked`}
+          </p>
         </div>
-
-        {/* Chart area */}
-        <div style={{ padding: "12px 10px 14px" }}>
+        <div style={{ textAlign: "right", flexShrink: 0 }}>
           {isLoading ? (
-            <div style={{ height: 180, display: "flex", alignItems: "flex-end", gap: 5, padding: "0 10px" }}>
-              {[55, 75, 38, 95, 65, 48, 85].map((h, i) => (
-                <div key={i} style={{ flex: 1, display: "flex", gap: 2, alignItems: "flex-end" }}>
-                  <div className="skeleton" style={{ flex: 1, height: h * 0.9, borderRadius: "5px 5px 0 0" }} />
-                  <div className="skeleton" style={{ flex: 1, height: h * 0.5, borderRadius: "5px 5px 0 0", opacity: 0.5 }} />
-                </div>
-              ))}
-            </div>
-          ) : totalCalls === 0 ? (
-            <div style={{ height: 180, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
-              <div style={{
-                width: 48,
-                height: 48,
-                borderRadius: 14,
-                background: isDark ? "rgba(255,255,255,0.04)" : "#F5F5F7",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: isDark ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.05)",
-              }}>
-                <TrendingUp style={{ width: 20, height: 20, color: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.18)" }} strokeWidth={1.25} />
-              </div>
-              <p style={{ fontSize: 13, color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.32)", letterSpacing: "-0.01em" }}>No calls this week yet</p>
-            </div>
+            <div className="skeleton" style={{ height: 28, width: 64, borderRadius: 6 }} />
           ) : (
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={days} barCategoryGap="32%" barGap={2} margin={{ top: 4, right: 4, left: -14, bottom: 0 }}>
-                <XAxis
-                  dataKey="date"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 10.5, fill: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.32)", fontFamily: "Geist, sans-serif" }}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  allowDecimals={false}
-                  domain={[0, (max: number) => Math.max(Math.ceil(max * 1.25), 4)]}
-                  tick={{ fontSize: 10.5, fill: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.32)", fontFamily: "Geist, sans-serif" }}
-                  tickFormatter={(v) => `${v}`}
-                  width={22}
-                />
-                <Tooltip
-                  cursor={{ fill: isDark ? "rgba(255,255,255,0.03)" : "rgba(99,102,241,0.04)", radius: 8 }}
-                  content={({ active, payload, label }) => {
-                    if (!active || !payload?.length) return null
-                    const calls = (payload.find((p) => p.dataKey === "calls")?.value as number) ?? 0
-                    const booked = (payload.find((p) => p.dataKey === "appointments")?.value as number) ?? 0
-                    return (
-                      <div className="chart-tooltip">
-                        <p style={{ fontSize: 11.5, fontWeight: 600, color: "var(--foreground)", marginBottom: 7, letterSpacing: "-0.01em" }}>{label}</p>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                            <span style={{ width: 7, height: 7, borderRadius: 2, background: "#6366F1", flexShrink: 0 }} />
-                            <span style={{ fontSize: 11.5, color: "var(--muted-foreground)", fontVariantNumeric: "tabular-nums" }}>{calls} call{calls !== 1 ? "s" : ""}</span>
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                            <span style={{ width: 7, height: 7, borderRadius: 2, background: "#10B981", flexShrink: 0 }} />
-                            <span style={{ fontSize: 11.5, color: "var(--muted-foreground)", fontVariantNumeric: "tabular-nums" }}>{booked} booked</span>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  }}
-                />
-                <Bar dataKey="calls" fill="#6366F1" fillOpacity={isDark ? 0.75 : 0.82} radius={[5, 5, 0, 0]} name="Calls" />
-                <Bar dataKey="appointments" fill="#10B981" fillOpacity={isDark ? 0.75 : 0.82} radius={[5, 5, 0, 0]} name="Booked" />
-              </BarChart>
-            </ResponsiveContainer>
+            <>
+              <p style={{
+                fontSize: 24, fontWeight: 700, color: isDark ? "#F2F2F7" : "#0A0A0B",
+                lineHeight: 1, fontFamily: "Geist Mono, monospace",
+                letterSpacing: "-0.04em", fontVariantNumeric: "tabular-nums",
+              }}>
+                {bookingRateDisplay}
+              </p>
+              <p style={{
+                fontSize: 10, color: "var(--muted-foreground)",
+                letterSpacing: "-0.01em", marginTop: 3,
+              }}>
+                Booking rate
+                {trendDiff !== null && trendDiff !== 0 && (
+                  <span style={{
+                    marginLeft: 6, fontWeight: 600,
+                    color: trendDiff > 0 ? (isDark ? "#6EE7B7" : "#059669") : (isDark ? "#FCA5A5" : "#DC2626"),
+                  }}>
+                    {trendDiff > 0 ? "↑" : "↓"} {Math.abs(trendDiff)}%
+                  </span>
+                )}
+              </p>
+            </>
           )}
         </div>
+      </div>
+
+      {/* Chart fills remaining space — no fixed height, no dead zone */}
+      <div style={{ flex: 1, minHeight: 0, padding: "0 8px 10px", display: "flex" }}>
+        {isLoading ? (
+          <div style={{ flex: 1, display: "flex", alignItems: "flex-end", gap: 6, padding: "8px 8px 0" }}>
+            {[55, 75, 38, 95, 65, 48, 85].map((h, i) => (
+              <div key={i} style={{ flex: 1, display: "flex", gap: 1.5, alignItems: "flex-end" }}>
+                <div className="skeleton" style={{ flex: 1, height: h * 0.65, borderRadius: "3px 3px 0 0" }} />
+                <div className="skeleton" style={{ flex: 1, height: h * 0.35, borderRadius: "3px 3px 0 0", opacity: 0.5 }} />
+              </div>
+            ))}
+          </div>
+        ) : totalCalls === 0 ? (
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <p style={{ fontSize: 12, color: isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.3)", letterSpacing: "-0.01em" }}>
+              No calls yet this week
+            </p>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={days} barCategoryGap="22%" barGap={1.5} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
+              <XAxis dataKey="date" axisLine={false} tickLine={false}
+                tick={{ fontSize: 10, fill: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.32)", fontFamily: "Geist, sans-serif" }}
+                interval={0} />
+              <Tooltip cursor={{ fill: isDark ? "rgba(255,255,255,0.03)" : "rgba(99,102,241,0.04)", radius: 4 }}
+                content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null
+                  const calls = (payload.find(p => p.dataKey === "calls")?.value as number) ?? 0
+                  const booked = (payload.find(p => p.dataKey === "appointments")?.value as number) ?? 0
+                  return (
+                    <div className="chart-tooltip">
+                      <p style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", marginBottom: 5, letterSpacing: "-0.01em" }}>{label}</p>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        {[{ color: "#6366F1", label: `${calls} call${calls !== 1 ? "s" : ""}` }, { color: "#10B981", label: `${booked} booked` }].map(({ color, label: lbl }) => (
+                          <div key={lbl} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ width: 6, height: 6, borderRadius: 2, background: color, flexShrink: 0 }} />
+                            <span style={{ fontSize: 11, color: "var(--muted-foreground)", fontVariantNumeric: "tabular-nums" }}>{lbl}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                }}
+              />
+              <Bar dataKey="calls" fill="#6366F1" fillOpacity={isDark ? 0.7 : 0.85} radius={[3, 3, 0, 0]} maxBarSize={10} />
+              <Bar dataKey="appointments" fill="#10B981" fillOpacity={isDark ? 0.7 : 0.85} radius={[3, 3, 0, 0]} maxBarSize={10} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Footer legend */}
+      {!isLoading && totalCalls > 0 && (
+        <div style={{
+          padding: "8px 16px 12px",
+          borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"}`,
+          display: "flex", alignItems: "center", gap: 14,
+        }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>
+            <span style={{ width: 7, height: 7, borderRadius: 2, background: "#6366F1" }} />
+            Calls
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>
+            <span style={{ width: 7, height: 7, borderRadius: 2, background: "#10B981" }} />
+            Booked
+          </span>
+        </div>
+      )}
     </div>
   )
 }
 
-// ─── Today's Schedule ──────────────────────────────────────
+// ─── Call Minutes Card ────────────────────────────────────
+// Compact usage summary: "120 / 500 mins" + horizontal bar + footer meta
 
-function timeUntil(iso: string): string {
-  const diffMs = new Date(iso).getTime() - Date.now()
-  if (diffMs <= 0) return ""
-  const mins = Math.floor(diffMs / 60_000)
-  if (mins < 60) return `In ${mins}m`
-  const hrs = Math.floor(mins / 60)
-  const rem = mins % 60
-  return rem > 0 ? `In ${hrs}h ${rem}m` : `In ${hrs}h`
+function CallMinutesCard({ secondsRemaining, allowOverage }: { secondsRemaining: number; allowOverage: boolean }) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
+  const FULL_SECS = 5 * 60 * 60
+  const FULL_MINS = Math.floor(FULL_SECS / 60)
+  const isExhausted = secondsRemaining <= 0
+  const remainSecs = Math.max(0, secondsRemaining)
+  const usedSecs = FULL_SECS - remainSecs
+  const usedMins = Math.floor(usedSecs / 60)
+  const usedPct = Math.min(100, Math.max(0, Math.round((usedSecs / FULL_SECS) * 100)))
+  const isLow = remainSecs > 0 && remainSecs <= 1800
+
+  // accent based on usage; the more used, the warmer
+  const accentColor = isExhausted ? "#E5484D" : isLow ? "#F59E0B" : "#10B981"
+  const trackBg = isDark ? "rgba(255,255,255,0.08)" : "#F1F1F4"
+
+  // Plan resets - first day of next month
+  const now = new Date()
+  const nextReset = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  const daysToReset = Math.max(0, Math.ceil((nextReset.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)))
+
+  return (
+    <div className="ios-card" style={{ overflow: "hidden", padding: 0, display: "flex", flexDirection: "column" }}>
+      {/* Top: title only */}
+      <div style={{ padding: "14px 16px 0" }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", letterSpacing: "-0.02em" }}>
+          Call Minutes
+        </p>
+      </div>
+
+      {/* Main KPI: "120 / 500 mins" */}
+      <div style={{ padding: "8px 16px 0", display: "flex", alignItems: "baseline", gap: 5 }}>
+        <p style={{
+          fontSize: 30, fontWeight: 700, color: isDark ? "#F2F2F7" : "#0A0A0B",
+          lineHeight: 1, fontFamily: "Geist Mono, monospace",
+          fontVariantNumeric: "tabular-nums", letterSpacing: "-0.04em",
+        }}>
+          {usedMins}
+        </p>
+        <p style={{
+          fontSize: 13, color: "var(--muted-foreground)", letterSpacing: "-0.01em",
+          fontFamily: "Geist, sans-serif", lineHeight: 1,
+        }}>
+          / {FULL_MINS} mins
+        </p>
+      </div>
+
+      {/* Horizontal usage bar */}
+      <div style={{ padding: "14px 16px 8px" }}>
+        <div style={{
+          width: "100%", height: 7, borderRadius: 999,
+          background: trackBg, overflow: "hidden", position: "relative",
+        }}>
+          <div style={{
+            height: "100%", width: `${usedPct}%`,
+            background: accentColor, borderRadius: 999,
+            transition: "width 0.4s var(--ease-out-strong)",
+          }} />
+        </div>
+      </div>
+
+      {/* Used % left + View usage link right */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "0 16px 4px",
+      }}>
+        <p style={{
+          fontSize: 11, fontWeight: 500,
+          color: isExhausted ? "#DC2626" : isLow ? "#B45309" : "var(--muted-foreground)",
+          letterSpacing: "-0.01em", fontVariantNumeric: "tabular-nums",
+        }}>
+          {isExhausted && !allowOverage ? "Limit reached" : `${usedPct}% used`}
+        </p>
+        <Link to="/settings" style={{
+          fontSize: 11, fontWeight: 500,
+          color: isDark ? "#818CF8" : "#6366F1",
+          textDecoration: "none", letterSpacing: "-0.01em",
+        }}>
+          View usage
+        </Link>
+      </div>
+
+      {/* Footer: reset info */}
+      <div style={{
+        padding: "10px 16px 14px",
+        marginTop: "auto",
+      }}>
+        <p style={{
+          fontSize: 11, color: "var(--muted-foreground)",
+          opacity: 0.7, letterSpacing: "-0.01em",
+        }}>
+          {isExhausted && allowOverage
+            ? "Overage active"
+            : daysToReset === 0
+              ? "Resets today"
+              : `Resets in ${daysToReset} day${daysToReset !== 1 ? "s" : ""}`}
+        </p>
+      </div>
+    </div>
+  )
 }
+
+// ─── Schedule Card ────────────────────────────────────────
 
 function ScheduleCard({ appointments }: { appointments: Appointment[] }) {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === "dark"
-
-  const sorted = [...appointments].sort(
-    (a, b) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime()
-  )
+  const sorted = [...appointments].sort((a, b) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime())
   const now = new Date()
-  const upcoming = sorted.filter((a) => new Date(a.scheduled_start) >= now)
+  const upcoming = sorted.filter(a => new Date(a.scheduled_start) >= now)
   const count = upcoming.length
 
   return (
-    <div className="ios-card" style={{ overflow: "hidden", padding: 0, display: "flex", flexDirection: "column" }}>
-        {/* Card header */}
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "18px 20px 14px",
-          borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"}`,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{
-              width: 28,
-              height: 28,
-              borderRadius: 8,
-              background: isDark ? "rgba(255,255,255,0.06)" : "#ECFDF5",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              border: isDark ? "1px solid rgba(255,255,255,0.08)" : "1px solid rgba(0,0,0,0.04)",
+    <div className="ios-card schedule-card" style={{ overflow: "hidden", padding: 0, display: "flex", flexDirection: "column" }}>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "16px 18px 13px",
+        borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"}`,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{
+            width: 26, height: 26, borderRadius: 7,
+            background: isDark ? "rgba(255,255,255,0.06)" : "#ECFDF5",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            border: isDark ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.04)",
+          }}>
+            <IconCalendar color="#10B981" size={12} />
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 600, color: isDark ? "#F2F2F7" : "#0A0A0B", letterSpacing: "-0.02em" }}>
+            Coming Up
+          </span>
+          {count > 0 && (
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: "2px 6px",
+              borderRadius: 999, color: "#065F46",
+              background: "#D1FAE5", border: "1px solid rgba(16,185,129,0.2)", letterSpacing: "0.02em",
             }}>
-              <IconCalendar color="#10B981" size={13} />
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 600, color: isDark ? "#F2F2F7" : "#0A0A0B", letterSpacing: "-0.02em" }}>
-              Coming Up Next
+              {count}
             </span>
-            {count > 0 && (
-              <span style={{
-                fontSize: 10.5,
-                fontWeight: 700,
-                padding: "2px 7px",
-                borderRadius: 999,
-                color: "#065F46",
-                background: "#D1FAE5",
-                border: "1px solid rgba(16,185,129,0.2)",
-                letterSpacing: "0.02em",
-                lineHeight: "17px",
-              }}>
-                {count}
-              </span>
-            )}
-          </div>
-          <Link
-            to="/calls"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-              fontSize: 11.5,
-              fontWeight: 500,
-              color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
-              textDecoration: "none",
-              letterSpacing: "-0.01em",
-              transition: "color 0.15s cubic-bezier(0.16,1,0.3,1)",
-            }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.65)")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)")}
-          >
-            View all <ArrowRight style={{ width: 10, height: 10 }} strokeWidth={1.5} />
-          </Link>
+          )}
         </div>
+        <Link to="/appointments" style={{
+          display: "inline-flex", alignItems: "center", gap: 3,
+          fontSize: 11, fontWeight: 500,
+          color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)",
+          textDecoration: "none", letterSpacing: "-0.01em",
+          transition: "color 0.15s",
+        }}
+          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = isDark ? "rgba(255,255,255,0.65)" : "rgba(0,0,0,0.6)")}
+          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)")}
+        >
+          View all <ArrowRight style={{ width: 9, height: 9 }} strokeWidth={1.5} />
+        </Link>
+      </div>
 
-        {/* Appointment list or empty state */}
-        {sorted.length === 0 ? (
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "36px 20px", gap: 8 }}>
-            <IconCalendar color={isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.18)"} size={24} />
-            <p style={{ fontSize: 13, color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)", letterSpacing: "-0.01em" }}>
-              No upcoming appointments
-            </p>
-          </div>
-        ) : (
-          <div style={{ flex: 1 }}>
-            {sorted.slice(0, 5).map((apt, idx) => {
-              const isPast = new Date(apt.scheduled_start) < now
-              const countdown = timeUntil(apt.scheduled_start)
-              const isNext = !isPast && !!countdown && idx === sorted.findIndex(a => new Date(a.scheduled_start) >= now)
-              const slot = formatScheduleSlot(apt.scheduled_start)
-
-              return (
-                <div
-                  key={apt.id}
-                  className="row-hover"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "11px 20px",
-                    borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)"}`,
-                    opacity: isPast ? 0.45 : 1,
-                    transition: "opacity 0.15s ease",
-                  }}
-                >
-                  {/* Time column - prominent */}
-                  <div style={{ width: 68, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
-                    {slot.day && (
-                      <p style={{ fontSize: 9.5, fontWeight: 700, color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)", textTransform: "uppercase", letterSpacing: "0.06em", lineHeight: 1.2, marginBottom: 1 }}>
-                        {slot.day}
-                      </p>
-                    )}
-                    <p style={{ fontSize: 13, fontWeight: 600, color: isDark ? "#F2F2F7" : "#0A0A0B", lineHeight: 1.2, letterSpacing: "-0.02em" }}>
-                      {slot.time}
+      {upcoming.length === 0 ? (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 20px", gap: 7 }}>
+          <IconCalendar color={isDark ? "rgba(255,255,255,0.13)" : "rgba(0,0,0,0.15)"} size={22} />
+          <p style={{ fontSize: 12.5, color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.33)", letterSpacing: "-0.01em" }}>
+            No upcoming appointments
+          </p>
+        </div>
+      ) : (
+        <div className="schedule-card-body">
+          {upcoming.map((apt, idx) => {
+            const countdown = timeUntil(apt.scheduled_start)
+            const isNext = idx === 0 && !!countdown
+            const slot = formatScheduleSlot(apt.scheduled_start)
+            return (
+              <div key={apt.id} className="row-hover" style={{
+                display: "flex", alignItems: "center", gap: 11,
+                padding: "10px 18px",
+                borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)"}`,
+              }}>
+                <div style={{ width: 60, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+                  {slot.day && (
+                    <p style={{ fontSize: 9, fontWeight: 700, color: isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.28)", textTransform: "uppercase", letterSpacing: "0.06em", lineHeight: 1.2, marginBottom: 1 }}>
+                      {slot.day}
                     </p>
-                  </div>
+                  )}
+                  <p style={{ fontSize: 12.5, fontWeight: 600, color: isDark ? "#F2F2F7" : "#0A0A0B", lineHeight: 1.2, letterSpacing: "-0.02em" }}>
+                    {slot.time}
+                  </p>
+                </div>
 
-                  {/* Status dot */}
-                  <div style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: "50%",
-                    background: isPast ? (isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)") : isNext ? "#10B981" : (isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.22)"),
-                    flexShrink: 0,
-                    boxShadow: isNext ? "0 0 0 3px rgba(16,185,129,0.15)" : "none",
-                  }} />
+                <div style={{
+                  width: 5, height: 5, borderRadius: "50%", flexShrink: 0,
+                  background: isNext ? "#10B981" : (isDark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.2)"),
+                  boxShadow: isNext ? "0 0 0 3px rgba(16,185,129,0.14)" : "none",
+                }} />
 
-                  {/* Name + service */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 500, color: isDark ? "#F2F2F7" : "#0A0A0B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "-0.02em", lineHeight: 1.3 }}>
-                      {apt.customer_name}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 12.5, fontWeight: 500, color: isDark ? "#F2F2F7" : "#0A0A0B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "-0.02em", lineHeight: 1.3 }}>
+                    {apt.customer_name}
+                  </p>
+                  {apt.service_type && (
+                    <p style={{ fontSize: 10.5, color: isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.35)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>
+                      {apt.service_type}
                     </p>
-                    {apt.service_type && (
-                      <p style={{ fontSize: 11, color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.38)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>
-                        {apt.service_type}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Countdown pill or done check */}
-                  {isPast ? (
-                    <CheckCircle2 style={{ width: 14, height: 14, color: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)", flexShrink: 0 }} strokeWidth={1.5} />
-                  ) : countdown ? (
-                    <span style={{
-                      fontSize: 10.5,
-                      fontWeight: 700,
-                      padding: "3px 8px",
-                      borderRadius: 999,
-                      color: isNext ? "#065F46" : (isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.38)"),
-                      background: isNext ? "#D1FAE5" : (isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"),
-                      border: isNext ? "1px solid rgba(16,185,129,0.2)" : `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
-                      flexShrink: 0,
-                      whiteSpace: "nowrap",
-                      letterSpacing: "0.01em",
-                      fontVariantNumeric: "tabular-nums",
-                    }}>
-                      {countdown}
-                    </span>
-                  ) : (
-                    <span style={{
-                      fontSize: 10.5,
-                      fontWeight: 600,
-                      padding: "3px 8px",
-                      borderRadius: 999,
-                      color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)",
-                      background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
-                      border: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
-                      flexShrink: 0,
-                      letterSpacing: "0.01em",
-                    }}>
-                      Upcoming
-                    </span>
                   )}
                 </div>
-              )
-            })}
-          </div>
-        )}
+
+                {countdown ? (
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 999,
+                    color: isNext ? "#065F46" : (isDark ? "rgba(255,255,255,0.42)" : "rgba(0,0,0,0.35)"),
+                    background: isNext ? "#D1FAE5" : (isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)"),
+                    border: isNext ? "1px solid rgba(16,185,129,0.2)" : `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)"}`,
+                    flexShrink: 0, whiteSpace: "nowrap", letterSpacing: "0.01em", fontVariantNumeric: "tabular-nums",
+                  }}>
+                    {countdown}
+                  </span>
+                ) : (
+                  <span style={{
+                    fontSize: 10, fontWeight: 500, padding: "2px 7px", borderRadius: 999,
+                    color: isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.28)",
+                    background: "transparent", flexShrink: 0, letterSpacing: "0.01em",
+                  }}>
+                    Upcoming
+                  </span>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -768,85 +1150,79 @@ function ScheduleCard({ appointments }: { appointments: Appointment[] }) {
 // ─── Activity Row ─────────────────────────────────────────
 
 function ActivityRow({ call, delay }: { call: Call & { is_repeat_caller?: boolean }; delay?: number }) {
-  const summary = buildCallSummary(call)
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
   const cfg = OUTCOME_CONFIG[call.outcome ?? ""] ?? null
+  const callerDisplay = call.caller_phone ?? "Unknown"
+  const summary = buildCallSummary(call)
 
   return (
-    <Link
-      to="/calls/$id"
-      params={{ id: call.id }}
-      className="row-hover animate-fade-up"
+    <Link to="/calls/$id" params={{ id: call.id }}
+      className="animate-fade-up"
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 14,
-        padding: "12px 20px",
+        display: "flex", alignItems: "center", gap: 0,
         textDecoration: "none",
-        borderBottom: "1px solid var(--border)",
+        borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)"}`,
         animationDelay: `${delay ?? 0}ms`,
+        transition: "background 0.1s ease",
       }}
+      onMouseEnter={e => ((e.currentTarget as HTMLElement).style.background = isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.018)")}
+      onMouseLeave={e => ((e.currentTarget as HTMLElement).style.background = "transparent")}
     >
-      {/* Outcome dot - left border color indicator */}
-      <div style={{
-        width: 4,
-        height: 36,
-        borderRadius: 2,
-        background: cfg?.dot ?? "var(--muted-foreground)",
-        flexShrink: 0,
-      }} />
+      {/* Outcome dot accent - left edge */}
+      <div style={{ width: 3, alignSelf: "stretch", background: cfg?.dot ?? "transparent", opacity: 0.65, flexShrink: 0 }} />
 
-      {/* Icon circle */}
-      <div style={{
-        width: 34,
-        height: 34,
-        borderRadius: "50%",
-        background: cfg?.iconBg ?? "var(--muted)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
-      }}>
-        <IconPhoneCall color={cfg?.iconColor ?? "var(--muted-foreground)"} size={13} />
-      </div>
-
-      {/* Content */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-          <p style={{ fontSize: 13, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.3, letterSpacing: "-0.01em" }}>
-            {summary}
-          </p>
+      {/* Caller info */}
+      <div style={{ padding: "10px 14px 10px 13px", minWidth: 0, flex: 1 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 2 }}>
+          <span style={{
+            fontSize: 12.5, fontWeight: 500,
+            color: isDark ? "rgba(255,255,255,0.85)" : "#0A0A0B",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            letterSpacing: "-0.01em",
+          }}>
+            {callerDisplay}
+          </span>
           {call.is_repeat_caller && (
             <span style={{
-              fontSize: 10,
-              padding: "2px 6px",
-              borderRadius: 999,
-              background: "var(--muted)",
-              color: "var(--muted-foreground)",
-              fontWeight: 600,
-              flexShrink: 0,
-              whiteSpace: "nowrap",
-              letterSpacing: "0.02em",
+              fontSize: 9, padding: "1px 5px", borderRadius: 999,
+              background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+              color: isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.35)",
+              fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap", letterSpacing: "0.03em",
             }}>
               RETURN
             </span>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <OutcomeBadge outcome={call.outcome} />
-          {call.duration_secs != null && (
-            <span style={{ fontSize: 11, color: "var(--muted-foreground)", fontVariantNumeric: "tabular-nums" }}>
-              {formatDuration(call.duration_secs)}
-            </span>
-          )}
-        </div>
+        <p style={{
+          fontSize: 11, color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.38)",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "-0.01em",
+        }}>
+          {summary}
+        </p>
       </div>
 
-      {/* Time */}
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}>
-        <span style={{ fontSize: 11.5, color: "var(--muted-foreground)", whiteSpace: "nowrap" }}>
+      {/* Outcome badge */}
+      <div style={{ padding: "0 10px 0 0", flexShrink: 0 }}>
+        <OutcomeBadge outcome={call.outcome} />
+      </div>
+
+      {/* Duration */}
+      {call.duration_secs != null && (
+        <span style={{
+          fontSize: 10.5, color: isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.3)",
+          fontVariantNumeric: "tabular-nums", padding: "0 10px 0 0", flexShrink: 0, minWidth: 38,
+        }}>
+          {formatDuration(call.duration_secs)}
+        </span>
+      )}
+
+      {/* Time + chevron */}
+      <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "0 14px 0 0", flexShrink: 0 }}>
+        <span style={{ fontSize: 10.5, color: isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.28)", whiteSpace: "nowrap" }}>
           {timeAgo(call.started_at ?? call.created_at)}
         </span>
-        <ArrowRight style={{ width: 11, height: 11, color: "var(--muted-foreground)" }} strokeWidth={1.5} />
+        <ArrowRight style={{ width: 9, height: 9, color: isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.22)" }} strokeWidth={1.5} />
       </div>
     </Link>
   )
@@ -855,72 +1231,27 @@ function ActivityRow({ call, delay }: { call: Call & { is_repeat_caller?: boolea
 function GhostActivityRow() {
   return (
     <div style={{
-      display: "flex",
-      alignItems: "center",
-      gap: 14,
-      padding: "12px 20px",
-      borderBottom: "1px solid var(--border)",
-      opacity: 0.35,
+      display: "flex", alignItems: "center",
+      borderBottom: "1px solid var(--border)", opacity: 0.28,
     }}>
-      <div style={{ width: 4, height: 34, borderRadius: 2, background: "var(--muted-foreground)", flexShrink: 0 }} />
-      <div style={{ width: 34, height: 34, borderRadius: "50%", background: "var(--muted)", flexShrink: 0 }} />
-      <div style={{ flex: 1 }}>
-        <p style={{ fontSize: 13, color: "var(--foreground)", letterSpacing: "-0.01em" }}>Waiting for first call...</p>
-        <div className="skeleton" style={{ height: 10, width: 72, marginTop: 6, borderRadius: 6 }} />
+      <div style={{ width: 3, alignSelf: "stretch", background: "var(--muted-foreground)" }} />
+      <div style={{ padding: "10px 14px 10px 13px", flex: 1 }}>
+        <div className="skeleton" style={{ height: 11, width: 100, marginBottom: 5, borderRadius: 5 }} />
+        <div className="skeleton" style={{ height: 9, width: 150, borderRadius: 5 }} />
       </div>
-      <div className="skeleton" style={{ height: 10, width: 40, flexShrink: 0, borderRadius: 6 }} />
+      <div style={{ padding: "0 10px 0 0" }}>
+        <div className="skeleton" style={{ height: 18, width: 48, borderRadius: 999 }} />
+      </div>
+      <div style={{ padding: "0 14px 0 0" }}>
+        <div className="skeleton" style={{ height: 9, width: 32, borderRadius: 5 }} />
+      </div>
     </div>
   )
 }
 
-// ─── Exception Row ────────────────────────────────────────
+// ─── Footer Status ────────────────────────────────────────
 
-function ExceptionRow({ call }: { call: Call }) {
-  return (
-    <Link
-      to="/calls/$id"
-      params={{ id: call.id }}
-      className="row-hover"
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "12px 20px",
-        textDecoration: "none",
-        borderBottom: "1px solid var(--border)",
-      }}
-    >
-      <div style={{
-        width: 32,
-        height: 32,
-        borderRadius: "50%",
-        background: "#FEF3C7",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
-        border: "1px solid rgba(245,158,11,0.2)",
-      }}>
-        <AlertTriangle style={{ width: 13, height: 13, color: "#D97706" }} strokeWidth={1.75} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 13, fontWeight: 500, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
-          {call.caller_phone ?? "Unknown number"}
-        </p>
-        <p style={{ fontSize: 11.5, color: "var(--muted-foreground)" }}>
-          {call.status === "transferred" ? "Transferred to owner" : "Call failed - needs review"}
-        </p>
-      </div>
-      <span style={{ fontSize: 11.5, color: "var(--muted-foreground)", flexShrink: 0 }}>
-        {timeAgo(call.started_at ?? call.created_at)}
-      </span>
-    </Link>
-  )
-}
-
-// ─── Live Status Bar ──────────────────────────────────────
-
-function LiveStatusBar({ clinicActive }: { clinicActive: boolean }) {
+function FooterStatus({ clinicActive }: { clinicActive: boolean }) {
   const { data: liveCall } = useQuery({
     queryKey: ["live-call"],
     queryFn: getLiveCallStatus,
@@ -933,9 +1264,7 @@ function LiveStatusBar({ clinicActive }: { clinicActive: boolean }) {
   useEffect(() => {
     if (liveCall?.created_at) {
       setElapsed(formatElapsed(liveCall.created_at))
-      intervalRef.current = setInterval(() => {
-        setElapsed(formatElapsed(liveCall.created_at!))
-      }, 1000)
+      intervalRef.current = setInterval(() => setElapsed(formatElapsed(liveCall.created_at!)), 1000)
     } else {
       if (intervalRef.current) clearInterval(intervalRef.current)
       setElapsed("")
@@ -943,328 +1272,27 @@ function LiveStatusBar({ clinicActive }: { clinicActive: boolean }) {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [liveCall?.id, liveCall?.created_at])
 
-  if (!clinicActive) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0 20px" }}>
-        <XCircle style={{ width: 14, height: 14, color: "#E5484D", flexShrink: 0 }} strokeWidth={1.5} />
-        <span style={{ fontSize: 12, color: "#E5484D", letterSpacing: "-0.01em" }}>Orvia is not configured - check settings</span>
-      </div>
-    )
-  }
-
-  if (liveCall) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0 20px" }}>
-        <span className="animate-live-pulse" style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--foreground)", flexShrink: 0, display: "block" }} />
-        <span style={{ fontSize: 12, color: "var(--foreground)", fontWeight: 500, letterSpacing: "-0.01em" }}>
-          Call in progress - AI is handling it
-          {elapsed && <span style={{ color: "var(--muted-foreground)", marginLeft: 8, fontVariantNumeric: "tabular-nums" }}>{elapsed}</span>}
-        </span>
-      </div>
-    )
-  }
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0 20px" }}>
-      <span className="animate-live-pulse" style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", flexShrink: 0, display: "block" }} />
-      <span style={{ fontSize: 12, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>Orvia is live and ready for calls</span>
+  if (!clinicActive) return (
+    <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "4px 0 20px" }}>
+      <XCircle style={{ width: 13, height: 13, color: "#E5484D", flexShrink: 0 }} strokeWidth={1.5} />
+      <span style={{ fontSize: 11.5, color: "#E5484D", letterSpacing: "-0.01em" }}>Orvia is not configured - check settings</span>
     </div>
   )
-}
 
-// ─── Needs Action Panel ───────────────────────────────────
-// Shows unresolved operational events (ai_failure, partial_booking)
-// and pending callback queue items at the top of the dashboard.
-
-const EVENT_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
-  ai_failure:       { label: "AI Failed",       color: "#991B1B", bg: "#FEE2E2", border: "rgba(229,72,77,0.2)" },
-  partial_booking:  { label: "Partial Booking", color: "#92400E", bg: "#FEF3C7", border: "rgba(245,158,11,0.2)" },
-  concurrent_call:  { label: "Concurrent Call", color: "#1E40AF", bg: "#DBEAFE", border: "rgba(59,130,246,0.2)" },
-  transfer_unknown: { label: "Transfer ?",      color: "#92400E", bg: "#FEF3C7", border: "rgba(245,158,11,0.2)" },
-}
-
-function OperationalEventItem({ event, onResolve }: {
-  event: OperationalEvent
-  onResolve: (id: string) => void
-}) {
-  const { resolvedTheme } = useTheme()
-  const isDark = resolvedTheme === "dark"
-  const cfg = EVENT_CONFIG[event.event_type] ?? EVENT_CONFIG.ai_failure
-  const p = event.payload ?? {}
-  const phone = (p.caller_phone as string) ?? null
-  const reason = (p.ended_reason as string) ?? null
-  const callId = event.call_id
-
-  return (
-    <div style={{
-      display: "flex",
-      alignItems: "center",
-      gap: 12,
-      padding: "11px 20px",
-      borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)"}`,
-    }}>
-      {/* Type badge */}
-      <span style={{
-        fontSize: 10.5,
-        fontWeight: 700,
-        padding: "3px 9px",
-        borderRadius: 999,
-        color: cfg.color,
-        background: cfg.bg,
-        border: `1px solid ${cfg.border}`,
-        whiteSpace: "nowrap",
-        flexShrink: 0,
-        letterSpacing: "0.01em",
-      }}>
-        {cfg.label}
+  if (liveCall) return (
+    <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "4px 0 20px" }}>
+      <span className="animate-live-pulse" style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--foreground)", flexShrink: 0, display: "block" }} />
+      <span style={{ fontSize: 11.5, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>
+        Call in progress
+        {elapsed && <span style={{ fontVariantNumeric: "tabular-nums", marginLeft: 6 }}>{elapsed}</span>}
       </span>
-
-      {/* Details */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 13, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
-          {phone ?? "Unknown caller"}
-          {reason && <span style={{ color: "var(--muted-foreground)", marginLeft: 6, fontSize: 11.5 }}>{reason.replace(/-/g, " ")}</span>}
-        </p>
-        <p style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 1 }}>
-          {timeAgo(event.created_at)}
-        </p>
-      </div>
-
-      {/* Actions */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        {callId && (
-          <Link
-            to="/calls/$id"
-            params={{ id: callId }}
-            style={{
-              fontSize: 11.5,
-              fontWeight: 500,
-              color: "var(--muted-foreground)",
-              textDecoration: "none",
-              padding: "4px 10px",
-              borderRadius: 8,
-              border: "1px solid var(--border)",
-              background: "var(--card)",
-              letterSpacing: "-0.01em",
-              transition: "opacity 0.15s",
-              whiteSpace: "nowrap",
-            }}
-          >
-            View call
-          </Link>
-        )}
-        <button
-          type="button"
-          onClick={() => onResolve(event.id)}
-          style={{
-            fontSize: 11.5,
-            fontWeight: 500,
-            color: "var(--muted-foreground)",
-            cursor: "pointer",
-            padding: "4px 10px",
-            borderRadius: 8,
-            border: "1px solid var(--border)",
-            background: "var(--card)",
-            letterSpacing: "-0.01em",
-            transition: "opacity 0.15s",
-            whiteSpace: "nowrap",
-          }}
-        >
-          Dismiss
-        </button>
-      </div>
     </div>
   )
-}
-
-function CallbackQueueItem({ item, onHandled }: {
-  item: CallQueueItem
-  onHandled: (id: string) => void
-}) {
-  const { resolvedTheme } = useTheme()
-  const isDark = resolvedTheme === "dark"
-  const isPartial = item.queue_type === "partial_booking"
 
   return (
-    <div style={{
-      display: "flex",
-      alignItems: "center",
-      gap: 12,
-      padding: "11px 20px",
-      borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)"}`,
-    }}>
-      {/* Phone icon circle */}
-      <div style={{
-        width: 32,
-        height: 32,
-        borderRadius: "50%",
-        background: isPartial
-          ? isDark ? "rgba(245,158,11,0.1)" : "#FEF3C7"
-          : isDark ? "rgba(255,255,255,0.06)" : "#F5F5F7",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
-        border: isPartial ? "1px solid rgba(245,158,11,0.2)" : "1px solid var(--border)",
-      }}>
-        <IconPhone
-          color={isPartial ? "#D97706" : "var(--muted-foreground)"}
-          size={13}
-        />
-      </div>
-
-      {/* Details */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: 13, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", letterSpacing: "-0.01em" }}>
-          {item.caller_name ?? item.caller_phone ?? "Unknown caller"}
-          {item.queue_type === "partial_booking" && (
-            <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 700, color: "#92400E", background: "#FEF3C7", padding: "2px 7px", borderRadius: 999, border: "1px solid rgba(245,158,11,0.2)" }}>
-              Partial booking
-            </span>
-          )}
-        </p>
-        <p style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 1 }}>
-          {item.caller_phone && item.caller_name ? item.caller_phone + " · " : ""}
-          {item.service_needed ? item.service_needed + " · " : ""}
-          {timeAgo(item.created_at)}
-        </p>
-      </div>
-
-      {/* Mark handled */}
-      <button
-        type="button"
-        onClick={() => onHandled(item.id)}
-        style={{
-          fontSize: 11.5,
-          fontWeight: 500,
-          color: "var(--muted-foreground)",
-          cursor: "pointer",
-          padding: "4px 10px",
-          borderRadius: 8,
-          border: "1px solid var(--border)",
-          background: "var(--card)",
-          letterSpacing: "-0.01em",
-          transition: "opacity 0.15s",
-          whiteSpace: "nowrap",
-          flexShrink: 0,
-        }}
-      >
-        Mark handled
-      </button>
-    </div>
-  )
-}
-
-function NeedsActionPanel() {
-  const { resolvedTheme } = useTheme()
-  const isDark = resolvedTheme === "dark"
-  const queryClient = useQueryClient()
-
-  const { data: events = [], refetch: refetchEvents } = useQuery({
-    queryKey: ["operational-events"],
-    queryFn: getUnresolvedOperationalEvents,
-    refetchInterval: 30_000,
-  })
-
-  const { data: queue = [], refetch: refetchQueue } = useQuery({
-    queryKey: ["call-queue"],
-    queryFn: getPendingCallQueue,
-    refetchInterval: 30_000,
-  })
-
-  // Realtime subscriptions
-  useEffect(() => {
-    const eventsChannel = supabase
-      .channel("operational_events_live")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "operational_events" }, () => {
-        refetchEvents()
-      })
-      .subscribe()
-
-    const queueChannel = supabase
-      .channel("call_queue_live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "call_queue" }, () => {
-        refetchQueue()
-      })
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(eventsChannel)
-      supabase.removeChannel(queueChannel)
-    }
-  }, [refetchEvents, refetchQueue])
-
-  async function handleResolveEvent(id: string) {
-    await resolveOperationalEvent(id)
-    queryClient.setQueryData<OperationalEvent[]>(["operational-events"], (prev) =>
-      (prev ?? []).filter((e) => e.id !== id)
-    )
-  }
-
-  async function handleQueueHandled(id: string) {
-    await markQueueItemHandled(id)
-    queryClient.setQueryData<CallQueueItem[]>(["call-queue"], (prev) =>
-      (prev ?? []).filter((q) => q.id !== id)
-    )
-  }
-
-  // Only render the panel if there is something actionable
-  const hasEvents = events.filter(e => e.event_type !== "concurrent_call").length > 0
-  const hasQueue = queue.length > 0
-
-  if (!hasEvents && !hasQueue) return null
-
-  const actionCount = events.filter(e => e.event_type !== "concurrent_call").length + queue.length
-
-  return (
-    <div
-      className="ios-card animate-fade-up"
-      style={{
-        padding: 0,
-        overflow: "hidden",
-        border: `1px solid ${isDark ? "rgba(229,72,77,0.2)" : "rgba(229,72,77,0.18)"}`,
-      }}
-    >
-      {/* Header */}
-      <div style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        padding: "13px 20px",
-        borderBottom: `1px solid ${isDark ? "rgba(229,72,77,0.12)" : "rgba(229,72,77,0.1)"}`,
-        background: isDark
-          ? "rgba(229,72,77,0.06)"
-          : "linear-gradient(135deg, #FFF1F2 0%, #FFF5F5 100%)",
-      }}>
-        <AlertTriangle style={{ width: 14, height: 14, color: "#E5484D" }} strokeWidth={1.75} />
-        <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--foreground)", letterSpacing: "-0.01em" }}>
-          Needs Action
-        </span>
-        <span style={{
-          fontSize: 10.5,
-          color: "#FFFFFF",
-          background: "#E5484D",
-          padding: "2px 8px",
-          borderRadius: 999,
-          fontWeight: 700,
-          letterSpacing: "0.02em",
-        }}>
-          {actionCount}
-        </span>
-      </div>
-
-      {/* Operational events (ai_failure, partial_booking) - not concurrent_call which is just info */}
-      {events
-        .filter(e => e.event_type !== "concurrent_call")
-        .map((event) => (
-          <OperationalEventItem key={event.id} event={event} onResolve={handleResolveEvent} />
-        ))
-      }
-
-      {/* Callback queue */}
-      {queue.map((item) => (
-        <CallbackQueueItem key={item.id} item={item} onHandled={handleQueueHandled} />
-      ))}
+    <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "4px 0 20px" }}>
+      <span className="animate-live-pulse" style={{ width: 5, height: 5, borderRadius: "50%", background: "#10B981", flexShrink: 0, display: "block" }} />
+      <span style={{ fontSize: 11.5, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>Orvia is live</span>
     </div>
   )
 }
@@ -1272,43 +1300,11 @@ function NeedsActionPanel() {
 // ─── Mock data (dev only) ─────────────────────────────────
 
 const MOCK_EVENTS: OperationalEvent[] = [
-  {
-    id: "mock-1",
-    business_id: "mock",
-    call_id: null,
-    event_type: "ai_failure",
-    severity: "warning",
-    resolved: false,
-    payload: { caller_phone: "+1 (512) 555-0192", ended_reason: "silence-timed-out" },
-    created_at: new Date(Date.now() - 8 * 60_000).toISOString(),
-  },
-  {
-    id: "mock-2",
-    business_id: "mock",
-    call_id: null,
-    event_type: "partial_booking",
-    severity: "warning",
-    resolved: false,
-    payload: { caller_phone: "+1 (737) 555-0847", service_needed: "Pipe repair" },
-    created_at: new Date(Date.now() - 23 * 60_000).toISOString(),
-  },
+  { id: "mock-1", business_id: "mock", call_id: null, event_type: "ai_failure", severity: "warning", resolved: false, payload: { caller_phone: "+1 (512) 555-0192", ended_reason: "silence-timed-out" }, created_at: new Date(Date.now() - 8 * 60_000).toISOString() },
+  { id: "mock-2", business_id: "mock", call_id: null, event_type: "partial_booking", severity: "warning", resolved: false, payload: { caller_phone: "+1 (737) 555-0847", service_needed: "Pipe repair" }, created_at: new Date(Date.now() - 23 * 60_000).toISOString() },
 ]
-
 const MOCK_QUEUE: CallQueueItem[] = [
-  {
-    id: "mock-q-1",
-    business_id: "mock",
-    call_id: null,
-    queue_type: "missed_callback",
-    priority: 5,
-    caller_phone: "+1 (210) 555-0374",
-    caller_name: "Marcus Webb",
-    service_needed: "Water heater install",
-    status: "pending",
-    handled_by: null,
-    handled_at: null,
-    created_at: new Date(Date.now() - 4 * 60_000).toISOString(),
-  },
+  { id: "mock-q-1", business_id: "mock", call_id: null, queue_type: "missed_callback", priority: 5, caller_phone: "+1 (210) 555-0374", caller_name: "Marcus Webb", service_needed: "Water heater install", status: "pending", handled_by: null, handled_at: null, created_at: new Date(Date.now() - 4 * 60_000).toISOString() },
 ]
 
 // ─── Page ─────────────────────────────────────────────────
@@ -1317,6 +1313,8 @@ export default function OverviewPage() {
   const { profile } = useAuth()
   const queryClient = useQueryClient()
   const [mockActive, setMockActive] = useState(false)
+  const [liveElapsed, setLiveElapsed] = useState("")
+  const liveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   function toggleMock() {
     if (!mockActive) {
@@ -1329,56 +1327,59 @@ export default function OverviewPage() {
     setMockActive(!mockActive)
   }
 
-  const briefing = useQuery({
-    queryKey: ["briefing"],
-    queryFn: getBriefing,
-    refetchInterval: 30_000,
-  })
+  const briefing = useQuery({ queryKey: ["briefing"], queryFn: getBriefing, refetchInterval: 30_000 })
+  const weeklyQuery = useQuery({ queryKey: ["weekly-stats"], queryFn: getWeeklyCallStats })
+  const liveCallQuery = useQuery({ queryKey: ["live-call"], queryFn: getLiveCallStatus, refetchInterval: 10_000 })
+  const { data: opEvents = [] } = useQuery({ queryKey: ["operational-events"], queryFn: getUnresolvedOperationalEvents, refetchInterval: 30_000 })
+  const { data: callQueue = [] } = useQuery({ queryKey: ["call-queue"], queryFn: getPendingCallQueue, refetchInterval: 30_000 })
 
-  const weeklyQuery = useQuery({
-    queryKey: ["weekly-stats"],
-    queryFn: getWeeklyCallStats,
-  })
+  useEffect(() => {
+    const liveCall = liveCallQuery.data
+    if (liveCall?.created_at) {
+      setLiveElapsed(formatElapsed(liveCall.created_at))
+      liveIntervalRef.current = setInterval(() => setLiveElapsed(formatElapsed(liveCall.created_at!)), 1000)
+    } else {
+      if (liveIntervalRef.current) clearInterval(liveIntervalRef.current)
+      setLiveElapsed("")
+    }
+    return () => { if (liveIntervalRef.current) clearInterval(liveIntervalRef.current) }
+  }, [liveCallQuery.data?.id, liveCallQuery.data?.created_at])
 
   const weeklyDays = weeklyQuery.data ?? []
-  const callSparkData = weeklyDays.map((d) => d.calls)
-  const apptSparkData = weeklyDays.map((d) => d.appointments)
-  const leadSparkData = weeklyDays.map((d) => d.leads)
+  const callSparkData = weeklyDays.map(d => d.calls)
+  const apptSparkData = weeklyDays.map(d => d.appointments)
+  const leadSparkData = weeklyDays.map(d => d.leads)
+  const todayStats = weeklyDays[6]
+  const yestStats = weeklyDays[5]
 
-  if (briefing.isLoading) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
-          <div>
-            <div className="skeleton" style={{ height: 30, width: 260, marginBottom: 10, borderRadius: 8 }} />
-            <div className="skeleton" style={{ height: 13, width: 180, opacity: 0.6, borderRadius: 6 }} />
-          </div>
-          <div style={{ display: "flex", gap: 10 }}>
-            <div className="skeleton" style={{ height: 34, width: 110, borderRadius: 999 }} />
-            <div className="skeleton" style={{ width: 34, height: 34, borderRadius: "50%" }} />
-          </div>
+  if (briefing.isLoading) return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+        <div>
+          <div className="skeleton" style={{ height: 28, width: 240, marginBottom: 8, borderRadius: 8 }} />
+          <div className="skeleton" style={{ height: 12, width: 170, opacity: 0.55, borderRadius: 6 }} />
         </div>
-        <div className="overview-stat-grid">
-          <StatSkeleton /><StatSkeleton /><StatSkeleton /><StatSkeleton />
-        </div>
-        <div className="ios-card" style={{ height: 260 }} />
-        <div className="overview-bottom-grid">
-          <div className="ios-card" style={{ height: 240 }} />
-          <div className="ios-card" style={{ height: 240 }} />
-        </div>
-        <div className="ios-card" style={{ height: 320 }} />
+        <div className="skeleton" style={{ height: 34, width: 34, borderRadius: 10 }} />
       </div>
-    )
-  }
+      <div className="skeleton" style={{ height: 64, borderRadius: 14 }} />
+      <div className="overview-stat-grid">
+        <StatSkeleton /><StatSkeleton /><StatSkeleton /><StatSkeleton />
+      </div>
+      <div className="overview-bottom-grid-3">
+        <div className="ios-card" style={{ height: 220 }} />
+        <div className="ios-card" style={{ height: 220 }} />
+        <div className="ios-card" style={{ height: 220 }} />
+      </div>
+      <div className="ios-card" style={{ height: 300 }} />
+    </div>
+  )
 
   if (briefing.isError) return (
-    <div style={{ padding: "96px 0", textAlign: "center" }}>
-      <XCircle style={{ width: 32, height: 32, color: "#E5484D", margin: "0 auto 12px" }} strokeWidth={1.5} />
-      <p style={{ fontSize: 14, color: "var(--foreground)", fontWeight: 500, letterSpacing: "-0.01em" }}>Something went wrong loading your dashboard.</p>
-      <button
-        onClick={() => briefing.refetch()}
-        style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit" }}
-      >
+    <div style={{ padding: "80px 0", textAlign: "center" }}>
+      <XCircle style={{ width: 28, height: 28, color: "#E5484D", margin: "0 auto 10px" }} strokeWidth={1.5} />
+      <p style={{ fontSize: 13.5, color: "var(--foreground)", fontWeight: 500, letterSpacing: "-0.01em" }}>Something went wrong loading your dashboard.</p>
+      <button onClick={() => briefing.refetch()}
+        style={{ fontSize: 12.5, color: "var(--muted-foreground)", marginTop: 7, border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit" }}>
         Try again
       </button>
     </div>
@@ -1388,236 +1389,253 @@ export default function OverviewPage() {
   const calls = d?.callsToday ?? 0
   const appointments = d?.appointmentsToday ?? 0
   const leads = d?.leadsToday ?? 0
-  const avgCallSecs = d?.avgCallSecs ?? null
   const upcomingAppointments = d?.upcomingAppointments ?? []
-  const exceptions = d?.exceptionCalls ?? []
   const recentCalls = d?.recentCalls ?? []
-  // Live = DB status active + phone provisioned + credits available (or overage enabled)
   const clinicActive = d?.businessStatus === "active" && d?.businessHasPhone && (d?.hasCredits ?? false)
+  const secondsRemaining = d?.secondsRemaining ?? 0
+  const allowOverage = d?.allowOverage ?? false
 
-  const avgCallDisplay = avgCallSecs != null ? formatDuration(avgCallSecs) : "--"
+  const weeklyTotalCalls = weeklyDays.reduce((s, d) => s + d.calls, 0)
+  const weeklyTotalBooked = weeklyDays.reduce((s, d) => s + d.appointments, 0)
+  // Booking rate must never exceed 100%. If booked > calls, the data is inconsistent
+  // (e.g. historical appointments without matching calls) — show "--" rather than a misleading number.
+  const rawRatePct = weeklyTotalCalls > 0
+    ? Math.round((weeklyTotalBooked / weeklyTotalCalls) * 100)
+    : calls > 0 ? Math.round((appointments / calls) * 100) : null
+  const bookingRatePct = rawRatePct !== null && rawRatePct >= 0 && rawRatePct <= 100 ? rawRatePct : null
+  const bookingRateDisplay = bookingRatePct !== null ? `${bookingRatePct}%` : "--"
+
+  // ─── Stat card sublabels: trend vs yesterday + small detail ──────────
+  function trendCopy(today: number, yesterday: number): string | null {
+    if (today === 0 && yesterday === 0) return null
+    if (yesterday === 0) return today > 0 ? "first of the day" : null
+    const pct = Math.round(Math.abs((today - yesterday) / yesterday) * 100)
+    if (pct === 0) return "same as yesterday"
+    const dir = today > yesterday ? "↑" : "↓"
+    return `${dir} ${Math.min(999, pct)}% vs yesterday`
+  }
+
+  const callsTrend = trendCopy(todayStats?.calls ?? 0, yestStats?.calls ?? 0)
+  const leadsTrend = trendCopy(todayStats?.leads ?? 0, yestStats?.leads ?? 0)
+
+  const todayApptCount = upcomingAppointments.filter(a => {
+    const d = new Date(a.scheduled_start)
+    const t = new Date()
+    return d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate()
+  }).length
+
+  const callsSublabel = callsTrend ?? (calls === 1 ? "1 call today" : `${calls} calls today`)
+  const apptSublabel = todayApptCount > 0
+    ? `${todayApptCount} today · ${upcomingAppointments.length} this week`
+    : upcomingAppointments.length > 0
+      ? `${upcomingAppointments.length} this week`
+      : "none booked yet"
+  const leadsSublabel = leadsTrend ?? (leads === 1 ? "1 new today" : `${leads} new today`)
+  const bookingSublabel = bookingRatePct !== null
+    ? `${weeklyTotalBooked} booked · ${weeklyTotalCalls} calls`
+    : weeklyTotalCalls === 0 ? "no calls this week" : "—"
   const greeting = getGreeting(profile.fullName)
-
   const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
   const statusLine = calls === 0
-    ? "Orvia is handling calls for you."
-    : [
-        `${calls} call${calls !== 1 ? "s" : ""} handled`,
-        appointments > 0 && `${appointments} booked`,
-        leads > 0 && `${leads} lead${leads !== 1 ? "s" : ""}`,
-      ].filter(Boolean).join(" · ")
+    ? "Your AI receptionist is on duty."
+    : appointments > 0
+      ? `${calls} call${calls !== 1 ? "s" : ""} handled · ${appointments} appointment${appointments !== 1 ? "s" : ""} booked`
+      : `${calls} call${calls !== 1 ? "s" : ""} handled today`
+
+  const now = new Date()
+  const nextAppointment = upcomingAppointments
+    .filter(a => new Date(a.scheduled_start) >= now)
+    .sort((a, b) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime())[0] ?? null
+
+  const actionableCount = opEvents.filter(e => e.event_type !== "concurrent_call").length + callQueue.length
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <style>{`
         .overview-stat-grid {
           display: grid;
           grid-template-columns: repeat(4, 1fr);
-          gap: 14px;
+          gap: 12px;
           align-items: stretch;
         }
-        .overview-bottom-grid {
+        .overview-bottom-grid-3 {
           display: grid;
-          grid-template-columns: 1fr 1.6fr;
-          gap: 14px;
+          grid-template-columns: 1fr 1.55fr 0.9fr;
+          gap: 12px;
+          /* Equal heights: grid stretches all cards to match the tallest peer.
+             ScheduleCard self-caps with internal scroll, so it never becomes
+             the dictating tallest child on desktop. */
+          align-items: stretch;
+        }
+        /* Cap Schedule card height so a long list doesn't push the row taller
+           than its peers. Body scrolls internally instead. */
+        .schedule-card { max-height: 240px; }
+        @media (max-width: 700px) {
+          /* Single column: let the card breathe — users scroll the page, not the card. */
+          .schedule-card { max-height: none; }
+        }
+        .schedule-card-body {
+          flex: 1;
+          min-height: 0;
+          overflow-y: auto;
+          scrollbar-width: thin;
+          scrollbar-color: var(--border) transparent;
+        }
+        .schedule-card-body::-webkit-scrollbar { width: 6px; }
+        .schedule-card-body::-webkit-scrollbar-thumb {
+          background: var(--border);
+          border-radius: 999px;
+        }
+        .schedule-card-body::-webkit-scrollbar-track { background: transparent; }
+        .status-strip { flex-wrap: nowrap; }
+        @media (max-width: 860px) {
+          .overview-bottom-grid-3 { grid-template-columns: 1fr 1fr; }
+        }
+        @media (max-width: 800px) {
+          .status-strip { flex-wrap: wrap; }
+          .status-strip > * { flex: 1 1 calc(50% - 5px) !important; min-width: 0 !important; }
         }
         @media (max-width: 700px) {
-          .overview-stat-grid {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-          }
-          .overview-bottom-grid {
-            grid-template-columns: 1fr;
-          }
-          .overview-header-status {
-            display: none !important;
-          }
-          .overview-header h1 {
-            font-size: 22px !important;
-          }
+          .overview-stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+          .overview-bottom-grid-3 { grid-template-columns: 1fr; }
+          .overview-header-right { display: none !important; }
+          .overview-header h1 { font-size: 22px !important; }
+          .status-strip > * { flex: 1 1 100% !important; }
         }
         @media (max-width: 400px) {
-          .overview-stat-grid {
-            grid-template-columns: repeat(2, 1fr);
-            gap: 8px;
-          }
+          .overview-stat-grid { gap: 8px; }
         }
         @media (max-width: 700px) {
-          .stat-card-value {
-            font-size: 32px !important;
-          }
-          .stat-card-inner {
-            padding: 16px 16px 14px !important;
-          }
-          .stat-card-root {
-            min-height: 130px !important;
-          }
+          .stat-card-value { font-size: 32px !important; }
+          .stat-card-inner { padding: 14px 14px 10px !important; }
+          .stat-card-root { min-height: 130px !important; }
         }
       `}</style>
 
-      {/* Header */}
-      <div
-        className="overview-header animate-fade-up animate-fade-up-1"
-        style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4 }}
-      >
+      {/* ── Header ────────────────────────────────────────── */}
+      <div className="overview-header animate-fade-up animate-fade-up-1"
+        style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 2 }}>
         <div>
           <h1 style={{
-            fontSize: 28,
-            fontWeight: 700,
-            letterSpacing: "-0.6px",
-            color: "var(--foreground)",
-            marginBottom: 6,
-            lineHeight: 1.2,
-            fontFamily: "Geist, sans-serif",
+            fontSize: 26, fontWeight: 700, letterSpacing: "-0.5px",
+            color: "var(--foreground)", marginBottom: 5, lineHeight: 1.2, fontFamily: "Geist, sans-serif",
+            display: "flex", alignItems: "center", gap: 8,
           }}>
             {greeting}
+            <img src="/wave-emoji.png" alt="" style={{ width: 28, height: 28, display: "inline-block", verticalAlign: "middle" }} />
           </h1>
-          <p style={{ fontSize: 13, color: "var(--muted-foreground)", lineHeight: 1.5, letterSpacing: "-0.01em" }}>
+          <p style={{ fontSize: 12.5, color: "var(--muted-foreground)", lineHeight: 1.5, letterSpacing: "-0.01em" }}>
             {todayStr}
-            <span style={{ margin: "0 8px", color: "var(--muted-foreground)", opacity: 0.5 }}>&middot;</span>
-            <span style={{ color: "var(--muted-foreground)" }}>{statusLine}</span>
+            <span style={{ margin: "0 7px", opacity: 0.4 }}>&middot;</span>
+            {statusLine}
           </p>
         </div>
 
-        {/* Dev mock toggle + status pill */}
-        <div className="overview-header-status" style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        <div className="overview-header-right" style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           {import.meta.env.DEV && (
-            <button
-              onClick={toggleMock}
-              style={{
-                fontSize: 11,
-                fontWeight: 600,
-                padding: "5px 11px",
-                borderRadius: 999,
-                border: `1px solid ${mockActive ? "rgba(229,72,77,0.3)" : "var(--border)"}`,
-                background: mockActive ? "rgba(229,72,77,0.08)" : "var(--card)",
-                color: mockActive ? "#E5484D" : "var(--muted-foreground)",
-                cursor: "pointer",
-                letterSpacing: "0.02em",
-                transition: "all 0.15s",
-              }}
-            >
+            <button onClick={toggleMock} style={{
+              fontSize: 10.5, fontWeight: 600, padding: "4px 10px", borderRadius: 999,
+              border: `1px solid ${mockActive ? "rgba(229,72,77,0.3)" : "var(--border)"}`,
+              background: mockActive ? "rgba(229,72,77,0.07)" : "var(--card)",
+              color: mockActive ? "#E5484D" : "var(--muted-foreground)",
+              cursor: "pointer", letterSpacing: "0.02em", transition: "all 0.15s",
+            }}>
               {mockActive ? "Clear mock" : "Mock alerts"}
             </button>
           )}
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            background: "var(--card)",
-            border: `1px solid ${clinicActive ? "rgba(16,185,129,0.2)" : "rgba(229,72,77,0.15)"}`,
-            padding: "6px 12px",
-            borderRadius: 999,
-            boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-          }}>
-            {clinicActive
-              ? <span className="animate-live-pulse" style={{ width: 6, height: 6, borderRadius: "50%", background: "#10B981", flexShrink: 0, display: "block" }} />
-              : <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#E5484D", flexShrink: 0, display: "block" }} />
-            }
-            <span style={{ fontSize: 12, fontWeight: 500, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>AI Agent</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: clinicActive ? "#065F46" : "#E5484D", letterSpacing: "-0.01em" }}>
-              {clinicActive ? "Live" : "Paused"}
-            </span>
-          </div>
+          <NotificationBell />
         </div>
       </div>
 
-      {/* ── Section: Today at a glance ─────────────────────── */}
-      <div>
-        <p style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10, opacity: 0.6 }}>
-          Today at a glance
-        </p>
-        <div className="overview-stat-grid">
-          <StatCard
-            value={calls}
-            label="Calls Handled"
-            sublabel={calls === 1 ? "call answered today" : "calls answered today"}
-            icon={IconPhoneCall}
-            iconColor="#6366F1"
-            cardBg="#EEF2FF"
-            sparkData={callSparkData}
-            sparkColor="#6366F1"
-            gradientId="spark-calls"
-          />
-          <StatCard
-            value={appointments}
-            label="Appointments"
-            sublabel="booked today"
-            icon={IconCalendar}
-            iconColor="#10B981"
-            cardBg="#ECFDF5"
-            sparkData={apptSparkData}
-            sparkColor="#10B981"
-            gradientId="spark-appts"
-          />
-          <StatCard
-            value={leads}
-            label="Leads Captured"
-            sublabel="new leads today"
-            icon={IconUsers}
-            iconColor="#D97706"
-            cardBg="#FFFBEB"
-            sparkData={leadSparkData}
-            sparkColor="#F59E0B"
-            gradientId="spark-leads"
-          />
-          <StatCard
-            value={avgCallDisplay}
-            label="Avg Call Length"
-            sublabel="per call today"
-            icon={IconClock}
-            iconColor="#E5484D"
-            cardBg="#FFF1F2"
-          />
-        </div>
+      {/* ── Status Strip ──────────────────────────────────── */}
+      <StatusStrip
+        clinicActive={!!clinicActive}
+        actionCount={actionableCount}
+        nextAppointment={nextAppointment}
+        liveCall={liveCallQuery.data ?? null}
+        elapsed={liveElapsed}
+      />
+
+      {/* ── KPI Cards ─────────────────────────────────────── */}
+      <div className="overview-stat-grid">
+        <StatCard
+          value={calls} label="Calls Handled"
+          sublabel={callsSublabel}
+          icon={IconPhoneCall} iconColor="#6366F1" cardBg="#EEF2FF"
+          sparkData={callSparkData} sparkColor="#6366F1" gradientId="spark-calls"
+        />
+        <StatCard
+          value={appointments} label="Appointments"
+          sublabel={apptSublabel}
+          icon={IconCalendar} iconColor="#10B981" cardBg="#ECFDF5"
+          sparkData={apptSparkData} sparkColor="#10B981" gradientId="spark-appts"
+        />
+        <StatCard
+          value={leads} label="Leads"
+          sublabel={leadsSublabel}
+          icon={IconUsers} iconColor="#D97706" cardBg="#FFFBEB"
+          sparkData={leadSparkData} sparkColor="#F59E0B" gradientId="spark-leads"
+        />
+        <StatCard
+          value={bookingRateDisplay} label="Booking Rate"
+          sublabel={bookingSublabel}
+          icon={IconClock} iconColor="#8B5CF6" cardBg="#F5F3FF"
+        />
       </div>
 
-      {/* ── Section: Needs Action (operational events + callback queue) ── */}
-      <NeedsActionPanel />
-
-      {/* ── Section: Schedule + Performance ───────────────── */}
+      {/* ── Schedule / Chart / Minutes ─────────────────────── */}
       <div>
-        <p style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10, opacity: 0.6 }}>
+        <p style={{ fontSize: 10.5, fontWeight: 500, color: "var(--muted-foreground)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 10, opacity: 0.45 }}>
           Schedule &amp; Performance
         </p>
-        <div className="overview-bottom-grid" style={{ alignItems: "stretch" }}>
+        <div className="overview-bottom-grid-3">
           <ScheduleCard appointments={upcomingAppointments} />
           <WeeklyChart />
+          <CallMinutesCard secondsRemaining={secondsRemaining} allowOverage={allowOverage} />
         </div>
       </div>
 
-      {/* ── Section: Recent Call Activity ─────────────────── */}
+      {/* ── Recent Calls ──────────────────────────────────── */}
       <div>
-        <p style={{ fontSize: 11, fontWeight: 600, color: "var(--muted-foreground)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 10, opacity: 0.6 }}>
-          Recent Call Activity
+        <p style={{ fontSize: 10.5, fontWeight: 500, color: "var(--muted-foreground)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 10, opacity: 0.45 }}>
+          Recent Activity
         </p>
-        <SectionCard
-          title="Latest Calls"
-          icon={Phone}
-          action={
-            recentCalls.length > 0 ? (
-              <Link
-                to="/calls"
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 4,
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: "var(--muted-foreground)",
-                  textDecoration: "none",
-                  letterSpacing: "-0.01em",
-                  opacity: 0.7,
-                  transition: "opacity 0.15s ease",
-                }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.opacity = "1")}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.opacity = "0.7")}
+        <div className="ios-card animate-fade-up" style={{ padding: 0, overflow: "hidden" }}>
+          {/* Card header */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "13px 16px 12px",
+            borderBottom: "1px solid var(--border)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <Phone style={{ width: 12, height: 12, color: "var(--muted-foreground)" }} strokeWidth={1.5} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", letterSpacing: "-0.02em" }}>Latest Calls</span>
+              {recentCalls.length > 0 && (
+                <span style={{
+                  fontSize: 9.5, fontWeight: 700, padding: "1px 6px",
+                  borderRadius: 999, color: "var(--primary-foreground)",
+                  background: "var(--foreground)", letterSpacing: "0.02em",
+                }}>
+                  {recentCalls.length}
+                </span>
+              )}
+            </div>
+            {recentCalls.length > 0 && (
+              <Link to="/calls" style={{
+                display: "inline-flex", alignItems: "center", gap: 3,
+                fontSize: 11.5, fontWeight: 500,
+                color: "var(--muted-foreground)", textDecoration: "none",
+                letterSpacing: "-0.01em", opacity: 0.65,
+                transition: "opacity 0.15s ease",
+              }}
+                onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = "1")}
+                onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = "0.65")}
               >
-                See all calls <ArrowRight style={{ width: 11, height: 11 }} strokeWidth={1.5} />
+                See all <ArrowRight style={{ width: 10, height: 10 }} strokeWidth={1.5} />
               </Link>
-            ) : undefined
-          }
-        >
+            )}
+          </div>
+
           {recentCalls.length === 0 ? (
             <>
               <GhostActivityRow />
@@ -1625,13 +1643,13 @@ export default function OverviewPage() {
               <GhostActivityRow />
             </>
           ) : (
-            recentCalls.map((call, i) => <ActivityRow key={call.id} call={call} delay={i * 40} />)
+            recentCalls.map((call, i) => <ActivityRow key={call.id} call={call} delay={i * 35} />)
           )}
-        </SectionCard>
+        </div>
       </div>
 
-      {/* Live status footer */}
-      <LiveStatusBar clinicActive={!!clinicActive} />
+      {/* Footer */}
+      <FooterStatus clinicActive={!!clinicActive} />
     </div>
   )
 }

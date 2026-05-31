@@ -38,6 +38,13 @@ function buildGreeting(business: Business): string {
 function buildSystemPrompt(business: Business): string {
   const { settings } = business;
   const agentName = settings.receptionist_name || "Orvia";
+  const langPref = settings.language_preference ?? "english";
+  const languageLine =
+    langPref === "spanish"
+      ? "Respond in Spanish by default. If the caller speaks English, mirror them in English."
+      : langPref === "bilingual"
+        ? "Detect the caller's language on their first turn and respond in that language — English or Spanish — for the rest of the call."
+        : "Respond in English. If the caller speaks Spanish, briefly apologize and offer to transfer or take a callback.";
 
   const sections: string[] = [];
 
@@ -45,6 +52,7 @@ function buildSystemPrompt(business: Business): string {
 You are ${agentName}, the AI receptionist for ${business.name}.
 ${settings.business_owner ? `The business is owned by ${settings.business_owner}.` : ""}
 ${settings.tagline ? `Their motto: "${settings.tagline}"` : ""}
+Language: ${languageLine}
 You sound like a real person who works at the front desk — warm, calm, efficient. Never robotic. Never a call center agent.`);
 
   sections.push(`# How You Speak

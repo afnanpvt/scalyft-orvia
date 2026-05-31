@@ -13,8 +13,10 @@ import { Route as DashboardRouteImport } from "./routes/_dashboard"
 import { Route as AuthRouteImport } from "./routes/_auth"
 import { Route as DashboardIndexRouteImport } from "./routes/_dashboard/index"
 import { Route as DashboardSettingsRouteImport } from "./routes/_dashboard/settings"
+import { Route as DashboardNeedsActionRouteImport } from "./routes/_dashboard/needs-action"
 import { Route as DashboardLeadsRouteImport } from "./routes/_dashboard/leads"
 import { Route as DashboardCallsRouteImport } from "./routes/_dashboard/calls"
+import { Route as DashboardAppointmentsRouteImport } from "./routes/_dashboard/appointments"
 import { Route as AuthLoginRouteImport } from "./routes/_auth/login"
 import { Route as DashboardCallsIdRouteImport } from "./routes/_dashboard/calls_.$id"
 
@@ -36,6 +38,11 @@ const DashboardSettingsRoute = DashboardSettingsRouteImport.update({
   path: "/settings",
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardNeedsActionRoute = DashboardNeedsActionRouteImport.update({
+  id: "/needs-action",
+  path: "/needs-action",
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardLeadsRoute = DashboardLeadsRouteImport.update({
   id: "/leads",
   path: "/leads",
@@ -44,6 +51,11 @@ const DashboardLeadsRoute = DashboardLeadsRouteImport.update({
 const DashboardCallsRoute = DashboardCallsRouteImport.update({
   id: "/calls",
   path: "/calls",
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardAppointmentsRoute = DashboardAppointmentsRouteImport.update({
+  id: "/appointments",
+  path: "/appointments",
   getParentRoute: () => DashboardRoute,
 } as any)
 const AuthLoginRoute = AuthLoginRouteImport.update({
@@ -60,16 +72,20 @@ const DashboardCallsIdRoute = DashboardCallsIdRouteImport.update({
 export interface FileRoutesByFullPath {
   "/": typeof DashboardIndexRoute
   "/login": typeof AuthLoginRoute
+  "/appointments": typeof DashboardAppointmentsRoute
   "/calls": typeof DashboardCallsRoute
   "/leads": typeof DashboardLeadsRoute
+  "/needs-action": typeof DashboardNeedsActionRoute
   "/settings": typeof DashboardSettingsRoute
   "/calls/$id": typeof DashboardCallsIdRoute
 }
 export interface FileRoutesByTo {
   "/": typeof DashboardIndexRoute
   "/login": typeof AuthLoginRoute
+  "/appointments": typeof DashboardAppointmentsRoute
   "/calls": typeof DashboardCallsRoute
   "/leads": typeof DashboardLeadsRoute
+  "/needs-action": typeof DashboardNeedsActionRoute
   "/settings": typeof DashboardSettingsRoute
   "/calls/$id": typeof DashboardCallsIdRoute
 }
@@ -78,24 +94,44 @@ export interface FileRoutesById {
   "/_auth": typeof AuthRouteWithChildren
   "/_dashboard": typeof DashboardRouteWithChildren
   "/_auth/login": typeof AuthLoginRoute
+  "/_dashboard/appointments": typeof DashboardAppointmentsRoute
   "/_dashboard/calls": typeof DashboardCallsRoute
   "/_dashboard/leads": typeof DashboardLeadsRoute
+  "/_dashboard/needs-action": typeof DashboardNeedsActionRoute
   "/_dashboard/settings": typeof DashboardSettingsRoute
   "/_dashboard/": typeof DashboardIndexRoute
   "/_dashboard/calls_/$id": typeof DashboardCallsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: "/" | "/login" | "/calls" | "/leads" | "/settings" | "/calls/$id"
+  fullPaths:
+    | "/"
+    | "/login"
+    | "/appointments"
+    | "/calls"
+    | "/leads"
+    | "/needs-action"
+    | "/settings"
+    | "/calls/$id"
   fileRoutesByTo: FileRoutesByTo
-  to: "/" | "/login" | "/calls" | "/leads" | "/settings" | "/calls/$id"
+  to:
+    | "/"
+    | "/login"
+    | "/appointments"
+    | "/calls"
+    | "/leads"
+    | "/needs-action"
+    | "/settings"
+    | "/calls/$id"
   id:
     | "__root__"
     | "/_auth"
     | "/_dashboard"
     | "/_auth/login"
+    | "/_dashboard/appointments"
     | "/_dashboard/calls"
     | "/_dashboard/leads"
+    | "/_dashboard/needs-action"
     | "/_dashboard/settings"
     | "/_dashboard/"
     | "/_dashboard/calls_/$id"
@@ -136,6 +172,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof DashboardSettingsRouteImport
       parentRoute: typeof DashboardRoute
     }
+    "/_dashboard/needs-action": {
+      id: "/_dashboard/needs-action"
+      path: "/needs-action"
+      fullPath: "/needs-action"
+      preLoaderRoute: typeof DashboardNeedsActionRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     "/_dashboard/leads": {
       id: "/_dashboard/leads"
       path: "/leads"
@@ -148,6 +191,13 @@ declare module "@tanstack/react-router" {
       path: "/calls"
       fullPath: "/calls"
       preLoaderRoute: typeof DashboardCallsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    "/_dashboard/appointments": {
+      id: "/_dashboard/appointments"
+      path: "/appointments"
+      fullPath: "/appointments"
+      preLoaderRoute: typeof DashboardAppointmentsRouteImport
       parentRoute: typeof DashboardRoute
     }
     "/_auth/login": {
@@ -178,16 +228,20 @@ const AuthRouteChildren: AuthRouteChildren = {
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 interface DashboardRouteChildren {
+  DashboardAppointmentsRoute: typeof DashboardAppointmentsRoute
   DashboardCallsRoute: typeof DashboardCallsRoute
   DashboardLeadsRoute: typeof DashboardLeadsRoute
+  DashboardNeedsActionRoute: typeof DashboardNeedsActionRoute
   DashboardSettingsRoute: typeof DashboardSettingsRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   DashboardCallsIdRoute: typeof DashboardCallsIdRoute
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
+  DashboardAppointmentsRoute: DashboardAppointmentsRoute,
   DashboardCallsRoute: DashboardCallsRoute,
   DashboardLeadsRoute: DashboardLeadsRoute,
+  DashboardNeedsActionRoute: DashboardNeedsActionRoute,
   DashboardSettingsRoute: DashboardSettingsRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   DashboardCallsIdRoute: DashboardCallsIdRoute,

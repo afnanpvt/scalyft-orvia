@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react"
+import { useState, useEffect, useCallback, useMemo, Fragment } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Plus, Sun, Moon, Monitor, Check, Building2, Wrench, Bot, ShieldCheck, Sliders } from "lucide-react"
 
@@ -10,13 +10,19 @@ import type { Business, BusinessSettings as BusinessSettingsType, BusinessServic
 // ─── Constants ─────────────────────────────────────────
 
 const TABS = [
-  { id: "Business Info",  label: "Business",   icon: Building2 },
-  { id: "Services",       label: "Services",   icon: Wrench },
-  { id: "AI Assistant",   label: "AI",         icon: Bot },
-  { id: "Account",        label: "Account",    icon: ShieldCheck },
-  { id: "Preferences",   label: "Preferences", icon: Sliders },
+  { id: "Business Info",  label: "Business",   icon: Building2,   group: "business" },
+  { id: "Services",       label: "Services",   icon: Wrench,      group: "business" },
+  { id: "AI Assistant",   label: "AI",         icon: Bot,         group: "business" },
+  { id: "Profile",        label: "Profile",    icon: ShieldCheck, group: "account" },
+  { id: "Preferences",    label: "Appearance", icon: Sliders,     group: "account" },
 ] as const
 type Tab = (typeof TABS)[number]["id"]
+type TabGroup = (typeof TABS)[number]["group"]
+
+const GROUP_LABELS: Record<TabGroup, string> = {
+  business: "Business",
+  account: "Your account",
+}
 
 const DAY_ORDER = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const
 const DAY_LABELS: Record<string, string> = {
@@ -437,52 +443,15 @@ function AIAssistantTab({ settings, onSettingsChange }: {
   )
 }
 
-// ─── Account Tab ───────────────────────────────────────
+// ─── Profile Tab ───────────────────────────────────────
+// User profile (your name, email) + account technical details (business IDs)
 
-function AccountTab({ clinic }: { clinic: Business }) {
-  const rows = [
-    { label: "Business ID", value: clinic.id },
-    { label: "Vapi Phone ID", value: clinic.vapi_phone_id },
-    { label: "Display Phone", value: clinic.phone_display },
-  ]
-  return (
-    <div className="mt-6 space-y-4">
-      <div className={S.card}>
-        <SectionHeading>Account Details</SectionHeading>
-        <div className="space-y-0">
-          {rows.map(r => (
-            <div key={r.label} className="flex items-center justify-between py-3 border-b border-border last:border-0">
-              <span className="text-sm text-muted-foreground">{r.label}</span>
-              <span className="text-sm font-medium font-mono">{r.value || "--"}</span>
-            </div>
-          ))}
-          <div className="flex items-center justify-between py-3">
-            <span className="text-sm text-muted-foreground">Status</span>
-            <StatusBadge status={clinic.status} />
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Preferences Tab ───────────────────────────────────
-
-const THEME_OPTIONS: { value: Theme; label: string; icon: React.ElementType; desc: string }[] = [
-  { value: "light",  label: "Light",  icon: Sun,     desc: "Always light" },
-  { value: "dark",   label: "Dark",   icon: Moon,    desc: "Always dark" },
-  { value: "system", label: "System", icon: Monitor, desc: "Follows your OS" },
-]
-
-function PreferencesTab() {
-  const { user, profile, updateProfile } = useAuth()
-  const { theme, saveTheme } = useTheme()
-
+function ProfileTab({ clinic }: { clinic: Business }) {
+  const { profile, updateProfile } = useAuth()
   const [nameInput, setNameInput] = useState(profile.fullName ?? "")
   const [nameSaving, setNameSaving] = useState(false)
   const [nameSuccess, setNameSuccess] = useState(false)
   const [nameError, setNameError] = useState<string | null>(null)
-  const [themeSaving, setThemeSaving] = useState(false)
 
   useEffect(() => { setNameInput(profile.fullName ?? "") }, [profile.fullName])
 
@@ -496,21 +465,19 @@ function PreferencesTab() {
     }
   }
 
-  async function handleThemeChange(t: Theme) {
-    if (!user) return
-    setThemeSaving(true)
-    await saveTheme(user.id, t)
-    setThemeSaving(false)
-  }
-
   const initials = (profile.fullName || profile.email?.split("@")[0] || "U")
     .split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)
 
+  const accountRows = [
+    { label: "Business ID", value: clinic.id },
+    { label: "Vapi Phone ID", value: clinic.vapi_phone_id },
+    { label: "Display Phone", value: clinic.phone_display },
+  ]
+
   return (
     <div className="mt-6 space-y-6 max-w-xl">
-      {/* Profile */}
       <div className={S.card}>
-        <SectionHeading>Profile</SectionHeading>
+        <SectionHeading>You</SectionHeading>
 
         <div className="flex items-center gap-4 mb-6">
           <div style={{
@@ -552,7 +519,47 @@ function PreferencesTab() {
         </div>
       </div>
 
-      {/* Appearance */}
+      <div className={S.card}>
+        <SectionHeading>Account details</SectionHeading>
+        <div className="space-y-0">
+          {accountRows.map(r => (
+            <div key={r.label} className="flex items-center justify-between py-3 border-b border-border last:border-0">
+              <span className="text-sm text-muted-foreground">{r.label}</span>
+              <span className="text-sm font-medium font-mono">{r.value || "--"}</span>
+            </div>
+          ))}
+          <div className="flex items-center justify-between py-3">
+            <span className="text-sm text-muted-foreground">Status</span>
+            <StatusBadge status={clinic.status} />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Preferences Tab ───────────────────────────────────
+
+const THEME_OPTIONS: { value: Theme; label: string; icon: React.ElementType; desc: string }[] = [
+  { value: "light",  label: "Light",  icon: Sun,     desc: "Always light" },
+  { value: "dark",   label: "Dark",   icon: Moon,    desc: "Always dark" },
+  { value: "system", label: "System", icon: Monitor, desc: "Follows your OS" },
+]
+
+function PreferencesTab() {
+  const { user } = useAuth()
+  const { theme, saveTheme } = useTheme()
+  const [themeSaving, setThemeSaving] = useState(false)
+
+  async function handleThemeChange(t: Theme) {
+    if (!user) return
+    setThemeSaving(true)
+    await saveTheme(user.id, t)
+    setThemeSaving(false)
+  }
+
+  return (
+    <div className="mt-6 space-y-6 max-w-xl">
       <div className={S.card}>
         <SectionHeading>Appearance</SectionHeading>
         <p className="text-sm text-muted-foreground mb-5">Choose how Orvia looks. Saved to your account.</p>
@@ -702,7 +709,9 @@ export default function SettingsPage() {
       <div className="mb-6">
         <h1 style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.5px", color: "var(--foreground)" }}>Settings</h1>
         <p style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 4 }}>
-          Configure your business and AI assistant
+          {activeTab === "Profile" || activeTab === "Preferences"
+            ? "Your personal profile and appearance"
+            : "Configure your business and AI assistant"}
         </p>
       </div>
 
@@ -727,25 +736,36 @@ export default function SettingsPage() {
             )
           })}
         </div>
-        {/* Desktop: icon + label */}
-        <div className="hidden sm:flex" style={{ gap: 4 }}>
-          {TABS.map(({ id, label, icon: Icon }) => {
+        {/* Desktop: icon + label, with group divider */}
+        <div className="hidden sm:flex" style={{ gap: 4, alignItems: "center" }}>
+          {TABS.map(({ id, label, icon: Icon, group }, idx) => {
             const active = activeTab === id
             const dirty = editSettings ? tabIsDirty(id, editSettings, originalSettings, editPhoneDisplay, originalPhoneDisplay) : false
+            const prevGroup = idx > 0 ? TABS[idx - 1].group : group
+            const groupChanged = group !== prevGroup
             return (
-              <button key={id} type="button" onClick={() => setActiveTab(id)}
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "10px 14px", border: "none", background: "transparent", cursor: "pointer",
-                  fontSize: 13, fontWeight: active ? 600 : 500,
-                  color: active ? "var(--foreground)" : "var(--muted-foreground)",
-                  borderBottom: active ? "2px solid var(--foreground)" : "2px solid transparent",
-                  marginBottom: -1.5, transition: "all 0.15s", whiteSpace: "nowrap",
-                }}>
-                <Icon style={{ width: 14, height: 14 }} strokeWidth={active ? 2.25 : 1.75} />
-                {label}
-                {dirty && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--foreground)", opacity: 0.6, flexShrink: 0 }} />}
-              </button>
+              <Fragment key={id}>
+                {groupChanged && idx > 0 && (
+                  <span style={{
+                    width: 1, height: 16, background: "var(--border)",
+                    margin: "0 8px", display: "inline-block", opacity: 0.7,
+                  }} />
+                )}
+                <button type="button" onClick={() => setActiveTab(id)}
+                  title={GROUP_LABELS[group]}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    padding: "10px 14px", border: "none", background: "transparent", cursor: "pointer",
+                    fontSize: 13, fontWeight: active ? 600 : 500,
+                    color: active ? "var(--foreground)" : "var(--muted-foreground)",
+                    borderBottom: active ? "2px solid var(--foreground)" : "2px solid transparent",
+                    marginBottom: -1.5, transition: "all 0.15s", whiteSpace: "nowrap",
+                  }}>
+                  <Icon style={{ width: 14, height: 14 }} strokeWidth={active ? 2.25 : 1.75} />
+                  {label}
+                  {dirty && <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--foreground)", opacity: 0.6, flexShrink: 0 }} />}
+                </button>
+              </Fragment>
             )
           })}
         </div>
@@ -773,7 +793,7 @@ export default function SettingsPage() {
             <AIAssistantTab settings={editSettings} onSettingsChange={patchSettings}
               dirty={isDirty} saving={saving} success={successMsg} error={errorMsg} onSave={handleSave} />
           )}
-          {activeTab === "Account" && <AccountTab clinic={clinic} />}
+          {activeTab === "Profile" && <ProfileTab clinic={clinic} />}
           {activeTab === "Preferences" && <PreferencesTab />}
         </>
       )}

@@ -3,6 +3,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth";
 import { useQuery } from "@tanstack/react-query";
 import { getBusinessBilling } from "@/lib/api";
+import { CommandPalette } from "@/components/dashboard/command-palette";
 import {
   LayoutDashboard,
   Phone,
@@ -13,6 +14,8 @@ import {
   ChevronUp,
   Bot,
   Zap,
+  Calendar,
+  Search,
 } from "lucide-react";
 
 // ─── Animated Hamburger (21st.dev) ────────────────────────
@@ -67,6 +70,7 @@ function HamburgerIcon({ open }: { open: boolean }) {
 const NAV_MAIN = [
   { label: "Overview", to: "/", icon: LayoutDashboard },
   { label: "Calls", to: "/calls", icon: Phone },
+  { label: "Appointments", to: "/appointments", icon: Calendar },
   { label: "Leads", to: "/leads", icon: UserPlus },
 ] as const;
 
@@ -235,6 +239,7 @@ function NavItem({ label, to, icon: Icon, pathname }: { label: string; to: strin
 }
 
 // ─── Agent Card (sidebar) ─────────────────────────────
+// Quiet, always-on status pill. Billing details live on /overview.
 
 function AgentCard() {
   const { data: billing } = useQuery({
@@ -244,97 +249,32 @@ function AgentCard() {
   });
 
   const secs = billing?.seconds_remaining ?? null;
-  const isExhausted = secs !== null && secs <= 0;
+  const isExhausted = secs !== null && secs <= 0 && !billing?.allow_overage;
   const isLow = secs !== null && secs > 0 && secs <= 1800;
 
-  const accentColor = isExhausted ? "#E5484D" : isLow ? "#F59E0B" : "#10B981";
-  const FULL_SECS = 5 * 60 * 60;
-  const SEGMENTS = 12;
-  const pct = secs === null ? 1 : isExhausted ? 0 : Math.min(1, secs / FULL_SECS);
-  const filledCount = Math.round(pct * SEGMENTS);
-
-  const mins = secs !== null ? Math.floor(Math.abs(secs) / 60) : null;
-  const hours = mins !== null ? Math.floor(mins / 60) : null;
-  const balanceLabel = secs === null
-    ? null
-    : isExhausted
-    ? (billing?.allow_overage ? "Overage" : "Paused")
-    : hours && hours > 0
-    ? `${hours}h ${mins! % 60}m left`
-    : `${mins}m left`;
-
-  const statusBg = isExhausted ? "#FEE2E2" : "#D1FAE5";
-  const statusBorder = isExhausted ? "rgba(229,72,77,0.2)" : "rgba(16,185,129,0.2)";
-  const statusColor = isExhausted ? "#991B1B" : "#065F46";
-  const statusDot = isExhausted ? "#E5484D" : "#10B981";
-  const statusText = isExhausted ? "PAUSED" : "LIVE";
+  const statusDot = isExhausted ? "#E5484D" : isLow ? "#F59E0B" : "#10B981";
+  const statusText = isExhausted ? "Paused" : isLow ? "Low credit" : "Live";
+  const statusColor = isExhausted ? "#DC2626" : isLow ? "#B45309" : "#059669";
 
   return (
-    <div style={{ margin: "6px 8px 10px" }}>
-      <div style={{
-        background: "var(--accent)",
-        border: "1px solid var(--sidebar-border)",
-        borderRadius: 16,
-        padding: "12px 12px 10px",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-      }}>
-        {/* Header row */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <Bot style={{ width: 12, height: 12, color: "var(--muted-foreground)" }} strokeWidth={1.5} />
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--foreground)", letterSpacing: "-0.01em" }}>AI Agent</span>
-          </div>
-          <div style={{
-            display: "flex", alignItems: "center", gap: 4,
-            background: statusBg, padding: "2px 8px", borderRadius: 999,
-            border: `1px solid ${statusBorder}`,
-          }}>
-            <span
-              className={isExhausted ? undefined : "animate-live-pulse"}
-              style={{ width: 5, height: 5, borderRadius: "50%", background: statusDot, flexShrink: 0, display: "block" }}
-            />
-            <span style={{ fontSize: 10, fontWeight: 700, color: statusColor, letterSpacing: "0.04em" }}>{statusText}</span>
-          </div>
-        </div>
-
-        {/* Minutes meter */}
-        {secs !== null && (
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
-              <span style={{ fontSize: 10, color: "var(--muted-foreground)", letterSpacing: "0.04em", textTransform: "uppercase", fontWeight: 600, opacity: 0.7 }}>
-                Minutes
-              </span>
-              <span style={{ fontSize: 10.5, fontWeight: 600, color: accentColor, fontVariantNumeric: "tabular-nums" }}>
-                {balanceLabel}
-              </span>
-            </div>
-            <div style={{ display: "flex", gap: 2 }}>
-              {Array.from({ length: SEGMENTS }).map((_, i) => (
-                <div key={i} style={{
-                  flex: 1, height: 3, borderRadius: 2,
-                  background: i < filledCount ? accentColor : "var(--border)",
-                  opacity: i < filledCount ? (i === filledCount - 1 ? 0.5 : 0.9) : 0.35,
-                  transition: "background 0.3s",
-                }} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Configure button */}
-        <Link to="/settings"
-          style={{
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-            padding: "6px 0", borderRadius: 9, background: "var(--foreground)", color: "var(--background)",
-            fontSize: 11.5, fontWeight: 600, textDecoration: "none", transition: "opacity 0.15s",
-            letterSpacing: "-0.01em",
-          }}
-          onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = "0.8")}
-          onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = "1")}
-        >
-          <Settings style={{ width: 10, height: 10 }} strokeWidth={2} />
-          Configure
-        </Link>
+    <div style={{ padding: "0 10px 8px" }}>
+      <div
+        aria-label={`Assistant ${statusText.toLowerCase()}`}
+        style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "8px 12px",
+          background: "var(--accent)",
+          border: "1px solid var(--sidebar-border)",
+          borderRadius: 999,
+        }}
+      >
+        <span
+          className={isExhausted ? undefined : "animate-live-pulse"}
+          style={{ width: 6, height: 6, borderRadius: "50%", background: statusDot, flexShrink: 0, display: "block" }}
+        />
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: statusColor, letterSpacing: "-0.01em" }}>
+          {statusText}
+        </span>
       </div>
     </div>
   );
@@ -494,6 +434,32 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
+        {/* Search trigger */}
+        <div style={{ padding: "0 12px 8px" }}>
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event("open-command-palette"))}
+            style={{
+              display: "flex", alignItems: "center", gap: 9, width: "100%",
+              padding: "7px 10px", borderRadius: 9,
+              background: "var(--card)", border: "1px solid var(--sidebar-border)",
+              color: "var(--muted-foreground)", cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = "var(--accent)")}
+            onMouseLeave={e => (e.currentTarget.style.background = "var(--card)")}
+            aria-label="Open search"
+          >
+            <Search size={13} strokeWidth={1.75} />
+            <span style={{ fontSize: 12, letterSpacing: "-0.01em", flex: 1, textAlign: "left" }}>Search</span>
+            <kbd style={{
+              fontSize: 10, fontWeight: 600, padding: "2px 5px",
+              background: "var(--muted)", borderRadius: 4,
+              color: "var(--muted-foreground)",
+            }}>⌘K</kbd>
+          </button>
+        </div>
+
         {/* Nav */}
         <nav style={{ flex: 1, padding: "2px 8px", overflowY: "auto" }}>
           <div>
@@ -533,7 +499,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           >
             <HamburgerIcon open={mobileOpen} />
           </button>
-          <Link to="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
+          <Link to="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", flex: 1 }}>
             <div style={{
               width: 26, height: 26, borderRadius: 7, background: "var(--foreground)",
               display: "flex", alignItems: "center", justifyContent: "center",
@@ -542,6 +508,18 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             </div>
             <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.4px", color: "var(--foreground)" }}>Orvia</span>
           </Link>
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event("open-command-palette"))}
+            aria-label="Search"
+            style={{
+              padding: 6, borderRadius: 9, border: "none",
+              background: "transparent", cursor: "pointer", color: "var(--muted-foreground)",
+              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+            }}
+          >
+            <Search size={16} strokeWidth={1.75} />
+          </button>
         </div>
 
         {/* Page content */}
@@ -551,6 +529,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
+
+      {/* Global cmd-K search */}
+      <CommandPalette />
     </div>
   );
 }
