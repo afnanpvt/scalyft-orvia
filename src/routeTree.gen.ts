@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from "./routes/__root"
+import { Route as ResetPasswordRouteImport } from "./routes/reset-password"
 import { Route as DashboardRouteImport } from "./routes/_dashboard"
 import { Route as AuthRouteImport } from "./routes/_auth"
 import { Route as DashboardIndexRouteImport } from "./routes/_dashboard/index"
@@ -18,8 +19,14 @@ import { Route as DashboardLeadsRouteImport } from "./routes/_dashboard/leads"
 import { Route as DashboardCallsRouteImport } from "./routes/_dashboard/calls"
 import { Route as DashboardAppointmentsRouteImport } from "./routes/_dashboard/appointments"
 import { Route as AuthLoginRouteImport } from "./routes/_auth/login"
+import { Route as AuthForgotPasswordRouteImport } from "./routes/_auth/forgot-password"
 import { Route as DashboardCallsIdRouteImport } from "./routes/_dashboard/calls_.$id"
 
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: "/reset-password",
+  path: "/reset-password",
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: "/_dashboard",
   getParentRoute: () => rootRouteImport,
@@ -63,6 +70,11 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
   path: "/login",
   getParentRoute: () => AuthRoute,
 } as any)
+const AuthForgotPasswordRoute = AuthForgotPasswordRouteImport.update({
+  id: "/forgot-password",
+  path: "/forgot-password",
+  getParentRoute: () => AuthRoute,
+} as any)
 const DashboardCallsIdRoute = DashboardCallsIdRouteImport.update({
   id: "/calls_/$id",
   path: "/calls/$id",
@@ -71,6 +83,8 @@ const DashboardCallsIdRoute = DashboardCallsIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   "/": typeof DashboardIndexRoute
+  "/reset-password": typeof ResetPasswordRoute
+  "/forgot-password": typeof AuthForgotPasswordRoute
   "/login": typeof AuthLoginRoute
   "/appointments": typeof DashboardAppointmentsRoute
   "/calls": typeof DashboardCallsRoute
@@ -81,6 +95,8 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   "/": typeof DashboardIndexRoute
+  "/reset-password": typeof ResetPasswordRoute
+  "/forgot-password": typeof AuthForgotPasswordRoute
   "/login": typeof AuthLoginRoute
   "/appointments": typeof DashboardAppointmentsRoute
   "/calls": typeof DashboardCallsRoute
@@ -93,6 +109,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   "/_auth": typeof AuthRouteWithChildren
   "/_dashboard": typeof DashboardRouteWithChildren
+  "/reset-password": typeof ResetPasswordRoute
+  "/_auth/forgot-password": typeof AuthForgotPasswordRoute
   "/_auth/login": typeof AuthLoginRoute
   "/_dashboard/appointments": typeof DashboardAppointmentsRoute
   "/_dashboard/calls": typeof DashboardCallsRoute
@@ -106,6 +124,8 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | "/"
+    | "/reset-password"
+    | "/forgot-password"
     | "/login"
     | "/appointments"
     | "/calls"
@@ -116,6 +136,8 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | "/"
+    | "/reset-password"
+    | "/forgot-password"
     | "/login"
     | "/appointments"
     | "/calls"
@@ -127,6 +149,8 @@ export interface FileRouteTypes {
     | "__root__"
     | "/_auth"
     | "/_dashboard"
+    | "/reset-password"
+    | "/_auth/forgot-password"
     | "/_auth/login"
     | "/_dashboard/appointments"
     | "/_dashboard/calls"
@@ -140,10 +164,18 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   DashboardRoute: typeof DashboardRouteWithChildren
+  ResetPasswordRoute: typeof ResetPasswordRoute
 }
 
 declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
+    "/reset-password": {
+      id: "/reset-password"
+      path: "/reset-password"
+      fullPath: "/reset-password"
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     "/_dashboard": {
       id: "/_dashboard"
       path: ""
@@ -207,6 +239,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof AuthRoute
     }
+    "/_auth/forgot-password": {
+      id: "/_auth/forgot-password"
+      path: "/forgot-password"
+      fullPath: "/forgot-password"
+      preLoaderRoute: typeof AuthForgotPasswordRouteImport
+      parentRoute: typeof AuthRoute
+    }
     "/_dashboard/calls_/$id": {
       id: "/_dashboard/calls_/$id"
       path: "/calls/$id"
@@ -218,10 +257,12 @@ declare module "@tanstack/react-router" {
 }
 
 interface AuthRouteChildren {
+  AuthForgotPasswordRoute: typeof AuthForgotPasswordRoute
   AuthLoginRoute: typeof AuthLoginRoute
 }
 
 const AuthRouteChildren: AuthRouteChildren = {
+  AuthForgotPasswordRoute: AuthForgotPasswordRoute,
   AuthLoginRoute: AuthLoginRoute,
 }
 
@@ -254,6 +295,7 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   DashboardRoute: DashboardRouteWithChildren,
+  ResetPasswordRoute: ResetPasswordRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

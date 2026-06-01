@@ -238,6 +238,55 @@ function NavItem({ label, to, icon: Icon, pathname }: { label: string; to: strin
   );
 }
 
+// ─── Sidebar user row ────────────────────────────────
+// User dropdown + inline sign-out icon button beside it.
+
+function SidebarUserRow() {
+  const { signOut } = useAuth();
+  const [signingOut, setSigningOut] = useState(false);
+
+  async function handleSignOut() {
+    if (signingOut) return;
+    setSigningOut(true);
+    try { await signOut(); } finally { setSigningOut(false); }
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "stretch", gap: 6 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <UserDropdown />
+      </div>
+      <button
+        type="button"
+        onClick={handleSignOut}
+        disabled={signingOut}
+        aria-label="Sign out"
+        title="Sign out"
+        style={{
+          width: 34, alignSelf: "center",
+          height: 34, borderRadius: 10,
+          background: "transparent", border: "1px solid var(--sidebar-border)",
+          color: "var(--muted-foreground)", cursor: signingOut ? "wait" : "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0, transition: "all 0.15s",
+        }}
+        onMouseEnter={e => {
+          if (!signingOut) {
+            (e.currentTarget as HTMLElement).style.background = "var(--accent)";
+            (e.currentTarget as HTMLElement).style.color = "#E5484D";
+          }
+        }}
+        onMouseLeave={e => {
+          (e.currentTarget as HTMLElement).style.background = "transparent";
+          (e.currentTarget as HTMLElement).style.color = "var(--muted-foreground)";
+        }}
+      >
+        <LogOut size={13} strokeWidth={1.75} />
+      </button>
+    </div>
+  );
+}
+
 // ─── Agent Card (sidebar) ─────────────────────────────
 // Quiet, always-on status pill. Billing details live on /overview.
 
@@ -475,7 +524,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
         {/* User */}
         <div style={{ padding: "6px 8px 12px", borderTop: "1px solid var(--sidebar-border)" }}>
-          <UserDropdown />
+          <SidebarUserRow />
         </div>
       </aside>
 

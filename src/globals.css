@@ -289,6 +289,119 @@
   animation-delay: 0.3s;
 }
 
+/* ─── transitions-dev tokens (panel reveal + error shake only) ─── */
+:root {
+  --panel-open-dur: 600ms;
+  --panel-close-dur: 350ms;
+  --panel-translate-x: 40px;
+  --panel-blur: 4px;
+  --panel-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --shake-distance: 6px;
+  --shake-overshoot: 4px;
+  --shake-dur-a: 80ms;
+  --shake-dur-b: 60ms;
+  --shake-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --revert-hold: 3000ms;
+  --revert-dur: 280ms;
+}
+
+/* Panel reveal — horizontal variant.
+   Used on the auth split-screen halves. Same tokens as t-panel-slide
+   but translateX so panels slide in from their respective sides. */
+.t-panel-slide-x {
+  opacity: 0;
+  filter: blur(var(--panel-blur));
+  pointer-events: none;
+  transition:
+    transform var(--panel-close-dur) var(--panel-ease),
+    opacity   var(--panel-close-dur) var(--panel-ease),
+    filter    var(--panel-close-dur) var(--panel-ease);
+  will-change: transform, opacity, filter;
+}
+.t-panel-slide-x[data-from="left"]  { transform: translateX(calc(var(--panel-translate-x) * -1)); }
+.t-panel-slide-x[data-from="right"] { transform: translateX(var(--panel-translate-x)); }
+.t-panel-slide-x[data-open="true"] {
+  transform: translateX(0);
+  opacity: 1;
+  filter: blur(0);
+  pointer-events: auto;
+  transition:
+    transform var(--panel-open-dur) var(--panel-ease),
+    opacity   var(--panel-open-dur) var(--panel-ease),
+    filter    var(--panel-open-dur) var(--panel-ease);
+}
+
+/* Error shake — copied verbatim from transitions-dev #12.
+   Replay by toggling .is-shaking via the React key + ref pattern. */
+.t-input {
+  transition: border-color 150ms ease-out;
+  will-change: transform;
+}
+.t-input.is-shaking {
+  animation: t-input-shake calc(var(--shake-dur-a) * 2 + var(--shake-dur-b) * 2) linear;
+}
+@keyframes t-input-shake {
+  0%      { transform: translateX(0);                                animation-timing-function: var(--shake-ease); }
+  28.57%  { transform: translateX(var(--shake-distance));            animation-timing-function: var(--shake-ease); }
+  57.14%  { transform: translateX(calc(var(--shake-distance) * -1)); animation-timing-function: var(--shake-ease); }
+  78.57%  { transform: translateX(var(--shake-overshoot));           animation-timing-function: var(--shake-ease); }
+  100%    { transform: translateX(0); }
+}
+
+/* Gentle float — used by the abstract call cards on the auth visual.
+   Slow, low-amplitude, never blocks reading. Spring ease, not sine. */
+@keyframes gentleFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-5px); }
+}
+.animate-gentle-float {
+  animation: gentleFloat 7s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  will-change: transform;
+}
+.animate-gentle-float-delay-1 { animation-delay: 1.2s; }
+.animate-gentle-float-delay-2 { animation-delay: 2.4s; }
+.animate-gentle-float-delay-3 { animation-delay: 3.6s; }
+
+/* Reduced-motion guard for the auth-specific animations. */
+@media (prefers-reduced-motion: reduce) {
+  .t-panel-slide-x,
+  .t-panel-slide-x[data-open="true"] {
+    transition: none !important;
+    transform: none !important;
+    filter: none !important;
+    opacity: 1 !important;
+  }
+  .t-input { animation: none !important; transform: none !important; }
+  .animate-gentle-float { animation: none !important; }
+}
+
+/* Force-light scope for the auth pages.
+   The design is built for light surfaces with shadows-not-borders;
+   running it on the dark token set looks like cheap glass. Re-declare
+   the light token values inside this scope so prefers-color-scheme /
+   user dark-mode pref doesn't bleed through. */
+.theme-light-force {
+  --background: #F5F5F7;
+  --foreground: #0A0A0B;
+  --card: #FFFFFF;
+  --card-foreground: #0A0A0B;
+  --popover: #FFFFFF;
+  --popover-foreground: #0A0A0B;
+  --primary: #0A0A0B;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F0F0F2;
+  --secondary-foreground: #0A0A0B;
+  --muted: #F0F0F2;
+  --muted-foreground: #737378;
+  --accent: #F0F0F2;
+  --accent-foreground: #0A0A0B;
+  --destructive: #E5484D;
+  --border: rgba(0, 0, 0, 0.06);
+  --sidebar-border: rgba(0, 0, 0, 0.06);
+  color-scheme: light;
+}
+
 /* ─── Button press - tactile ─── */
 button:active:not([disabled]) {
   transform: scale(0.97);
