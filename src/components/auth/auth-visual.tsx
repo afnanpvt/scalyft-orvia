@@ -97,13 +97,14 @@ export function AuthVisual() {
 
   return (
     <div className="relative w-full h-full flex flex-col overflow-hidden">
-      {/* Soft grid backdrop */}
+      {/* Soft grid backdrop — eased down to ~3% lines since the slate
+          background already carries enough surface texture. */}
       <div
         aria-hidden
-        className="absolute inset-0 opacity-[0.5]"
+        className="absolute inset-0 opacity-[0.6]"
         style={{
           backgroundImage:
-            "linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)",
+            "linear-gradient(rgba(15,23,42,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(15,23,42,0.035) 1px, transparent 1px)",
           backgroundSize: "36px 36px",
           maskImage: "radial-gradient(ellipse 80% 60% at 50% 45%, black 30%, transparent 80%)",
           WebkitMaskImage: "radial-gradient(ellipse 80% 60% at 50% 45%, black 30%, transparent 80%)",

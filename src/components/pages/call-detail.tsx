@@ -397,22 +397,6 @@ export default function CallDetailPage() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-      {/* Back */}
-      <Link
-        to="/calls"
-        className="animate-fade-up animate-fade-up-1"
-        style={{
-          display: "inline-flex", alignItems: "center", gap: 4,
-          fontSize: 13, color: "var(--muted-foreground)", textDecoration: "none",
-          transition: "color 0.15s",
-        }}
-        onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.color = "var(--foreground)"}
-        onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.color = "var(--muted-foreground)"}
-      >
-        <ChevronLeft style={{ width: 14, height: 14 }} strokeWidth={1.5} />
-        Calls
-      </Link>
-
       {!isLoading && !call && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "96px 0", gap: 10 }}>
           <AlertCircle style={{ width: 32, height: 32, color: "var(--muted-foreground)" }} strokeWidth={1.5} />
@@ -429,7 +413,32 @@ export default function CallDetailPage() {
             <div className="ios-card animate-fade-up animate-fade-up-2" style={{ padding: "20px 24px" }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    {/* Contextual back button — returns to /calls list */}
+                    <Link
+                      to="/calls"
+                      aria-label="Back to calls"
+                      title="Back to calls"
+                      style={{
+                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        width: 30, height: 30, borderRadius: 9, flexShrink: 0,
+                        background: "var(--card)",
+                        border: "1px solid var(--border)",
+                        color: "var(--muted-foreground)",
+                        textDecoration: "none",
+                        transition: "all 0.15s",
+                      }}
+                      onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLElement).style.background = "var(--accent)";
+                        (e.currentTarget as HTMLElement).style.color = "var(--foreground)";
+                      }}
+                      onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLElement).style.background = "var(--card)";
+                        (e.currentTarget as HTMLElement).style.color = "var(--muted-foreground)";
+                      }}
+                    >
+                      <ChevronLeft style={{ width: 16, height: 16 }} strokeWidth={1.75} />
+                    </Link>
                     <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.3px", color: "var(--foreground)" }}>
                       {call.caller_phone ?? "Unknown caller"}
                     </h1>

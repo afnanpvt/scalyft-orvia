@@ -511,6 +511,76 @@ function StatusStrip({ clinicActive, actionCount, nextAppointment, liveCall, ela
   )
 }
 
+// ─── Status Strip (compact, mobile-only) ──────────────────
+// One horizontal row of 3 pills. Replaces the full StatusStrip on phones so
+// the top of the dashboard isn't 3 stacked cards eating half the viewport.
+// Each pill: colored dot + short status. The Needs Action pill links to /needs-action.
+
+function StatusStripCompact({
+  clinicActive, actionCount, nextAppointment, liveCall,
+}: {
+  clinicActive: boolean
+  actionCount: number
+  nextAppointment: Appointment | null
+  liveCall: Call | null
+}) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === "dark"
+
+  const aiDotColor = liveCall ? "#10B981" : clinicActive ? "#10B981" : "#E5484D"
+  const aiText = liveCall ? "On call" : clinicActive ? "Live" : "Offline"
+
+  const needsDotColor = actionCount > 0 ? "#F59E0B" : "#10B981"
+  const needsText = actionCount > 0 ? `${actionCount} to review` : "All clear"
+
+  const nextText = nextAppointment
+    ? (timeUntil(nextAppointment.scheduled_start) || formatScheduleSlot(nextAppointment.scheduled_start).time)
+    : "Nothing yet"
+  const nextDotColor = nextAppointment ? "#6366F1" : (isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)")
+
+  const pillStyle: React.CSSProperties = {
+    flex: 1, minWidth: 0,
+    display: "flex", alignItems: "center", gap: 7,
+    padding: "9px 12px",
+    background: isDark ? "var(--card)" : "#ffffff",
+    border: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"}`,
+    borderRadius: 999,
+    fontSize: 11.5, fontWeight: 500,
+    color: isDark ? "#F2F2F7" : "#0A0A0B",
+    letterSpacing: "-0.01em",
+    overflow: "hidden",
+    textDecoration: "none",
+  }
+  const textStyle: React.CSSProperties = {
+    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: 1,
+  }
+
+  return (
+    <div className="status-strip-compact" style={{ gap: 6 }}>
+      {/* AI Agent */}
+      <div style={pillStyle}>
+        <span
+          className={liveCall || clinicActive ? "animate-live-pulse" : undefined}
+          style={{ width: 6, height: 6, borderRadius: "50%", background: aiDotColor, flexShrink: 0 }}
+        />
+        <span style={textStyle}>{aiText}</span>
+      </div>
+
+      {/* Needs Attention */}
+      <Link to="/needs-action" style={pillStyle}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: needsDotColor, flexShrink: 0 }} />
+        <span style={textStyle}>{needsText}</span>
+      </Link>
+
+      {/* Next Appointment */}
+      <Link to="/appointments" style={pillStyle}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: nextDotColor, flexShrink: 0 }} />
+        <span style={textStyle}>{nextText}</span>
+      </Link>
+    </div>
+  )
+}
+
 // ─── Notification Bell ────────────────────────────────────
 
 const EVENT_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
@@ -782,6 +852,13 @@ function WeeklyChart() {
   const days: WeekDay[] = raw ?? []
   const totalCalls = days.reduce((s, d) => s + d.calls, 0)
   const totalBooked = days.reduce((s, d) => s + d.appointments, 0)
+  // Shape per-day data for the stacked bar: green base = appointments,
+  // purple cap = calls beyond bookings. Single bar per day centres on its
+  // label tick, fixing the grouped-bar offset that drifted bars off-axis.
+  const chartData = days.map(d => ({
+    ...d,
+    callsRemaining: Math.max(0, d.calls - d.appointments),
+  }))
   // Cap at 100% — see note in OverviewPage. Inconsistent seeds can push booked > calls.
   const rawRate = totalCalls > 0 ? Math.round((totalBooked / totalCalls) * 100) : null
   const bookingRate = rawRate !== null && rawRate >= 0 && rawRate <= 100 ? rawRate : null
@@ -862,15 +939,21 @@ function WeeklyChart() {
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={days} barCategoryGap="22%" barGap={1.5} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
+            <BarChart
+              data={chartData}
+              barCategoryGap="35%"
+              margin={{ top: 8, right: 4, left: 4, bottom: 0 }}
+            >
               <XAxis dataKey="date" axisLine={false} tickLine={false}
                 tick={{ fontSize: 10, fill: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.32)", fontFamily: "Geist, sans-serif" }}
                 interval={0} />
               <Tooltip cursor={{ fill: isDark ? "rgba(255,255,255,0.03)" : "rgba(99,102,241,0.04)", radius: 4 }}
                 content={({ active, payload, label }) => {
                   if (!active || !payload?.length) return null
-                  const calls = (payload.find(p => p.dataKey === "calls")?.value as number) ?? 0
-                  const booked = (payload.find(p => p.dataKey === "appointments")?.value as number) ?? 0
+                  // Both segments live on the same stack — pull from the day record directly.
+                  const dayRow = payload[0]?.payload as { calls?: number; appointments?: number } | undefined
+                  const calls = dayRow?.calls ?? 0
+                  const booked = dayRow?.appointments ?? 0
                   return (
                     <div className="chart-tooltip">
                       <p style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", marginBottom: 5, letterSpacing: "-0.01em" }}>{label}</p>
@@ -886,8 +969,11 @@ function WeeklyChart() {
                   )
                 }}
               />
-              <Bar dataKey="calls" fill="#6366F1" fillOpacity={isDark ? 0.7 : 0.85} radius={[3, 3, 0, 0]} maxBarSize={10} />
-              <Bar dataKey="appointments" fill="#10B981" fillOpacity={isDark ? 0.7 : 0.85} radius={[3, 3, 0, 0]} maxBarSize={10} />
+              {/* Single bar per day, stacked: green "booked" base + purple "uncovered calls" cap.
+                  This guarantees each bar sits dead-centre on its day label. Booked goes on
+                  the bottom so the green portion reads as "calls we converted". */}
+              <Bar dataKey="appointments" stackId="day" fill="#10B981" fillOpacity={isDark ? 0.75 : 0.9} maxBarSize={11} />
+              <Bar dataKey="callsRemaining" stackId="day" fill="#6366F1" fillOpacity={isDark ? 0.7 : 0.85} radius={[3, 3, 0, 0]} maxBarSize={11} />
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -901,12 +987,12 @@ function WeeklyChart() {
           display: "flex", alignItems: "center", gap: 14,
         }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>
-            <span style={{ width: 7, height: 7, borderRadius: 2, background: "#6366F1" }} />
-            Calls
-          </span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>
             <span style={{ width: 7, height: 7, borderRadius: 2, background: "#10B981" }} />
             Booked
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>
+            <span style={{ width: 7, height: 7, borderRadius: 2, background: "#6366F1" }} />
+            Other calls
           </span>
         </div>
       )}
@@ -925,8 +1011,23 @@ function CallMinutesCard({ secondsRemaining, allowOverage }: { secondsRemaining:
   const isExhausted = secondsRemaining <= 0
   const remainSecs = Math.max(0, secondsRemaining)
   const usedSecs = FULL_SECS - remainSecs
-  const usedMins = Math.floor(usedSecs / 60)
-  const usedPct = Math.min(100, Math.max(0, Math.round((usedSecs / FULL_SECS) * 100)))
+
+  // Math discipline: never show "100% used" or "300/300 mins" while any
+  // time remains. If even 1 second is left, cap displayed usage at 99% /
+  // FULL_MINS - 1. 100% / full count is reserved for true exhaustion.
+  let usedMins: number
+  let usedPct: number
+  if (isExhausted) {
+    usedMins = FULL_MINS
+    usedPct = 100
+  } else {
+    // ceil() so a remainder of 59 seconds still consumes a minute on the display.
+    const rawUsedMins = Math.ceil(usedSecs / 60)
+    usedMins = Math.min(FULL_MINS - 1, rawUsedMins)
+    const rawPct = Math.round((usedSecs / FULL_SECS) * 100)
+    usedPct = Math.min(99, Math.max(0, rawPct))
+  }
+
   const isLow = remainSecs > 0 && remainSecs <= 1800
 
   // accent based on usage; the more used, the warmer
@@ -1500,8 +1601,12 @@ export default function OverviewPage() {
           .overview-bottom-grid-3 { grid-template-columns: 1fr; }
           .overview-header-right { display: none !important; }
           .overview-header h1 { font-size: 22px !important; }
-          .status-strip > * { flex: 1 1 100% !important; }
+          /* Hide the full status-strip on mobile; the compact pill row takes over. */
+          .status-strip { display: none !important; }
+          .status-strip-compact { display: flex !important; }
         }
+        /* Compact mobile-only strip: 3 pills in one row, ~36px tall. */
+        .status-strip-compact { display: none; }
         @media (max-width: 400px) {
           .overview-stat-grid { gap: 8px; }
         }
@@ -1547,13 +1652,21 @@ export default function OverviewPage() {
         </div>
       </div>
 
-      {/* ── Status Strip ──────────────────────────────────── */}
+      {/* ── Status Strip ────────────────────────────────────
+          Full 3-card strip on tablet+ , compact pill row on phones.
+          CSS swaps them via media query at 700px. */}
       <StatusStrip
         clinicActive={!!clinicActive}
         actionCount={actionableCount}
         nextAppointment={nextAppointment}
         liveCall={liveCallQuery.data ?? null}
         elapsed={liveElapsed}
+      />
+      <StatusStripCompact
+        clinicActive={!!clinicActive}
+        actionCount={actionableCount}
+        nextAppointment={nextAppointment}
+        liveCall={liveCallQuery.data ?? null}
       />
 
       {/* ── KPI Cards ─────────────────────────────────────── */}

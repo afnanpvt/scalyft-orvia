@@ -42,25 +42,34 @@ export function AuthShell({
   }, [])
 
   return (
-    <div className="theme-light-force min-h-screen bg-background">
+    <div className="theme-light-force min-h-screen">
       <div className="grid min-h-screen lg:grid-cols-2">
-        {/* ─── Visual: LEFT on desktop, hidden on mobile ───── */}
+        {/* ─── Visual: LEFT on desktop, hidden on mobile ─────
+            Tinted slate-grey surface with a subtle diagonal gradient.
+            Reads as the "stage" — distinct from the form's white. */}
         <div
           className="hidden lg:flex t-panel-slide-x relative overflow-hidden"
           data-from="left"
           data-open={panelsOpen}
           style={{
-            background: "linear-gradient(180deg, #FAFAFC 0%, #F4F5F8 100%)",
+            background:
+              "linear-gradient(145deg, #EEF0F4 0%, #E6E9EF 55%, #DFE3EA 100%)",
+            // hairline separator that hugs the right edge — barely visible
+            // but kills the "two whites blending" feeling at the seam.
+            boxShadow: "inset -1px 0 0 rgba(15, 23, 42, 0.06)",
           }}
         >
           {visual}
         </div>
 
-        {/* ─── Form: RIGHT on desktop, full-width on mobile ─── */}
+        {/* ─── Form: RIGHT on desktop, full-width on mobile ───
+            Pure white "writing surface". Sits visually above the
+            tinted left panel via the seam shadow. */}
         <div
           className="t-panel-slide-x flex flex-col justify-center px-6 py-10 sm:px-12 lg:px-16"
           data-from="right"
           data-open={panelsOpen}
+          style={{ background: "#FFFFFF" }}
         >
           <div className="mx-auto w-full max-w-sm">
             {/* Brand — quiet, top of form */}
@@ -88,7 +97,15 @@ export function AuthShell({
             {children}
 
             <p className="text-[9px] font-medium uppercase tracking-[0.15em] text-muted-foreground/55 mt-16 text-center">
-              Powered by Scalyft
+              Powered by{" "}
+              <a
+                href="https://www.scalyft.tech/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground transition-colors"
+              >
+                Scalyft
+              </a>
             </p>
           </div>
         </div>

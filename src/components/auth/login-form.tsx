@@ -41,8 +41,8 @@ export function LoginForm() {
   return (
     <AuthShell
       visual={<AuthVisual />}
-      heading="Welcome back"
-      subheading="Sign in to your dashboard"
+      heading="Sign in to Orvia"
+      subheading="Your AI front desk is waiting"
     >
       <form onSubmit={handleSubmit} className="space-y-5">
         <div style={fadeUpStyle(formReady, 0)}>
