@@ -1,3 +1,39 @@
 {
+  "permissions": {
+    "allow": [
+      "mcp__7bb57202-20eb-4f77-85ed-e55edfb914e1__execute_sql",
+      "Skill(council)",
+      "Skill(council:*)",
+      "mcp__7bb57202-20eb-4f77-85ed-e55edfb914e1__list_edge_functions",
+      "mcp__7bb57202-20eb-4f77-85ed-e55edfb914e1__list_projects",
+      "mcp__7bb57202-20eb-4f77-85ed-e55edfb914e1__list_tables",
+      "mcp__7bb57202-20eb-4f77-85ed-e55edfb914e1__get_edge_function",
+      "Bash(supabase projects *)",
+      "PowerShell(supabase projects list 2>&1)",
+      "PowerShell($env:SUPABASE_ACCESS_TOKEN; [System.Environment]::GetEnvironmentVariable\\(\"SUPABASE_ACCESS_TOKEN\", \"User\"\\))",
+      "PowerShell(Get-Content \"$env:APPDATA\\\\supabase\\\\access-token\" -ErrorAction SilentlyContinue; Get-Content \"$env:USERPROFILE\\\\.supabase\\\\access-token\" -ErrorAction SilentlyContinue; Get-ChildItem \"$env:USERPROFILE\\\\.supabase\" -ErrorAction SilentlyContinue)",
+      "mcp__7bb57202-20eb-4f77-85ed-e55edfb914e1__list_migrations",
+      "mcp__7bb57202-20eb-4f77-85ed-e55edfb914e1__apply_migration",
+      "mcp__7bb57202-20eb-4f77-85ed-e55edfb914e1__deploy_edge_function",
+      "mcp__c236c682-214f-4d7c-b71b-dca55855d01e__getAccessibleAtlassianResources",
+      "mcp__c236c682-214f-4d7c-b71b-dca55855d01e__getConfluenceSpaces",
+      "mcp__c236c682-214f-4d7c-b71b-dca55855d01e__getPagesInConfluenceSpace",
+      "mcp__c236c682-214f-4d7c-b71b-dca55855d01e__updateConfluencePage",
+      "mcp__c236c682-214f-4d7c-b71b-dca55855d01e__createConfluencePage",
+      "Bash(git add *)",
+      "mcp__c236c682-214f-4d7c-b71b-dca55855d01e__getConfluencePage",
+      "WebFetch(domain:telnyx.com)",
+      "WebFetch(domain:percepture.com)",
+      "WebFetch(domain:support.telnyx.com)",
+      "mcp__c236c682-214f-4d7c-b71b-dca55855d01e__search",
+      "WebFetch(domain:revalgo.ai)",
+      "WebFetch(domain:razzohealthcare.com)",
+      "mcp__visualize__show_widget",
+      "Bash(ls \"D:\\\\scalyft\\\\scalyft-orvia\\\\\" -la 2>/dev/null | head -30)",
+      "mcp__89b0db70-848f-4143-9cd8-2de2d4c81dd7__list_teams",
+      "mcp__89b0db70-848f-4143-9cd8-2de2d4c81dd7__list_projects",
+      "Bash(supabase functions *)"
+    ]
+  },
   "enableAllProjectMcpServers": true
 }
