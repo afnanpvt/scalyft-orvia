@@ -19,7 +19,6 @@ interface ClinicFAQ {
 
 interface ClinicSettings {
   greeting?: string;
-  doctor_name?: string;
   business_owner?: string;
   tagline?: string;
   address?: string;

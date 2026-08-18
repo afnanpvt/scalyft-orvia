@@ -196,7 +196,7 @@ function BusinessInfoTab({ clinic, settings, phoneDisplay, onSettingsChange, onP
         <SectionHeading>General</SectionHeading>
         <div className="space-y-6">
           <FieldGroup label="Owner / Manager Name">
-            <input type="text" value={settings.doctor_name ?? ""} onChange={e => onSettingsChange({ doctor_name: e.target.value })}
+            <input type="text" value={settings.business_owner ?? ""} onChange={e => onSettingsChange({ business_owner: e.target.value })}
               placeholder="John Smith" className={S.input} />
           </FieldGroup>
 
@@ -621,7 +621,7 @@ function tabIsDirty(tab: Tab, editSettings: BusinessSettingsType | null, origina
 
   switch (tab) {
     case "Business Info": {
-      const fields = ["doctor_name", "address", "landmark", "city", "operating_hours"] as const
+      const fields = ["business_owner", "address", "landmark", "city", "operating_hours"] as const
       for (const f of fields) if (JSON.stringify(editSettings[f]) !== JSON.stringify(original[f])) return true
       return editPhoneDisplay !== originalPhoneDisplay
     }

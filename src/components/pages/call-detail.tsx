@@ -384,8 +384,8 @@ export default function CallDetailPage() {
     return String(value)
   }
 
-  const extractedEntries = orderedKeys
-    .map((k) => [k, extracted[k]] as const)
+  const extractedEntries: [string, unknown][] = orderedKeys
+    .map((k): [string, unknown] => [k, extracted[k]])
     .filter(([k, v]) => isMeaningful(k, v))
     .concat(
       // Append any other fields VAPI sent that we don't have a hardcoded label for

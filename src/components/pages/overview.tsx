@@ -147,8 +147,14 @@ function buildCallSummary(call: Call): string {
   return `${name} · ${outcome}`
 }
 
+const NAME_TITLES = new Set(["dr", "mr", "mrs", "ms", "prof", "rev", "sir", "madam", "mx"])
+
 function getGreeting(name: string | null): string {
-  const firstName = name?.split(" ")[0] ?? null
+  const tokens = name?.trim().split(/\s+/).filter(Boolean) ?? []
+  while (tokens.length > 1 && NAME_TITLES.has(tokens[0].replace(/\./g, "").toLowerCase())) {
+    tokens.shift()
+  }
+  const firstName = tokens[0] ?? null
   const hour = new Date().getHours()
   return firstName
     ? (hour < 12 ? `Good morning, ${firstName}` : hour < 17 ? `Good afternoon, ${firstName}` : `Good evening, ${firstName}`)
