@@ -16,6 +16,7 @@ import {
   Zap,
   Calendar,
   Search,
+  AlertTriangle,
 } from "lucide-react";
 
 // ─── Animated Hamburger (21st.dev) ────────────────────────
@@ -72,6 +73,7 @@ const NAV_MAIN = [
   { label: "Calls", to: "/calls", icon: Phone },
   { label: "Appointments", to: "/appointments", icon: Calendar },
   { label: "Leads", to: "/leads", icon: UserPlus },
+  { label: "Needs Action", to: "/needs-action", icon: AlertTriangle },
 ] as const;
 
 const NAV_OTHER = [
@@ -300,10 +302,13 @@ function AgentCard() {
   const secs = billing?.seconds_remaining ?? null;
   const isExhausted = secs !== null && secs <= 0 && !billing?.allow_overage;
   const isLow = secs !== null && secs > 0 && secs <= 1800;
+  // Must match the "clinicActive" derivation on the Overview page — not just
+  // credits, but also business status and whether a phone number is provisioned.
+  const notConfigured = billing?.status !== "active" || !billing?.vapi_phone_id;
 
-  const statusDot = isExhausted ? "#E5484D" : isLow ? "#F59E0B" : "#10B981";
-  const statusText = isExhausted ? "Paused" : isLow ? "Low credit" : "Live";
-  const statusColor = isExhausted ? "#DC2626" : isLow ? "#B45309" : "#059669";
+  const statusDot = isExhausted || notConfigured ? "#E5484D" : isLow ? "#F59E0B" : "#10B981";
+  const statusText = isExhausted ? "Paused" : notConfigured ? "Offline" : isLow ? "Low credit" : "Live";
+  const statusColor = isExhausted || notConfigured ? "#DC2626" : isLow ? "#B45309" : "#059669";
 
   return (
     <div style={{ padding: "0 10px 8px" }}>

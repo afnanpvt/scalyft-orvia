@@ -293,8 +293,10 @@ export default function LeadsPage() {
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <button
+                type="button"
                 onClick={() => { setPage((p) => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: "smooth" }) }}
                 disabled={page <= 1}
+                aria-label="Previous page"
                 style={{
                   width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border)",
                   background: "var(--card)", color: "var(--foreground)",
@@ -309,8 +311,10 @@ export default function LeadsPage() {
                 {page} / {totalPages}
               </span>
               <button
+                type="button"
                 onClick={() => { setPage((p) => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: "smooth" }) }}
                 disabled={page >= totalPages}
+                aria-label="Next page"
                 style={{
                   width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border)",
                   background: "var(--card)", color: "var(--foreground)",

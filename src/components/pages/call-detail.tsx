@@ -162,7 +162,9 @@ function AudioPlayer({ src }: { src: string }) {
         onEnded={() => { setPlaying(false); setProgress(0) }}
       />
       <button
+        type="button"
         onClick={toggle}
+        aria-label={playing ? "Pause" : "Play"}
         style={{
           display: "flex", alignItems: "center", justifyContent: "center",
           width: 32, height: 32, borderRadius: "50%",
@@ -178,11 +180,23 @@ function AudioPlayer({ src }: { src: string }) {
         }
       </button>
       <div
+        role="slider"
+        tabIndex={0}
+        aria-label="Seek"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(progress * 100)}
         style={{
           flex: 1, height: 4, background: "var(--muted)", borderRadius: 2,
           cursor: "pointer", position: "relative", border: "1px solid var(--border)",
         }}
         onClick={handleSeek}
+        onKeyDown={(e) => {
+          const el = audioRef.current
+          if (!el || !el.duration) return
+          if (e.key === "ArrowRight") { el.currentTime = Math.min(el.duration, el.currentTime + 5); setProgress(el.currentTime / el.duration) }
+          if (e.key === "ArrowLeft") { el.currentTime = Math.max(0, el.currentTime - 5); setProgress(el.currentTime / el.duration) }
+        }}
       >
         <div style={{
           position: "absolute", top: 0, left: 0, bottom: 0,
@@ -306,9 +320,9 @@ function InfoRow({ label, children }: { label: string; children: React.ReactNode
   return (
     <div style={{
       display: "flex", alignItems: "flex-start", justifyContent: "space-between",
-      gap: 16, padding: "9px 0", borderBottom: "1px solid var(--border)",
+      gap: 16, padding: "9px 0",
     }}
-    className="last:border-0"
+    className="border-b border-border last:border-b-0"
     >
       <span style={{ fontSize: 11, color: "var(--muted-foreground)", flexShrink: 0 }}>{label}</span>
       <div style={{ fontSize: 13, color: "var(--foreground)", textAlign: "right" }}>{children}</div>

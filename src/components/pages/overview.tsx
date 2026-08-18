@@ -592,8 +592,8 @@ function StatusStripCompact({
 const EVENT_CONFIG: Record<string, { label: string; color: string; bg: string; border: string }> = {
   ai_failure:       { label: "AI Failed",       color: "#991B1B", bg: "#FEE2E2", border: "rgba(229,72,77,0.2)" },
   partial_booking:  { label: "Partial Booking", color: "#92400E", bg: "#FEF3C7", border: "rgba(245,158,11,0.2)" },
-  concurrent_call:  { label: "Concurrent",      color: "#1E40AF", bg: "#DBEAFE", border: "rgba(59,130,246,0.2)" },
-  transfer_unknown: { label: "Transfer ?",      color: "#92400E", bg: "#FEF3C7", border: "rgba(245,158,11,0.2)" },
+  concurrent_call:  { label: "Concurrent Call", color: "#1E40AF", bg: "#DBEAFE", border: "rgba(59,130,246,0.2)" },
+  transfer_unknown: { label: "Unknown Transfer", color: "#92400E", bg: "#FEF3C7", border: "rgba(245,158,11,0.2)" },
 }
 
 function NotificationBell() {

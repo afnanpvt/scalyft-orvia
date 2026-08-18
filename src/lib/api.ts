@@ -248,6 +248,8 @@ export async function getBusinessBilling(): Promise<{
   seconds_remaining: number;
   allow_overage: boolean;
   owner_phone: string | null;
+  status: string | null;
+  vapi_phone_id: string | null;
 } | null> {
   const {
     data: { user },
@@ -264,7 +266,7 @@ export async function getBusinessBilling(): Promise<{
 
   const { data } = await supabase
     .from("businesses")
-    .select("seconds_remaining, allow_overage, owner_phone")
+    .select("seconds_remaining, allow_overage, owner_phone, status, vapi_phone_id")
     .eq("id", userRow.business_id)
     .single();
 

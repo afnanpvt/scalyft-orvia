@@ -50,8 +50,7 @@ function AppointmentRow({ apt, onStatusChange }: {
   onStatusChange: (id: string, status: Appointment["status"]) => void
 }) {
   const status = statusStyle(apt.status)
-  const isPast = new Date(apt.scheduled_start) < new Date()
-  const canMarkComplete = !isPast || apt.status === "confirmed" || apt.status === "rescheduled"
+  const canMarkComplete = apt.status === "confirmed" || apt.status === "rescheduled"
 
   return (
     <div className="row-hover" style={{
@@ -165,7 +164,6 @@ export default function AppointmentsPage() {
     await queryClient.invalidateQueries({ queryKey: ["briefing"] })
   }
 
-  const totalCount = appointments?.length ?? 0
   const todayCount = appointments?.filter(a => isSameDay(new Date(a.scheduled_start), new Date())).length ?? 0
 
   return (
@@ -175,7 +173,7 @@ export default function AppointmentsPage() {
           Appointments
         </h1>
         <p style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 4 }}>
-          {totalCount} {filter} · {todayCount} today
+          {filter === "today" ? `${filtered.length} today` : `${filtered.length} ${filter} · ${todayCount} today`}
         </p>
       </div>
 
