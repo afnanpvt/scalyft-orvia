@@ -1,9 +1,43 @@
 import type { Business, BusinessService, BusinessFAQ } from "@/lib/types";
 
+// ElevenLabs multilingual v2 officially supports Hindi. Kannada is NOT on their
+// supported-language list — this is a best-effort mapping, unverified quality.
+// Requires an ElevenLabs key configured on the Vapi account.
+function voiceAndTranscriberFor(language: string | undefined) {
+  switch (language) {
+    case "hindi":
+      return {
+        voice: { provider: "11labs" as const, voiceId: "pFZP5JQG7iQjIQuC4Bku", model: "eleven_multilingual_v2" as const },
+        transcriber: { provider: "deepgram" as const, model: "nova-2", language: "hi", smartFormat: true, endpointing: 200 },
+      };
+    case "kannada":
+      return {
+        voice: { provider: "11labs" as const, voiceId: "pFZP5JQG7iQjIQuC4Bku", model: "eleven_multilingual_v2" as const },
+        transcriber: { provider: "deepgram" as const, model: "nova-2", language: "kn", smartFormat: true, endpointing: 200 },
+      };
+    case "multilingual":
+      return {
+        voice: { provider: "11labs" as const, voiceId: "pFZP5JQG7iQjIQuC4Bku", model: "eleven_multilingual_v2" as const },
+        transcriber: { provider: "deepgram" as const, model: "nova-2", language: "multi", smartFormat: true, endpointing: 200 },
+      };
+    case "spanish":
+      return {
+        voice: { provider: "vapi" as const, voiceId: "Lily" },
+        transcriber: { provider: "deepgram" as const, model: "nova-3", language: "es", smartFormat: true, endpointing: 200 },
+      };
+    default:
+      return {
+        voice: { provider: "vapi" as const, voiceId: "Lily" },
+        transcriber: { provider: "deepgram" as const, model: "nova-3", language: "en", smartFormat: true, endpointing: 200 },
+      };
+  }
+}
+
 export function buildAssistantConfig(
   business: Business,
   supabaseUrl: string,
 ) {
+  const { voice, transcriber } = voiceAndTranscriberFor(business.settings.language_preference);
   return {
     model: {
       provider: "openai" as const,
@@ -11,10 +45,8 @@ export function buildAssistantConfig(
       systemPrompt: buildSystemPrompt(business),
       temperature: 0.3,
     },
-    voice: {
-      provider: "vapi" as const,
-      voiceId: "Savannah",
-    },
+    voice,
+    transcriber,
     firstMessage: buildGreeting(business),
     tools: buildTools(business, supabaseUrl),
     endCallPhrases: [
@@ -42,9 +74,13 @@ function buildSystemPrompt(business: Business): string {
   const languageLine =
     langPref === "spanish"
       ? "Respond in Spanish by default. If the caller speaks English, mirror them in English."
-      : langPref === "bilingual"
-        ? "Detect the caller's language on their first turn and respond in that language — English or Spanish — for the rest of the call."
-        : "Respond in English. If the caller speaks Spanish, briefly apologize and offer to transfer or take a callback.";
+      : langPref === "hindi"
+        ? "Respond in Hindi by default. If the caller speaks English, mirror them in English."
+        : langPref === "kannada"
+          ? "Respond in Kannada by default. If the caller speaks English or Hindi, mirror them."
+          : langPref === "multilingual"
+            ? "Detect the caller's language on their first turn and respond in that language — Hindi, Kannada, or English — for the rest of the call. Mirror code-switching naturally."
+            : "Respond in English. If the caller speaks another language, briefly apologize and offer to transfer or take a callback.";
 
   const sections: string[] = [];
 

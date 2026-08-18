@@ -30,9 +30,11 @@ const DAY_LABELS: Record<string, string> = {
   friday: "Fri", saturday: "Sat", sunday: "Sun",
 }
 const LANGUAGE_OPTIONS = [
-  { value: "english",   label: "English" },
-  { value: "spanish",   label: "Spanish" },
-  { value: "bilingual", label: "Bilingual" },
+  { value: "english",      label: "English" },
+  { value: "spanish",      label: "Spanish" },
+  { value: "hindi",        label: "Hindi" },
+  { value: "kannada",      label: "Kannada" },
+  { value: "multilingual", label: "Multilingual (Hindi + Kannada + English)" },
 ] as const
 
 // ─── Style tokens ──────────────────────────────────────
@@ -371,10 +373,13 @@ function AIAssistantTab({ settings, onSettingsChange }: {
 
           <FieldGroup label="Language">
             <select value={settings.language_preference ?? "english"}
-              onChange={e => onSettingsChange({ language_preference: e.target.value as "english" | "spanish" | "bilingual" })}
+              onChange={e => onSettingsChange({ language_preference: e.target.value as BusinessSettingsType["language_preference"] })}
               className={`${S.input} cursor-pointer`}>
               {LANGUAGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
+            {(settings.language_preference === "kannada" || settings.language_preference === "multilingual") && (
+              <p className={S.hint}>Kannada voice/transcription quality is unverified — test a real call before relying on it live.</p>
+            )}
           </FieldGroup>
         </div>
       </div>

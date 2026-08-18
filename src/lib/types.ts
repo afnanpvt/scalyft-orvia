@@ -56,7 +56,7 @@ export interface BusinessSettings {
   // AI personality
   receptionist_name?: string;
   tone?: string;
-  language_preference?: "english" | "spanish" | "bilingual";
+  language_preference?: "english" | "spanish" | "hindi" | "kannada" | "multilingual";
   special_instructions?: string[];
 
   // Emergency

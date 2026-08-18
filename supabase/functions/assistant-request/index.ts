@@ -35,7 +35,7 @@ interface ClinicSettings {
   faq?: ClinicFAQ[];
   receptionist_name?: string;
   tone?: string;
-  language_preference?: "english" | "hindi" | "bilingual";
+  language_preference?: "english" | "spanish" | "hindi" | "kannada" | "multilingual";
   special_instructions?: string[];
   emergency_number?: string;
   emergency_protocol?: {
@@ -143,9 +143,13 @@ When the caller says "tomorrow", "next Monday", "this Friday", or any other rela
   const languageLine =
     langPref === "spanish"
       ? "Respond in Spanish by default. If the caller speaks English, mirror them in English."
-      : langPref === "bilingual"
-        ? "Detect the caller's language on their first turn and respond in that language - English or Spanish - for the rest of the call. Mirror code-switching naturally."
-        : "Respond in English. If the caller speaks Spanish, briefly apologize and offer to transfer or take a callback.";
+      : langPref === "hindi"
+        ? "Respond in Hindi by default. If the caller speaks English, mirror them in English."
+        : langPref === "kannada"
+          ? "Respond in Kannada by default. If the caller speaks English or Hindi, mirror them."
+          : langPref === "multilingual"
+            ? "Detect the caller's language on their first turn and respond in that language - Hindi, Kannada, or English - for the rest of the call. Mirror code-switching naturally."
+            : "Respond in English. If the caller speaks another language, briefly apologize and offer to transfer or take a callback.";
 
   const identityLines = [
     `You are ${agentName}, the front-desk receptionist for ${businessName}.`,
@@ -396,9 +400,43 @@ function buildTools(clinic: Clinic, supabaseUrl: string) {
   return tools;
 }
 
+// ElevenLabs multilingual v2 officially supports Hindi. Kannada is NOT on their
+// supported-language list — this is a best-effort mapping, unverified quality.
+// Requires an ElevenLabs key configured on the Vapi account.
+function voiceAndTranscriberFor(language: string | undefined) {
+  switch (language) {
+    case "hindi":
+      return {
+        voice: { provider: "11labs", voiceId: "pFZP5JQG7iQjIQuC4Bku", model: "eleven_multilingual_v2" },
+        transcriber: { provider: "deepgram", model: "nova-2", language: "hi", smartFormat: true, endpointing: 200 },
+      };
+    case "kannada":
+      return {
+        voice: { provider: "11labs", voiceId: "pFZP5JQG7iQjIQuC4Bku", model: "eleven_multilingual_v2" },
+        transcriber: { provider: "deepgram", model: "nova-2", language: "kn", smartFormat: true, endpointing: 200 },
+      };
+    case "multilingual":
+      return {
+        voice: { provider: "11labs", voiceId: "pFZP5JQG7iQjIQuC4Bku", model: "eleven_multilingual_v2" },
+        transcriber: { provider: "deepgram", model: "nova-2", language: "multi", smartFormat: true, endpointing: 200 },
+      };
+    case "spanish":
+      return {
+        voice: { provider: "vapi", voiceId: "Lily" },
+        transcriber: { provider: "deepgram", model: "nova-3", language: "es", smartFormat: true, endpointing: 200 },
+      };
+    default:
+      return {
+        voice: { provider: "vapi", voiceId: "Lily" },
+        transcriber: { provider: "deepgram", model: "nova-3", language: "en", smartFormat: true, endpointing: 200 },
+      };
+  }
+}
+
 function buildAssistantConfig(clinic: Clinic, supabaseUrl: string) {
   const edgeFnBase = `${supabaseUrl}/functions/v1`;
   const businessName = clinic.name;
+  const { voice, transcriber } = voiceAndTranscriberFor(clinic.settings?.language_preference);
   return {
     // ─── LLM ──────────────────────────────────────────────────────────────
     model: {
@@ -411,19 +449,10 @@ function buildAssistantConfig(clinic: Clinic, supabaseUrl: string) {
     },
 
     // ─── Voice ────────────────────────────────────────────────────────────
-    voice: {
-      provider: "vapi",
-      voiceId: "Savannah",
-    },
+    voice,
 
     // ─── Transcriber ──────────────────────────────────────────────────────
-    transcriber: {
-      provider: "deepgram",
-      model: "nova-3",
-      language: "en",
-      smartFormat: true,
-      endpointing: 200,
-    },
+    transcriber,
 
     // ─── First impression ────────────────────────────────────────────────
     firstMessage: buildGreeting(clinic),
