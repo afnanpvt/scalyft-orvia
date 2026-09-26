@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { authorizeVapiRequest, unauthorized } from "../_shared/vapi-auth.ts";
+import { getValidGoogleAccessToken, createGoogleCalendarEvent } from "../_shared/google-calendar.ts";
 
 // Vapi tool: book_appointment
 // Inserts appointment row, updates call outcome, sends confirmation SMS (fire-and-forget).
@@ -103,9 +105,12 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  const rawText = await req.text();
+  if (!(await authorizeVapiRequest(req, rawText, businessId)).ok) return unauthorized();
+
   let rawBody: Record<string, unknown>;
   try {
-    rawBody = await req.json();
+    rawBody = JSON.parse(rawText);
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON" }), {
       status: 400,
@@ -173,6 +178,9 @@ Deno.serve(async (req: Request) => {
   const slotDuration = business?.settings?.slot_duration_default ?? 60;
   const notifyPhone = business?.settings?.notification_phone ?? ownerPhone;
   const businessName = business?.name ?? "the business";
+  // "simulated" = demo mode: bookings still land in the dashboard, but nothing
+  // is written to the owner's real calendar.
+  const schedulingMode = business?.settings?.scheduling_mode ?? "live";
 
   // Find call row
   let callRowId: string | null = null;
@@ -183,6 +191,21 @@ Deno.serve(async (req: Request) => {
       .eq("vapi_call_id", vapiCallId)
       .single();
     callRowId = callRow?.id ?? null;
+
+    // Browser demo calls have no phone number, so vapi-events can't attribute
+    // them to a business and never creates the row. Create it here so the
+    // appointment links to the call and the demo can find it.
+    if (!callRowId) {
+      const { data: created } = await supabase
+        .from("calls")
+        .upsert(
+          { vapi_call_id: vapiCallId, business_id: businessId, status: "in_progress", started_at: new Date().toISOString() },
+          { onConflict: "vapi_call_id" }
+        )
+        .select("id")
+        .single();
+      callRowId = created?.id ?? null;
+    }
   }
 
   // Idempotency: if this call already has an appointment, return success
@@ -241,6 +264,30 @@ Deno.serve(async (req: Request) => {
   }
 
   const formattedSlot = formatSlot(args.slot, timezone);
+
+  // Google Calendar sync — best-effort, awaited (it's one fast API call and
+  // the demo needs google_cal_event_id back immediately for the synced badge).
+  let googleCalEventId: string | null = null;
+  try {
+    const googleToken = schedulingMode === "live" ? await getValidGoogleAccessToken(supabase, businessId) : null;
+    if (googleToken) {
+      googleCalEventId = await createGoogleCalendarEvent(googleToken, {
+        summary: `${args.service_type} — ${customerName}`,
+        description: `Booked by ${businessName}'s AI receptionist.\nCustomer: ${customerName}\nPhone: ${customerPhone}${args.notes ? `\nNotes: ${args.notes}` : ""}`,
+        start: slotStart,
+        end: slotEnd,
+        timezone,
+      });
+      if (googleCalEventId) {
+        await supabase
+          .from("appointments")
+          .update({ google_cal_event_id: googleCalEventId })
+          .eq("id", appointment.id);
+      }
+    }
+  } catch (e) {
+    console.error("google calendar sync threw:", e);
+  }
 
   // Fire-and-forget SMS — does not block Vapi tool response
   if (twilioAccountSid && twilioAuthToken && twilioFrom) {

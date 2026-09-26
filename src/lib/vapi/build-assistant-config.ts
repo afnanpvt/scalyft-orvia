@@ -8,27 +8,27 @@ function voiceAndTranscriberFor(language: string | undefined) {
     case "hindi":
       return {
         voice: { provider: "11labs" as const, voiceId: "pFZP5JQG7iQjIQuC4Bku", model: "eleven_multilingual_v2" as const },
-        transcriber: { provider: "deepgram" as const, model: "nova-2", language: "hi", smartFormat: true, endpointing: 200 },
+        transcriber: { provider: "deepgram" as const, model: "nova-2", language: "hi" as const, smartFormat: true, endpointing: 200 },
       };
     case "kannada":
       return {
         voice: { provider: "11labs" as const, voiceId: "pFZP5JQG7iQjIQuC4Bku", model: "eleven_multilingual_v2" as const },
-        transcriber: { provider: "deepgram" as const, model: "nova-2", language: "kn", smartFormat: true, endpointing: 200 },
+        transcriber: { provider: "deepgram" as const, model: "nova-2", language: "kn" as const, smartFormat: true, endpointing: 200 },
       };
     case "multilingual":
       return {
         voice: { provider: "11labs" as const, voiceId: "pFZP5JQG7iQjIQuC4Bku", model: "eleven_multilingual_v2" as const },
-        transcriber: { provider: "deepgram" as const, model: "nova-2", language: "multi", smartFormat: true, endpointing: 200 },
+        transcriber: { provider: "deepgram" as const, model: "nova-2", language: "multi" as const, smartFormat: true, endpointing: 200 },
       };
     case "spanish":
       return {
         voice: { provider: "vapi" as const, voiceId: "Lily" },
-        transcriber: { provider: "deepgram" as const, model: "nova-3", language: "es", smartFormat: true, endpointing: 200 },
+        transcriber: { provider: "deepgram" as const, model: "nova-3", language: "es" as const, smartFormat: true, endpointing: 200 },
       };
     default:
       return {
         voice: { provider: "vapi" as const, voiceId: "Lily" },
-        transcriber: { provider: "deepgram" as const, model: "nova-3", language: "en", smartFormat: true, endpointing: 200 },
+        transcriber: { provider: "deepgram" as const, model: "nova-3", language: "en" as const, smartFormat: true, endpointing: 200 },
       };
   }
 }

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { authorizeVapiRequest, unauthorized } from "../_shared/vapi-auth.ts";
 
 // Vapi tool: capture_lead
 // Inserts a lead row, updates call outcome, sends SMS to owner (fire-and-forget).
@@ -106,9 +107,12 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  const rawText = await req.text();
+  if (!(await authorizeVapiRequest(req, rawText, businessId)).ok) return unauthorized();
+
   let rawBody: Record<string, unknown>;
   try {
-    rawBody = await req.json();
+    rawBody = JSON.parse(rawText);
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON" }), {
       status: 400,

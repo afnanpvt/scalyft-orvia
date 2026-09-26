@@ -89,6 +89,7 @@ import {
 import { useAuth } from "@/lib/auth"
 import { useTheme } from "@/lib/theme"
 import { supabase } from "@/lib/supabase"
+import { TestCallButton } from "@/components/dashboard/test-call-button"
 import type { Call, Appointment, OperationalEvent, CallQueueItem } from "@/lib/types"
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -1654,6 +1655,7 @@ export default function OverviewPage() {
               {mockActive ? "Clear mock" : "Mock alerts"}
             </button>
           )}
+          <TestCallButton />
           <NotificationBell />
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { authorizeVapiRequest } from "../_shared/vapi-auth.ts";
 
 declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void };
 
@@ -154,36 +155,6 @@ function hasBookingIntent(transcript: { role: string; content: string }[]): bool
   return BOOKING_KEYWORDS.some((kw) => userLines.includes(kw));
 }
 
-// ── Webhook signature verification ────────────────────────────────────────
-// VAPI signs requests with HMAC-SHA256 when a webhook secret is configured.
-// If VAPI_WEBHOOK_SECRET is not set we skip verification (dev mode).
-
-async function verifyVapiSignature(req: Request, rawBody: string): Promise<boolean> {
-  const secret = Deno.env.get("VAPI_WEBHOOK_SECRET");
-  if (!secret) return true; // no secret configured - skip
-
-  const signature = req.headers.get("x-vapi-signature") ?? req.headers.get("vapi-signature");
-  if (!signature) {
-    log({ event_type: "signature_missing", status: "error" });
-    return false;
-  }
-
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const mac = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
-  const expected = Array.from(new Uint8Array(mac))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-
-  return signature === expected || signature === `sha256=${expected}`;
-}
-
 // ── Handler ───────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
@@ -207,8 +178,8 @@ Deno.serve(async (req: Request) => {
   // Read body once so we can verify signature and then parse JSON
   const rawBody = await req.text();
 
-  const signatureOk = await verifyVapiSignature(req, rawBody);
-  if (!signatureOk) {
+  const auth = await authorizeVapiRequest(req, rawBody, null);
+  if (!auth.ok) {
     log({ event_type: "signature_invalid", status: "error" });
     return new Response(JSON.stringify({ error: "Invalid signature" }), {
       status: 401,
@@ -264,6 +235,7 @@ Deno.serve(async (req: Request) => {
         .single();
       businessId = biz?.id ?? null;
     }
+    businessId = businessId ?? auth.demoBusinessId ?? null;
 
     if (!businessId) {
       log({ event_type: "call.started", status: "skipped", vapi_call_id: vapiCallId, reason: "no business found" });
@@ -354,6 +326,7 @@ Deno.serve(async (req: Request) => {
         .maybeSingle();
       businessId = existing?.business_id ?? null;
     }
+    businessId = businessId ?? auth.demoBusinessId ?? null;
 
     if (isTrulyMissed) {
       // Real missed call: customer never reached the AI
@@ -483,6 +456,8 @@ Deno.serve(async (req: Request) => {
         .single();
       businessId = biz?.id ?? null;
     }
+
+    businessId = businessId ?? auth.demoBusinessId ?? null;
 
     const updateData: Record<string, unknown> = {
       vapi_call_id: vapiCallId,

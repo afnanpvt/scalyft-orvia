@@ -15,6 +15,7 @@
     "@supabase/supabase-js": "^2.99.3",
     "@tanstack/react-query": "^5.91.3",
     "@tanstack/react-router": "^1.168.1",
+    "@vapi-ai/web": "^2.6.3",
     "@vitejs/plugin-react": "^6.0.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { authorizeVapiRequest, unauthorized } from "../_shared/vapi-auth.ts";
+import { getValidGoogleAccessToken, getGoogleBusyRanges } from "../_shared/google-calendar.ts";
 
 // Vapi tool: check_availability
 // Vapi sends: { message: { toolCallList: [{ id, name, arguments: {...} }] } }
@@ -204,9 +206,14 @@ Deno.serve(async (req: Request) => {
     });
   }
 
+  const rawText = await req.text();
+  if (!(await authorizeVapiRequest(req, rawText, new URL(req.url).searchParams.get("business_id"))).ok) {
+    return unauthorized();
+  }
+
   let rawBody: Record<string, unknown>;
   try {
-    rawBody = await req.json();
+    rawBody = JSON.parse(rawText);
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
       status: 400,
@@ -254,6 +261,10 @@ Deno.serve(async (req: Request) => {
   const timezone = clinic.timezone ?? "America/Chicago";
   const slotDuration = settings.slot_duration_default ?? 60;
   const buffer = settings.buffer_between_appointments ?? 5;
+  // "live": operating hours + existing bookings + the owner's Google Calendar.
+  // "simulated": demo mode — always finds plausible openings (only avoiding
+  // existing bookings so the follow-up book_appointment can't collide).
+  const schedulingMode: "live" | "simulated" = settings.scheduling_mode === "simulated" ? "simulated" : "live";
 
   // Day-of-week in the clinic's timezone (NOT in UTC)
   const dayName = new Intl.DateTimeFormat("en-US", {
@@ -266,7 +277,9 @@ Deno.serve(async (req: Request) => {
   let openTime: Date | null = null;
   let closeTime: Date | null = null;
 
-  if (settings.operating_hours?.[dayName]) {
+  if (schedulingMode === "simulated") {
+    // Skip real hours entirely; fall through to the 10am-7pm default below.
+  } else if (settings.operating_hours?.[dayName]) {
     const dayHours: OperatingHours = settings.operating_hours[dayName];
     if (dayHours.closed) {
       return vapiResponse(toolCallId, { slots: [], message: "We're closed on that day." });
@@ -314,7 +327,20 @@ Deno.serve(async (req: Request) => {
       : new Date(new Date(a.scheduled_start).getTime() + slotDuration * 60000),
   }));
 
+  let calendarChecked = false;
+  if (schedulingMode === "live") {
+    const googleToken = await getValidGoogleAccessToken(supabase, business_id);
+    if (googleToken) {
+      const busy = await getGoogleBusyRanges(googleToken, openTime, closeTime);
+      if (busy) {
+        bookedRanges.push(...busy);
+        calendarChecked = true;
+      }
+    }
+  }
+
   const availableSlots = generateSlots(openTime, closeTime, slotDuration, buffer, bookedRanges);
+  console.log("check-availability:", { business_id, date, schedulingMode, calendarChecked, slots: availableSlots.length });
 
   if (availableSlots.length === 0) {
     return vapiResponse(toolCallId, { slots: [], message: "No openings on that date." });

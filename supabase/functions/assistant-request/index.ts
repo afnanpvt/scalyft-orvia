@@ -50,6 +50,17 @@ interface ClinicSettings {
   buffer_between_appointments?: number;
   max_appointments_per_day?: number;
   service_area_zips?: string[];
+  model_config?: {
+    llmProvider?: string;
+    llmModel?: string;
+    temperature?: number;
+    voiceProvider?: string;
+    voiceId?: string;
+    voiceModel?: string;
+    transcriberProvider?: string;
+    transcriberModel?: string;
+    transcriberLanguage?: string;
+  };
 }
 
 interface Clinic {
@@ -435,14 +446,34 @@ function voiceAndTranscriberFor(language: string | undefined) {
 function buildAssistantConfig(clinic: Clinic, supabaseUrl: string) {
   const edgeFnBase = `${supabaseUrl}/functions/v1`;
   const businessName = clinic.name;
-  const { voice, transcriber } = voiceAndTranscriberFor(clinic.settings?.language_preference);
+  const defaults = voiceAndTranscriberFor(clinic.settings?.language_preference);
+  const override = clinic.settings?.model_config;
+
+  const voice = override?.voiceProvider
+    ? {
+        provider: override.voiceProvider,
+        voiceId: override.voiceId || defaults.voice.voiceId || "Lily",
+        ...(override.voiceModel ? { model: override.voiceModel } : {}),
+      }
+    : defaults.voice;
+
+  const transcriber = override?.transcriberProvider || override?.transcriberModel || override?.transcriberLanguage
+    ? {
+        provider: override.transcriberProvider || defaults.transcriber.provider,
+        model: override.transcriberModel || defaults.transcriber.model,
+        language: override.transcriberLanguage || defaults.transcriber.language,
+        smartFormat: true,
+        endpointing: 200,
+      }
+    : defaults.transcriber;
+
   return {
     // ─── LLM ──────────────────────────────────────────────────────────────
     model: {
-      provider: "openai",
-      model: "gpt-4o-mini",
+      provider: override?.llmProvider || "openai",
+      model: override?.llmModel || "gpt-4o-mini",
       messages: [{ role: "system", content: buildSystemPrompt(clinic) }],
-      temperature: 0.3,
+      temperature: override?.temperature ?? 0.3,
       maxTokens: 250,
       tools: buildTools(clinic, supabaseUrl),
     },
