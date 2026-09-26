@@ -147,36 +147,28 @@
   }
 }
 
-/* ─── Card - Double bezel architecture ─── */
+/* ─── Cards ───
+   In-page surfaces are flat: border only, no shadow. Shadows are reserved
+   for things that float above the app (popovers, toasts, modals). */
 .card {
   background: var(--card);
-  border-radius: 18px;
+  border-radius: 14px;
   border: 1px solid var(--border);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.03),
-    0 4px 16px rgba(0, 0, 0, 0.04);
 }
 
 .ios-card {
   background: var(--card);
-  border-radius: 18px;
+  border-radius: 14px;
   border: 1px solid var(--border);
-  box-shadow:
-    0 1px 1px rgba(0, 0, 0, 0.02),
-    0 2px 8px rgba(0, 0, 0, 0.03),
-    0 8px 24px rgba(0, 0, 0, 0.04);
 }
 
 .ios-card-interactive {
   transition:
-    box-shadow 0.22s var(--ease-out-strong),
+    border-color 0.15s ease,
     transform 0.22s var(--ease-out-strong);
 }
 .ios-card-interactive:hover {
-  box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.06),
-    0 8px 28px rgba(0, 0, 0, 0.12);
-  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--foreground) 18%, transparent);
 }
 .ios-card-interactive:active {
   transform: scale(0.985);
@@ -253,6 +245,38 @@
 }
 .animate-live-pulse {
   animation: livePulse 2.4s ease-in-out infinite;
+}
+
+/* ─── Demo call orb: expanding ring pulse ─── */
+@keyframes demoOrbRing {
+  0%   { transform: scale(0.7); opacity: 0.5; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.demo-orb-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid;
+  animation: demoOrbRing 2.1s ease-out infinite;
+}
+
+/* Keyboard focus only — no ring on mouse click. */
+.user-menu-trigger,
+.sidebar-link {
+  outline: none;
+}
+.user-menu-trigger:focus-visible,
+.sidebar-link:focus-visible {
+  box-shadow: 0 0 0 2px var(--ring);
+}
+
+/* ─── Toast slide-in ─── */
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateX(24px) scale(0.97); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+.animate-toast-in {
+  animation: toastSlideIn 0.35s var(--ease-out-strong) both;
 }
 
 /* ─── Nav active indicator ─── */

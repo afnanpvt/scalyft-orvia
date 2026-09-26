@@ -4,6 +4,9 @@ import { useAuth } from "@/lib/auth";
 import { useQuery } from "@tanstack/react-query";
 import { getBusinessBilling } from "@/lib/api";
 import { CommandPalette } from "@/components/dashboard/command-palette";
+import { OrviaLogo } from "@/components/brand/orvia-logo";
+import { ToastProvider, useAppointmentBookedToasts } from "@/components/dashboard/toast-provider";
+import { HoverTip, agentStatusCopy } from "@/components/dashboard/hover-tip";
 import {
   LayoutDashboard,
   Phone,
@@ -13,10 +16,18 @@ import {
   ChevronDown,
   ChevronUp,
   Bot,
-  Zap,
   Calendar,
   Search,
   AlertTriangle,
+  Sliders,
+  KeyRound,
+  Pencil,
+  Database,
+  Users,
+  Shuffle,
+  ShieldCheck,
+  ChevronRight,
+  Sparkles,
 } from "lucide-react";
 
 // ─── Animated Hamburger (21st.dev) ────────────────────────
@@ -68,17 +79,85 @@ function HamburgerIcon({ open }: { open: boolean }) {
   );
 }
 
+// Mac shows the familiar ⌘K; elsewhere a single "/" keycap (also bound)
+// reads cleaner than "Ctrl K".
+const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+
 const NAV_MAIN = [
   { label: "Overview", to: "/", icon: LayoutDashboard },
+  { label: "Demo", to: "/demo", icon: Sparkles },
   { label: "Calls", to: "/calls", icon: Phone },
   { label: "Appointments", to: "/appointments", icon: Calendar },
   { label: "Leads", to: "/leads", icon: UserPlus },
-  { label: "Needs Action", to: "/needs-action", icon: AlertTriangle },
 ] as const;
 
 const NAV_OTHER = [
   { label: "Settings", to: "/settings", icon: Settings },
 ] as const;
+
+// Internal tools — only rendered for role=admin, grouped under a collapsible
+// "Admin" section so they read as ours, not part of the customer product.
+const NAV_ADMIN = [
+  { label: "Demo Niche", to: "/admin/niche", icon: Shuffle },
+  { label: "Users", to: "/admin/users", icon: Users },
+  { label: "Demo Data", to: "/admin/demo-data", icon: Database },
+  { label: "Model Config", to: "/admin/model-config", icon: Sliders },
+  { label: "Vapi Accounts", to: "/admin/vapi-accounts", icon: KeyRound },
+] as const;
+
+type AdminNavEntry = (typeof NAV_ADMIN)[number];
+
+function AdminNavGroup({ pathname, renderItem }: {
+  pathname: string;
+  renderItem: (item: AdminNavEntry) => React.ReactNode;
+}) {
+  const inAdmin = pathname.startsWith("/admin");
+  const [open, setOpen] = useState<boolean>(() => {
+    try { return inAdmin || localStorage.getItem("orvia-admin-nav-open") === "1"; } catch { return inAdmin; }
+  });
+
+  useEffect(() => { if (inAdmin) setOpen(true); }, [inAdmin]);
+
+  function toggle() {
+    setOpen(v => {
+      try { localStorage.setItem("orvia-admin-nav-open", v ? "0" : "1"); } catch { /* storage unavailable */ }
+      return !v;
+    });
+  }
+
+  return (
+    <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--sidebar-border)" }}>
+      <button type="button" onClick={toggle} aria-expanded={open} className="sidebar-link"
+        style={{
+          display: "flex", alignItems: "center", gap: 8, width: "100%",
+          padding: "6px 12px", marginBottom: 2, borderRadius: 8,
+          background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit",
+          color: "var(--muted-foreground)",
+        }}>
+        <ShieldCheck style={{ width: 13, height: 13, flexShrink: 0 }} strokeWidth={1.75} />
+        <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>Admin</span>
+        <span style={{
+          fontSize: 9.5, fontWeight: 600, padding: "1px 6px", borderRadius: 999,
+          background: "var(--accent)", border: "1px solid var(--sidebar-border)", letterSpacing: "0.02em",
+        }}>
+          Internal
+        </span>
+        <ChevronRight style={{
+          width: 12, height: 12, marginLeft: "auto", flexShrink: 0,
+          transform: open ? "rotate(90deg)" : "none", transition: "transform 0.15s",
+        }} strokeWidth={1.75} />
+      </button>
+      {open && <div>{NAV_ADMIN.map(renderItem)}</div>}
+    </div>
+  );
+}
+
+// Bridge component — useAppointmentBookedToasts needs ToastProvider's context,
+// which isn't available in DashboardShell itself since it renders the provider.
+function BookingToastsBridge() {
+  useAppointmentBookedToasts();
+  return null;
+}
 
 // ─── User Dropdown ────────────────────────────────────
 
@@ -114,15 +193,16 @@ function UserDropdown() {
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
-      <button type="button" onClick={() => setOpen(v => !v)}
+      <button type="button" onClick={() => setOpen(v => !v)} className="user-menu-trigger"
+        aria-expanded={open} aria-haspopup="menu"
         style={{
           display: "flex", alignItems: "center", gap: 10, width: "100%",
           padding: "8px 10px", borderRadius: 12, cursor: "pointer",
-          background: "transparent", border: "none",
+          background: open ? "var(--accent)" : "transparent", border: "none", outline: "none",
           transition: "background 0.15s",
         }}
         onMouseEnter={e => (e.currentTarget.style.background = "var(--accent)")}
-        onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+        onMouseLeave={e => { if (!open) e.currentTarget.style.background = "transparent" }}
       >
         <div style={{
           width: 32, height: 32, borderRadius: "50%", background: "var(--foreground)",
@@ -149,64 +229,81 @@ function UserDropdown() {
 
       {open && (
         <div className="animate-scale-in" style={{
-          position: "absolute", bottom: "100%", left: 0, right: 0, marginBottom: 6,
-          background: "var(--popover)", borderRadius: 16, overflow: "hidden", zIndex: 50,
+          position: "absolute", bottom: "calc(100% + 6px)", left: 0, right: 0,
+          background: "var(--popover)", borderRadius: 14, overflow: "hidden", zIndex: 50,
           boxShadow: "0 8px 40px rgba(0,0,0,0.16), 0 2px 8px rgba(0,0,0,0.08)",
           border: "1px solid var(--border)",
         }}>
-          <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)", minWidth: 0 }}>
             {editing ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 <input type="text" value={nameInput} onChange={e => setNameInput(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handleSaveName()} autoFocus placeholder="Your name"
+                  onKeyDown={e => { if (e.key === "Enter") handleSaveName(); if (e.key === "Escape") setEditing(false) }}
+                  autoFocus placeholder="Your name"
                   style={{
-                    width: "100%", border: "none", borderBottom: "1px solid var(--border)",
-                    background: "transparent", fontSize: 13, padding: "4px 0",
+                    width: "100%", border: "1px solid var(--border)", borderRadius: 8,
+                    background: "var(--card)", fontSize: 13, padding: "6px 9px",
                     outline: "none", color: "var(--foreground)", fontFamily: "inherit",
                   }} />
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", gap: 6 }}>
                   <button type="button" onClick={handleSaveName} disabled={saving || !nameInput.trim()}
                     style={{
-                      fontSize: 11, fontWeight: 600, padding: "4px 12px", borderRadius: 8,
+                      fontSize: 12, fontWeight: 600, padding: "5px 12px", borderRadius: 8,
                       background: "var(--foreground)", color: "var(--background)", border: "none",
                       cursor: saving ? "not-allowed" : "pointer", opacity: saving || !nameInput.trim() ? 0.4 : 1,
                     }}>
-                    {saving ? "Saving..." : "Save"}
+                    {saving ? "Saving…" : "Save"}
                   </button>
                   <button type="button" onClick={() => { setEditing(false); setNameInput(profile.fullName ?? ""); }}
-                    style={{ fontSize: 11, color: "var(--muted-foreground)", border: "none", background: "transparent", cursor: "pointer" }}>
+                    style={{ fontSize: 12, padding: "5px 10px", borderRadius: 8, color: "var(--muted-foreground)", border: "none", background: "transparent", cursor: "pointer" }}>
                     Cancel
                   </button>
                 </div>
               </div>
             ) : (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 12, color: "var(--muted-foreground)" }}>{profile.email}</span>
-                <button type="button" onClick={() => setEditing(true)}
-                  style={{ fontSize: 11, fontWeight: 500, color: "var(--foreground)", border: "none", background: "transparent", cursor: "pointer" }}>
-                  Edit name
-                </button>
-              </div>
+              <>
+                <p style={{ fontSize: 13, fontWeight: 600, color: "var(--foreground)", letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {displayName}
+                </p>
+                <p style={{ fontSize: 11.5, color: "var(--muted-foreground)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {profile.email}
+                </p>
+              </>
             )}
           </div>
-          <div style={{ padding: 4 }}>
-            <button type="button" onClick={() => { setOpen(false); signOut(); }}
-              style={{
-                display: "flex", alignItems: "center", gap: 8, width: "100%",
-                padding: "8px 10px", borderRadius: 10, fontSize: 13, color: "#E5484D",
-                border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit",
-                transition: "background 0.15s",
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = "rgba(229,72,77,0.08)")}
-              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-            >
-              <LogOut style={{ width: 13, height: 13 }} strokeWidth={1.5} />
-              Sign out
-            </button>
-          </div>
+          {!editing && (
+            <div style={{ padding: 4 }}>
+              <MenuItem icon={Pencil} label="Edit name" onClick={() => setEditing(true)} />
+              <MenuItem icon={LogOut} label="Sign out" danger onClick={() => { setOpen(false); signOut(); }} />
+            </div>
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+function MenuItem({ icon: Icon, label, onClick, danger }: {
+  icon: React.ElementType
+  label: string
+  onClick: () => void
+  danger?: boolean
+}) {
+  return (
+    <button type="button" onClick={onClick}
+      style={{
+        display: "flex", alignItems: "center", gap: 9, width: "100%",
+        padding: "8px 10px", borderRadius: 9, fontSize: 13, whiteSpace: "nowrap",
+        color: danger ? "#E5484D" : "var(--foreground)",
+        border: "none", background: "transparent", cursor: "pointer", fontFamily: "inherit",
+        transition: "background 0.15s",
+      }}
+      onMouseEnter={e => (e.currentTarget.style.background = danger ? "rgba(229,72,77,0.08)" : "var(--accent)")}
+      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+    >
+      <Icon style={{ width: 14, height: 14, flexShrink: 0, color: danger ? "#E5484D" : "var(--muted-foreground)" }} strokeWidth={1.75} />
+      {label}
+    </button>
   );
 }
 
@@ -215,7 +312,7 @@ function UserDropdown() {
 function NavItem({ label, to, icon: Icon, pathname }: { label: string; to: string; icon: React.ElementType; pathname: string }) {
   const isActive = to === "/" ? pathname === "/" : pathname.startsWith(to);
   return (
-    <Link to={to}
+    <Link to={to} className="sidebar-link"
       style={{
         display: "flex", alignItems: "center", gap: 9, padding: "8px 12px", borderRadius: 10,
         fontSize: 13.5, fontWeight: isActive ? 600 : 400,
@@ -240,55 +337,6 @@ function NavItem({ label, to, icon: Icon, pathname }: { label: string; to: strin
   );
 }
 
-// ─── Sidebar user row ────────────────────────────────
-// User dropdown + inline sign-out icon button beside it.
-
-function SidebarUserRow() {
-  const { signOut } = useAuth();
-  const [signingOut, setSigningOut] = useState(false);
-
-  async function handleSignOut() {
-    if (signingOut) return;
-    setSigningOut(true);
-    try { await signOut(); } finally { setSigningOut(false); }
-  }
-
-  return (
-    <div style={{ display: "flex", alignItems: "stretch", gap: 6 }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <UserDropdown />
-      </div>
-      <button
-        type="button"
-        onClick={handleSignOut}
-        disabled={signingOut}
-        aria-label="Sign out"
-        title="Sign out"
-        style={{
-          width: 34, alignSelf: "center",
-          height: 34, borderRadius: 10,
-          background: "transparent", border: "1px solid var(--sidebar-border)",
-          color: "var(--muted-foreground)", cursor: signingOut ? "wait" : "pointer",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          flexShrink: 0, transition: "all 0.15s",
-        }}
-        onMouseEnter={e => {
-          if (!signingOut) {
-            (e.currentTarget as HTMLElement).style.background = "var(--accent)";
-            (e.currentTarget as HTMLElement).style.color = "#E5484D";
-          }
-        }}
-        onMouseLeave={e => {
-          (e.currentTarget as HTMLElement).style.background = "transparent";
-          (e.currentTarget as HTMLElement).style.color = "var(--muted-foreground)";
-        }}
-      >
-        <LogOut size={13} strokeWidth={1.75} />
-      </button>
-    </div>
-  );
-}
-
 // ─── Agent Card (sidebar) ─────────────────────────────
 // Quiet, always-on status pill. Billing details live on /overview.
 
@@ -310,9 +358,18 @@ function AgentCard() {
   const statusText = isExhausted ? "Paused" : notConfigured ? "Offline" : isLow ? "Low credit" : "Live";
   const statusColor = isExhausted || notConfigured ? "#DC2626" : isLow ? "#B45309" : "#059669";
 
+  const tip = agentStatusCopy({
+    hasPhone: !!billing?.vapi_phone_id,
+    isActive: billing?.status === "active",
+    exhausted: isExhausted,
+    low: isLow,
+  });
+
   return (
     <div style={{ padding: "0 10px 8px" }}>
+      <HoverTip block placement="top" {...tip}>
       <div
+        tabIndex={0}
         aria-label={`Assistant ${statusText.toLowerCase()}`}
         style={{
           display: "flex", alignItems: "center", gap: 8,
@@ -320,6 +377,7 @@ function AgentCard() {
           background: "var(--accent)",
           border: "1px solid var(--sidebar-border)",
           borderRadius: 999,
+          cursor: "help", outline: "none",
         }}
       >
         <span
@@ -330,6 +388,7 @@ function AgentCard() {
           {statusText}
         </span>
       </div>
+      </HoverTip>
     </div>
   );
 }
@@ -340,9 +399,12 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const routerState = useRouterState();
   const pathname = routerState.location.pathname;
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { signOut } = useAuth();
+  const { signOut, profile } = useAuth();
+  const isAdmin = profile.role === "admin";
 
   return (
+    <ToastProvider>
+    <BookingToastsBridge />
     <div style={{ display: "flex", height: "100dvh", background: "var(--background)" }}>
       {/* Mobile drawer - slides in from left */}
       <div
@@ -382,12 +444,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           {/* Drawer header */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 16px 14px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-              <div style={{
-                width: 30, height: 30, borderRadius: 9, background: "var(--foreground)",
-                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-              }}>
-                <Zap style={{ width: 13, height: 13, color: "var(--background)" }} strokeWidth={2.5} />
-              </div>
+              <OrviaLogo size={30} style={{ color: "var(--foreground)", flexShrink: 0 }} />
               <span style={{ fontSize: 16, fontWeight: 700, letterSpacing: "-0.4px", color: "var(--foreground)" }}>Orvia</span>
             </div>
             <button
@@ -445,6 +502,24 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 );
               })}
             </div>
+            {isAdmin && (
+              <AdminNavGroup pathname={pathname} renderItem={({ label, to, icon: Icon }) => {
+                const isActive = pathname.startsWith(to);
+                return (
+                  <Link key={to} to={to} onClick={() => setMobileOpen(false)} className="sidebar-link"
+                    style={{
+                      display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10,
+                      fontSize: 14, fontWeight: isActive ? 600 : 400,
+                      color: isActive ? "var(--foreground)" : "var(--muted-foreground)",
+                      background: isActive ? "var(--accent)" : "transparent",
+                      marginBottom: 2, textDecoration: "none",
+                    }}>
+                    <Icon style={{ width: 16, height: 16, color: isActive ? "var(--foreground)" : "var(--muted-foreground)", flexShrink: 0 }} strokeWidth={isActive ? 2 : 1.5} />
+                    {label}
+                  </Link>
+                );
+              }} />
+            )}
           </nav>
 
           {/* Sign out */}
@@ -470,13 +545,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
         {/* Brand */}
         <div style={{ padding: "20px 16px 14px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 9, background: "var(--foreground)",
-              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.1), 0 2px 8px rgba(0,0,0,0.18)",
-            }}>
-              <Zap style={{ width: 14, height: 14, color: "var(--background)" }} strokeWidth={2.5} />
-            </div>
+            <OrviaLogo size={32} style={{ color: "var(--foreground)", flexShrink: 0 }} />
             <div style={{ lineHeight: 1 }}>
               <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.4px", color: "var(--foreground)", display: "block" }}>
                 Orvia
@@ -507,10 +576,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <Search size={13} strokeWidth={1.75} />
             <span style={{ fontSize: 12, letterSpacing: "-0.01em", flex: 1, textAlign: "left" }}>Search</span>
             <kbd style={{
-              fontSize: 10, fontWeight: 600, padding: "2px 5px",
+              fontSize: 10, fontWeight: 600, padding: "2px 5px", minWidth: 18, textAlign: "center",
               background: "var(--muted)", borderRadius: 4,
               color: "var(--muted-foreground)",
-            }}>⌘K</kbd>
+            }}>{IS_MAC ? "⌘K" : "/"}</kbd>
           </button>
         </div>
 
@@ -522,6 +591,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--sidebar-border)" }}>
             {NAV_OTHER.map(item => <NavItem key={item.to} {...item} pathname={pathname} />)}
           </div>
+          {isAdmin && (
+            <AdminNavGroup pathname={pathname} renderItem={item => <NavItem key={item.to} {...item} pathname={pathname} />} />
+          )}
         </nav>
 
         {/* AI Agent status + minutes meter */}
@@ -529,7 +601,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
         {/* User */}
         <div style={{ padding: "6px 8px 12px", borderTop: "1px solid var(--sidebar-border)" }}>
-          <SidebarUserRow />
+          <UserDropdown />
         </div>
       </aside>
 
@@ -554,12 +626,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <HamburgerIcon open={mobileOpen} />
           </button>
           <Link to="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", flex: 1 }}>
-            <div style={{
-              width: 26, height: 26, borderRadius: 7, background: "var(--foreground)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <Zap style={{ width: 12, height: 12, color: "var(--background)" }} strokeWidth={2.5} />
-            </div>
+            <OrviaLogo size={26} style={{ color: "var(--foreground)", flexShrink: 0 }} />
             <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.4px", color: "var(--foreground)" }}>Orvia</span>
           </Link>
           <button
@@ -587,5 +654,6 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       {/* Global cmd-K search */}
       <CommandPalette />
     </div>
+    </ToastProvider>
   );
 }

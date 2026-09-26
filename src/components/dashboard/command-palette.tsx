@@ -64,12 +64,18 @@ export function CommandPalette() {
 
   const debouncedQuery = useDebounced(query, 180)
 
-  // global hotkey: cmd/ctrl+k, plus a custom "open-command-palette" event
+  // global hotkeys: cmd/ctrl+k, "/" (when not typing somewhere), plus a
+  // custom "open-command-palette" event
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      const target = e.target as HTMLElement | null
+      const typing = !!target && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault()
         setOpen(v => !v)
+      } else if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        setOpen(true)
       } else if (e.key === "Escape" && open) {
         setOpen(false)
       }
@@ -238,7 +244,7 @@ export function CommandPalette() {
             fontSize: 11, color: "var(--muted-foreground)",
           }}>
             <span><kbd style={kbdStyle}>↑</kbd> <kbd style={kbdStyle}>↓</kbd> navigate · <kbd style={kbdStyle}>↵</kbd> open</span>
-            <span><kbd style={kbdStyle}>⌘K</kbd> toggle</span>
+            <span><kbd style={kbdStyle}>esc</kbd> close</span>
           </div>
         )}
       </div>

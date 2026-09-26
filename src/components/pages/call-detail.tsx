@@ -1,4 +1,5 @@
 import { useRef, useState } from "react"
+import { callerPhoneLabel } from "@/lib/caller-label"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { useParams, Link } from "@tanstack/react-router"
 import {
@@ -12,6 +13,7 @@ import {
   Clock,
   Calendar,
   Loader2,
+  AlertTriangle,
 } from "lucide-react"
 
 import {
@@ -19,6 +21,11 @@ import {
   getLeadByCallId,
   getAppointmentByCallId,
   markCallHandled,
+  getBusinessSettings,
+  getPendingCallQueue,
+  getUnresolvedOperationalEvents,
+  markQueueItemHandled,
+  resolveOperationalEvent,
 } from "@/lib/api"
 import type { TranscriptTurn } from "@/lib/types"
 
@@ -216,7 +223,7 @@ function AudioPlayer({ src }: { src: string }) {
 
 // ─── Chat Bubble ──────────────────────────────────────────
 
-function ChatBubble({ turn, callerName }: { turn: TranscriptTurn; callerName?: string | null }) {
+function ChatBubble({ turn, callerName, agentName }: { turn: TranscriptTurn; callerName?: string | null; agentName: string }) {
   const isAI = turn.role === "assistant"
   // Orvia = right (agent/employee). Caller = left (customer coming in).
   const isRight = isAI
@@ -257,7 +264,7 @@ function ChatBubble({ turn, callerName }: { turn: TranscriptTurn; callerName?: s
           color: "var(--muted-foreground)",
           letterSpacing: "-0.01em",
         }}>
-          {isAI ? "Orvia" : (callerName ?? "Caller")}
+          {isAI ? agentName : (callerName ?? "Caller")}
         </span>
       </div>
 
@@ -344,6 +351,34 @@ export default function CallDetailPage() {
   })
   const leadQuery = useQuery({ queryKey: ["lead-by-call", id], queryFn: () => getLeadByCallId(id), enabled: !!id })
   const appointmentQuery = useQuery({ queryKey: ["appointment-by-call", id], queryFn: () => getAppointmentByCallId(id), enabled: !!id })
+  const { data: business } = useQuery({ queryKey: ["business-settings"], queryFn: getBusinessSettings })
+  const { data: queue = [] } = useQuery({ queryKey: ["call-queue"], queryFn: getPendingCallQueue })
+  const { data: opEvents = [] } = useQuery({ queryKey: ["operational-events"], queryFn: getUnresolvedOperationalEvents })
+  const agentName = business?.settings.receptionist_name || "Orvia"
+
+  // Anything still open for this call (missed callback, partial booking, AI
+  // failure). A partial booking has both an event and a queue item; the queue
+  // item wins since it carries the caller's name and service.
+  const openQueueItem = queue.find(q => q.call_id === id) ?? null
+  const openEvent = openQueueItem ? null : opEvents.find(e => e.call_id === id && e.event_type !== "concurrent_call") ?? null
+  const attention = openQueueItem
+    ? openQueueItem.queue_type === "partial_booking"
+      ? { title: "Unfinished booking", body: "The caller wanted to book but didn't complete it. Call them back to lock it in." }
+      : { title: "Missed call", body: "The caller didn't reach the assistant. Call them back." }
+    : openEvent
+      ? openEvent.event_type === "ai_failure"
+        ? { title: "Call dropped", body: "The assistant hit a problem on this call. Check the transcript and follow up." }
+        : { title: "Needs a follow-up", body: "Something on this call still needs you." }
+      : null
+
+  async function resolveAttention() {
+    if (openQueueItem) await markQueueItemHandled(openQueueItem.id)
+    // Clear the paired event too so the bell and Needs Action agree.
+    const paired = opEvents.filter(e => e.call_id === id)
+    await Promise.all(paired.map(e => resolveOperationalEvent(e.id)))
+    queryClient.invalidateQueries({ queryKey: ["call-queue"] })
+    queryClient.invalidateQueries({ queryKey: ["operational-events"] })
+  }
 
   const handleMutation = useMutation({
     mutationFn: () => markCallHandled(id),
@@ -369,6 +404,7 @@ export default function CallDetailPage() {
     "caller_name",
     "caller_zip",
     "service_requested",
+    "service_needed",
     "urgency",
     "booked",
     "lead_captured",
@@ -379,14 +415,20 @@ export default function CallDetailPage() {
     caller_name: "Caller name",
     caller_zip: "ZIP code",
     service_requested: "Service",
+    service_needed: "Service",
     urgency: "Urgency",
     booked: "Booked",
     lead_captured: "Lead captured",
     out_of_area: "Out of area",
   }
 
+  // Internal bookkeeping flags — never shown to the business owner.
+  const HIDDEN_KEYS = new Set(["demo_seed"])
+
   const isMeaningful = (key: string, value: unknown): boolean => {
+    if (HIDDEN_KEYS.has(key)) return false
     if (value == null || value === "") return false
+    if (key === "service_needed" && extracted.service_requested) return false
     if (key === "out_of_area" && value === false) return false
     if (key === "lead_captured" && (value === false || extracted.booked === true)) return false
     if (key === "booked" && value === false) return false
@@ -454,8 +496,9 @@ export default function CallDetailPage() {
                       <ChevronLeft style={{ width: 16, height: 16 }} strokeWidth={1.75} />
                     </Link>
                     <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.3px", color: "var(--foreground)" }}>
-                      {call.caller_phone ?? "Unknown caller"}
+                      {callerPhoneLabel(call)}
                     </h1>
+                    {attention && <Pill text="Needs attention" style={{ text: "#92400E", bg: "#FEF3C7", border: "rgba(245,158,11,0.3)" }} />}
                     {call.outcome && <Pill text={formatLabel(call.outcome)} style={outcomeStyle(call.outcome)} />}
                     <Pill text={formatLabel(call.status)} style={statusStyle(call.status)} />
                   </div>
@@ -507,11 +550,51 @@ export default function CallDetailPage() {
             </div>
           ) : null}
 
+          {/* Needs-attention banner */}
+          {!isLoading && call && attention && (
+            <div className="animate-fade-up" style={{
+              display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
+              padding: "14px 18px", borderRadius: 14,
+              background: "#FFFBEB", border: "1px solid rgba(245,158,11,0.3)",
+            }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+                background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <AlertTriangle style={{ width: 15, height: 15, color: "#B45309" }} strokeWidth={1.75} />
+              </div>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <p style={{ fontSize: 13.5, fontWeight: 600, color: "#78350F" }}>{attention.title}</p>
+                <p style={{ fontSize: 12.5, color: "#92400E", marginTop: 1 }}>{attention.body}</p>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                {call.caller_phone && (
+                  <a href={`tel:${call.caller_phone}`} style={{
+                    display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px",
+                    borderRadius: 9, background: "#0A0A0B", color: "#fff",
+                    fontSize: 12.5, fontWeight: 600, textDecoration: "none",
+                  }}>
+                    <Phone style={{ width: 13, height: 13 }} /> Call back
+                  </a>
+                )}
+                <button type="button" onClick={resolveAttention} style={{
+                  display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px",
+                  borderRadius: 9, background: "#fff", color: "#78350F", cursor: "pointer",
+                  border: "1px solid rgba(245,158,11,0.35)", fontSize: 12.5, fontWeight: 600, fontFamily: "inherit",
+                }}>
+                  <CheckCircle2 style={{ width: 13, height: 13 }} /> Mark handled
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Two-column */}
           <style>{`
             .call-detail-grid {
               display: grid;
-              grid-template-columns: 1fr 300px;
+              /* minmax(0,…) stops long transcript content from widening the
+                 column past the viewport and pushing the sidebar off-screen. */
+              grid-template-columns: minmax(0, 1fr) 300px;
               gap: 14px;
             }
             @media (max-width: 700px) {
@@ -527,9 +610,14 @@ export default function CallDetailPage() {
                 <CardSkeleton rows={4} />
               ) : call?.transcript && call.transcript.length > 0 ? (
                 <DetailCard title="Conversation" icon={Phone}>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  {/* Scrolls inside its own window so the details column stays in view. */}
+                  <div className="transcript-window" style={{
+                    display: "flex", flexDirection: "column", gap: 14,
+                    maxHeight: "min(560px, 62vh)", overflowY: "auto",
+                    margin: "-12px -18px", padding: "16px 18px",
+                  }}>
                     {call.transcript.map((turn: TranscriptTurn, i: number) => (
-                      <ChatBubble key={i} turn={turn} callerName={(call.extracted_data as Record<string, unknown>)?.caller_name as string | null} />
+                      <ChatBubble key={i} turn={turn} agentName={agentName} callerName={(call.extracted_data as Record<string, unknown>)?.caller_name as string | null} />
                     ))}
                   </div>
                 </DetailCard>

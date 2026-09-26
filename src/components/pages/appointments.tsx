@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Calendar as CalendarIcon, Clock, Phone, CheckCircle2, XCircle, RotateCcw } from "lucide-react"
+import { useNavigate, useSearch } from "@tanstack/react-router"
+import { Calendar as CalendarIcon, Clock, CheckCircle2, XCircle, RotateCcw, ChevronRight } from "lucide-react"
 
 import { getAppointments, updateAppointmentStatus } from "@/lib/api"
 import type { Appointment } from "@/lib/types"
+import { AppointmentDrawer } from "@/components/dashboard/appointment-drawer"
 
 const FILTERS = ["upcoming", "today", "past", "all"] as const
 type Filter = (typeof FILTERS)[number]
@@ -45,16 +47,20 @@ function RowSkeleton() {
   )
 }
 
-function AppointmentRow({ apt, onStatusChange }: {
+function AppointmentRow({ apt, onStatusChange, onOpen }: {
   apt: Appointment
   onStatusChange: (id: string, status: Appointment["status"]) => void
+  onOpen: (apt: Appointment) => void
 }) {
   const status = statusStyle(apt.status)
   const canMarkComplete = apt.status === "confirmed" || apt.status === "rescheduled"
 
   return (
-    <div className="row-hover" style={{
-      display: "flex", alignItems: "center", gap: 14,
+    <div className="row-hover" role="button" tabIndex={0}
+      onClick={() => onOpen(apt)}
+      onKeyDown={e => { if (e.key === "Enter") onOpen(apt) }}
+      style={{
+      display: "flex", alignItems: "center", gap: 14, cursor: "pointer",
       padding: "14px 20px", borderBottom: "1px solid var(--border)",
       opacity: apt.status === "cancelled" || apt.status === "no_show" ? 0.55 : 1,
     }}>
@@ -64,7 +70,7 @@ function AppointmentRow({ apt, onStatusChange }: {
         </p>
         {apt.scheduled_end && (
           <p style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginTop: 2 }}>
-            → {formatTime(apt.scheduled_end)}
+            to {formatTime(apt.scheduled_end)}
           </p>
         )}
       </div>
@@ -96,7 +102,8 @@ function AppointmentRow({ apt, onStatusChange }: {
         )}
       </div>
 
-      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+      {/* Actions don't open the drawer */}
+      <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }} onClick={e => e.stopPropagation()}>
         {canMarkComplete && apt.status !== "completed" && (
           <button type="button" onClick={() => onStatusChange(apt.id, "completed")}
             title="Mark completed"
@@ -118,6 +125,7 @@ function AppointmentRow({ apt, onStatusChange }: {
             <RotateCcw size={14} strokeWidth={1.75} />
           </button>
         )}
+        <ChevronRight size={16} strokeWidth={1.75} style={{ color: "var(--muted-foreground)", opacity: 0.6, marginLeft: 2 }} />
       </div>
     </div>
   )
@@ -133,6 +141,9 @@ const iconBtn: React.CSSProperties = {
 
 export default function AppointmentsPage() {
   const [filter, setFilter] = useState<Filter>("upcoming")
+  const [openApt, setOpenApt] = useState<Appointment | null>(null)
+  const { open: openId } = useSearch({ from: "/_dashboard/appointments" })
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   const range = filter === "past" ? "past" : filter === "all" ? "all" : "upcoming"
@@ -157,6 +168,18 @@ export default function AppointmentsPage() {
     }
     return Array.from(map.entries())
   }, [filtered])
+
+  // Deep link from Overview: open that appointment once the list has it.
+  useEffect(() => {
+    if (!openId || !appointments) return
+    const match = appointments.find(a => a.id === openId)
+    if (match) setOpenApt(match)
+  }, [openId, appointments])
+
+  function closeDrawer() {
+    setOpenApt(null)
+    if (openId) navigate({ to: "/appointments", search: {}, replace: true })
+  }
 
   async function onStatusChange(id: string, status: Appointment["status"]) {
     await updateAppointmentStatus(id, status)
@@ -227,12 +250,13 @@ export default function AppointmentsPage() {
                 <span style={{ fontSize: 11, color: "var(--muted-foreground)", opacity: 0.6 }}>· {items.length}</span>
               </div>
               {items.map(apt => (
-                <AppointmentRow key={apt.id} apt={apt} onStatusChange={onStatusChange} />
+                <AppointmentRow key={apt.id} apt={apt} onStatusChange={onStatusChange} onOpen={setOpenApt} />
               ))}
             </div>
           ))
         )}
       </div>
+      <AppointmentDrawer appointment={openApt} onClose={closeDrawer} />
     </div>
   )
 }

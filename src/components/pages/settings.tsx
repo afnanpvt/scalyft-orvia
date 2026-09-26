@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, Fragment } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Plus, Sun, Moon, Monitor, Check, Building2, Wrench, Bot, ShieldCheck, Sliders } from "lucide-react"
+import { Plus, Sun, Moon, Monitor, Check, Building2, Wrench, Bot, ShieldCheck, Sliders, CalendarCheck2, CalendarX2, ExternalLink } from "lucide-react"
 
-import { getBusinessSettings, updateBusinessSettings, updateBusinessTopLevel } from "@/lib/api"
+import { getBusinessSettings, updateBusinessSettings, updateBusinessTopLevel, getGoogleCalendarConnection, startGoogleCalendarConnect, disconnectGoogleCalendar } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { useTheme, type Theme } from "@/lib/theme"
 import type { Business, BusinessSettings as BusinessSettingsType, BusinessService, BusinessFAQ } from "@/lib/types"
@@ -166,6 +166,182 @@ function SaveBar({ dirty, saving, success, error, onSave }: {
   )
 }
 
+// ─── Scheduling Card ───────────────────────────────
+
+const SCHEDULING_MODES = [
+  {
+    value: "live" as const,
+    label: "Live",
+    hint: "Checks your real hours, existing bookings and connected calendar before offering times.",
+  },
+  {
+    value: "simulated" as const,
+    label: "Simulated",
+    hint: "Demo mode. The AI always finds open slots. Bookings show in the dashboard but aren't written to your calendar.",
+  },
+]
+
+function SchedulingCard({ clinic, mode, onModeChange }: {
+  clinic: Business
+  mode: "live" | "simulated"
+  onModeChange: (mode: "live" | "simulated") => void
+}) {
+  const queryClient = useQueryClient()
+  const [savingMode, setSavingMode] = useState(false)
+  const [connecting, setConnecting] = useState(false)
+  const [disconnecting, setDisconnecting] = useState(false)
+  const [banner, setBanner] = useState<{ kind: "success" | "error"; text: string } | null>(null)
+
+  const { data: connection, isLoading } = useQuery({
+    queryKey: ["google-calendar-connection"],
+    queryFn: getGoogleCalendarConnection,
+  })
+
+  // Pick up the redirect result from google-oauth-callback and clean the URL.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const result = params.get("google_calendar")
+    if (!result) return
+    if (result === "connected") {
+      setBanner({ kind: "success", text: "Google Calendar connected." })
+      queryClient.invalidateQueries({ queryKey: ["google-calendar-connection"] })
+    } else if (result === "error") {
+      const reason = params.get("reason") ?? "unknown_error"
+      setBanner({ kind: "error", text: `Couldn't connect Google Calendar (${reason.replace(/_/g, " ")}).` })
+    }
+    params.delete("google_calendar")
+    params.delete("reason")
+    const qs = params.toString()
+    window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""))
+  }, [queryClient])
+
+  useEffect(() => {
+    if (!banner) return
+    const t = setTimeout(() => setBanner(null), 6000)
+    return () => clearTimeout(t)
+  }, [banner])
+
+  async function handleConnect() {
+    setConnecting(true)
+    try {
+      const { url, error } = await startGoogleCalendarConnect()
+      if (error || !url) {
+        setBanner({ kind: "error", text: error ?? "Could not start Google connection" })
+        setConnecting(false)
+        return
+      }
+      window.location.href = url
+    } catch (e) {
+      console.error("Google Calendar connect failed", e)
+      setBanner({ kind: "error", text: "Couldn't reach Google Calendar. Check your connection and try again." })
+      setConnecting(false)
+    }
+  }
+
+  // Saves immediately (not via the page's Save bar) — it's an operational
+  // switch you flip right before a demo. Merges into the latest server copy so
+  // it can't clobber other settings, and mirrors into the form state so a
+  // later Save doesn't revert it.
+  async function handleModeChange(next: "live" | "simulated") {
+    if (next === mode) return
+    setSavingMode(true)
+    onModeChange(next)
+    const fresh = await getBusinessSettings()
+    const { error } = await updateBusinessSettings(clinic.id, { ...(fresh?.settings ?? clinic.settings), scheduling_mode: next })
+    setSavingMode(false)
+    if (error) {
+      onModeChange(mode)
+      setBanner({ kind: "error", text: "Couldn't switch scheduling mode. Try again." })
+      return
+    }
+    queryClient.invalidateQueries({ queryKey: ["business-settings"] })
+  }
+
+  async function handleDisconnect() {
+    setDisconnecting(true)
+    await disconnectGoogleCalendar()
+    queryClient.invalidateQueries({ queryKey: ["google-calendar-connection"] })
+    setDisconnecting(false)
+  }
+
+  return (
+    <div className={S.card}>
+      <SectionHeading>Scheduling</SectionHeading>
+
+      <p className="text-sm font-medium text-foreground mb-2">How the AI checks availability</p>
+      <div role="radiogroup" aria-label="Scheduling mode"
+        className="inline-flex p-1 rounded-xl bg-muted gap-1 mb-2">
+        {SCHEDULING_MODES.map(m => (
+          <button key={m.value} type="button" role="radio" aria-checked={mode === m.value}
+            disabled={savingMode}
+            onClick={() => handleModeChange(m.value)}
+            className="h-8 px-4 rounded-lg text-xs font-semibold cursor-pointer transition-colors disabled:cursor-wait"
+            style={mode === m.value
+              ? { background: "var(--card)", color: "var(--foreground)", border: "1px solid var(--border)" }
+              : { background: "transparent", color: "var(--muted-foreground)", border: "1px solid transparent" }}>
+            {m.label}
+          </button>
+        ))}
+      </div>
+      <p className={S.hint} style={{ marginTop: 0, marginBottom: 20 }}>
+        {SCHEDULING_MODES.find(m => m.value === mode)?.hint}
+      </p>
+
+      <div className="flex items-center justify-between gap-4 pt-5 border-t border-border">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="size-9 rounded-xl flex items-center justify-center shrink-0"
+            style={{
+              background: connection ? "#D1FAE5" : "var(--muted)",
+            }}>
+            {connection
+              ? <CalendarCheck2 className="size-4" style={{ color: "#059669" }} />
+              : <CalendarX2 className="size-4 text-muted-foreground" />}
+          </div>
+          <div className="min-w-0">
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground">Checking connection…</p>
+            ) : connection ? (
+              <>
+                <p className="text-sm font-medium text-foreground">Google Calendar · {connection.google_email ?? "connected"}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {mode === "live"
+                    ? "Busy times are respected and new bookings are added automatically"
+                    : "Connected, but not used while scheduling is Simulated"}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-foreground">Google Calendar · not connected</p>
+                <p className="text-xs text-muted-foreground">
+                  {mode === "live" ? "The AI checks your hours and existing bookings only" : "Bookings only appear in the dashboard"}
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+
+        {connection ? (
+          <ConfirmRemoveButton onConfirm={handleDisconnect} label={disconnecting ? "Disconnecting…" : "Disconnect"} />
+        ) : (
+          <button type="button" onClick={handleConnect} disabled={connecting}
+            className="h-9 px-4 rounded-xl bg-foreground text-background text-xs font-semibold cursor-pointer hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center gap-1.5 shrink-0">
+            {connecting ? "Redirecting…" : <>Connect <ExternalLink className="size-3" /></>}
+          </button>
+        )}
+      </div>
+
+      {banner && (
+        <div className="mt-4 text-xs font-medium rounded-lg px-3 py-2"
+          style={banner.kind === "success"
+            ? { background: "#D1FAE5", color: "#065F46" }
+            : { background: "#FEE2E2", color: "#991B1B" }}>
+          {banner.text}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Business Info Tab ─────────────────────────────────
 
 function BusinessInfoTab({ clinic, settings, phoneDisplay, onSettingsChange, onPhoneDisplayChange }: {
@@ -225,6 +401,12 @@ function BusinessInfoTab({ clinic, settings, phoneDisplay, onSettingsChange, onP
           </FieldGroup>
         </div>
       </div>
+
+      <SchedulingCard
+        clinic={clinic}
+        mode={settings.scheduling_mode ?? "live"}
+        onModeChange={(scheduling_mode) => onSettingsChange({ scheduling_mode })}
+      />
 
       <div className={S.card}>
         <SectionHeading>Operating Hours</SectionHeading>
@@ -378,7 +560,7 @@ function AIAssistantTab({ settings, onSettingsChange }: {
               {LANGUAGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
             {(settings.language_preference === "kannada" || settings.language_preference === "multilingual") && (
-              <p className={S.hint}>Kannada voice/transcription quality is unverified — test a real call before relying on it live.</p>
+              <p className={S.hint}>Kannada voice and transcription quality is unverified. Test a real call before relying on it.</p>
             )}
           </FieldGroup>
         </div>

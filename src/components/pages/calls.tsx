@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { callerPhoneLabel } from "@/lib/caller-label"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import { Phone, ChevronLeft, ChevronRight, PhoneIncoming, PhoneOff, PhoneMissed, PhoneForwarded, Clock, ArrowRight } from "lucide-react"
@@ -35,8 +36,7 @@ function getCallerLabel(call: Call): string {
   const extracted = (call.extracted_data ?? {}) as Record<string, unknown>
   const name = extracted.caller_name as string | null
   if (name) return name
-  if (call.caller_phone) return call.caller_phone
-  return "Unknown caller"
+  return callerPhoneLabel(call)
 }
 
 function getCallerInitial(call: Call): string {

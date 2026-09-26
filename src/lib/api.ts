@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase";
-import type { Call, Lead, Appointment, Business, OperationalEvent, CallQueueItem } from "@/lib/types";
+import type { Call, Lead, Appointment, Business, OperationalEvent, CallQueueItem, VapiAccount, GoogleCalendarConnection } from "@/lib/types";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
 // ─── Overview ────────────────────────────────────────────
 
@@ -100,6 +102,26 @@ export async function getLeadByCallId(callId: string): Promise<Lead | null> {
 }
 
 // ─── Appointments ────────────────────────────────────────
+
+// Browser test calls (and real phone calls) only carry Vapi's call id —
+// the internal `calls.id` row is created asynchronously by the vapi-events
+// webhook, so this resolves through that indirection in one round trip.
+export async function getAppointmentByVapiCallId(
+  vapiCallId: string,
+): Promise<Appointment | null> {
+  const { data: callRow } = await supabase
+    .from("calls")
+    .select("id")
+    .eq("vapi_call_id", vapiCallId)
+    .maybeSingle();
+  if (!callRow) return null;
+  const { data } = await supabase
+    .from("appointments")
+    .select("*")
+    .eq("call_id", callRow.id)
+    .maybeSingle();
+  return (data as Appointment) ?? null;
+}
 
 export async function getAppointmentByCallId(
   callId: string,
@@ -532,6 +554,177 @@ export async function updateBusinessTopLevel(
 // Keep old names as aliases for any callers not yet updated
 export const updateClinicSettings = updateBusinessSettings;
 export const updateClinicTopLevel = updateBusinessTopLevel;
+
+// ─── Vapi Accounts (admin-only key vault) ─────────────────
+
+export async function getVapiAccounts(): Promise<VapiAccount[]> {
+  const { data } = await supabase
+    .from("vapi_accounts")
+    .select("*")
+    .order("balance_usd", { ascending: false, nullsFirst: false });
+  return (data as VapiAccount[]) ?? [];
+}
+
+export async function createVapiAccount(account: {
+  label: string;
+  public_key: string;
+  private_key?: string;
+  balance_usd?: number;
+  notes?: string;
+}) {
+  const { error } = await supabase.from("vapi_accounts").insert(account);
+  return { error: error?.message ?? null };
+}
+
+export async function updateVapiAccount(id: string, patch: Partial<VapiAccount>) {
+  const { error } = await supabase.from("vapi_accounts").update(patch).eq("id", id);
+  return { error: error?.message ?? null };
+}
+
+export async function deleteVapiAccount(id: string) {
+  const { error } = await supabase.from("vapi_accounts").delete().eq("id", id);
+  return { error: error?.message ?? null };
+}
+
+// Marks one account active and clears the flag on all others (DB has a
+// partial unique index enforcing only one is_active=true row at a time).
+export async function setActiveVapiAccount(id: string) {
+  const { error: e1 } = await supabase.from("vapi_accounts").update({ is_active: false }).eq("is_active", true);
+  if (e1) return { error: e1.message };
+  const { error: e2 } = await supabase.from("vapi_accounts").update({ is_active: true, status: "active" }).eq("id", id);
+  return { error: e2?.message ?? null };
+}
+
+// Calls and talk time since the 1st of this month (RLS scopes to the
+// signed-in business).
+export async function getMonthCallStats(): Promise<{ calls: number; secs: number }> {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const { data } = await supabase
+    .from("calls")
+    .select("duration_secs")
+    .gte("created_at", monthStart);
+  const rows = (data as { duration_secs: number | null }[]) ?? [];
+  return {
+    calls: rows.length,
+    secs: rows.reduce((sum, r) => sum + (r.duration_secs ?? 0), 0),
+  };
+}
+
+// ─── Users directory (admin-only; enforced by admin_list_users) ─
+
+export interface AdminUserRow {
+  id: string;
+  email: string;
+  full_name: string | null;
+  role: "owner" | "admin" | "staff" | null;
+  business_id: string | null;
+  business_name: string | null;
+  must_change_password: boolean;
+  created_at: string;
+  last_sign_in_at: string | null;
+  email_confirmed_at: string | null;
+}
+
+export async function getAdminUsers(): Promise<AdminUserRow[]> {
+  const { data, error } = await supabase.rpc("admin_list_users");
+  if (error) throw new Error(error.message);
+  return (data as AdminUserRow[]) ?? [];
+}
+
+// ─── Demo data (admin-only; enforced by the SQL functions) ─
+
+export interface DemoDataStats {
+  autofill: boolean;
+  calls: number;
+  appointments: number;
+  leads: number;
+  latest: string | null;
+}
+
+export async function getDemoDataStats(): Promise<DemoDataStats | null> {
+  const { data, error } = await supabase.rpc("admin_demo_stats");
+  if (error) return null;
+  return data as DemoDataStats;
+}
+
+export async function setDemoAutofill(enabled: boolean) {
+  const { error } = await supabase.rpc("admin_set_demo_autofill", { p_enabled: enabled });
+  return { error: error?.message ?? null };
+}
+
+export async function generateDemoDataNow(count = 6) {
+  const { data, error } = await supabase.rpc("admin_generate_demo_now", { p_count: count });
+  return { created: (data as number | null) ?? 0, error: error?.message ?? null };
+}
+
+export async function regenerateDemoWeek() {
+  const { data, error } = await supabase.rpc("admin_regenerate_demo_week");
+  return { created: (data as number | null) ?? 0, error: error?.message ?? null };
+}
+
+export async function clearDemoData() {
+  const { data, error } = await supabase.rpc("admin_clear_demo_data");
+  return { removed: (data as number | null) ?? 0, error: error?.message ?? null };
+}
+
+// ─── Google Calendar ───────────────────────────────────────
+
+export async function getGoogleCalendarConnection(): Promise<GoogleCalendarConnection | null> {
+  const { data } = await supabase
+    .from("google_calendar_connections")
+    .select("id, business_id, google_email, calendar_id, connected_at, updated_at")
+    .maybeSingle();
+  return (data as GoogleCalendarConnection) ?? null;
+}
+
+// Fetches the Google consent URL from the google-oauth-start edge function
+// (requires an authed request so it can resolve the caller's business_id)
+// and lets the caller navigate the browser there.
+export async function startGoogleCalendarConnect(): Promise<{ url?: string; error?: string }> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return { error: "Not signed in" };
+  const origin = window.location.origin;
+  const resp = await fetch(
+    `${SUPABASE_URL}/functions/v1/google-oauth-start?origin=${encodeURIComponent(origin)}`,
+    { headers: { Authorization: `Bearer ${session.access_token}` } }
+  );
+  const body = await resp.json().catch(() => ({}));
+  if (!resp.ok) return { error: body.error ?? "Could not start Google connection" };
+  return { url: body.url };
+}
+
+// Short-lived token that lets a browser test call's tool requests (booking,
+// availability, leads) through our webhook auth. Null means auth isn't
+// enforced server-side, which is fine — the call just goes without it.
+export async function getDemoCallToken(): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return null;
+  try {
+    const resp = await fetch(`${SUPABASE_URL}/functions/v1/demo-call-token`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (!resp.ok) return null;
+    const body = await resp.json() as { token: string | null };
+    return body.token;
+  } catch {
+    return null;
+  }
+}
+
+export async function disconnectGoogleCalendar(): Promise<{ error: string | null }> {
+  const { error } = await supabase.from("google_calendar_connections").delete().not("id", "is", null);
+  return { error: error?.message ?? null };
+}
+
+export async function getActiveVapiPublicKey(): Promise<string | null> {
+  const { data } = await supabase
+    .from("vapi_accounts")
+    .select("public_key")
+    .eq("is_active", true)
+    .maybeSingle();
+  return (data as { public_key: string } | null)?.public_key ?? null;
+}
 
 // ─── Global Search ───────────────────────────────────────
 

@@ -16,11 +16,17 @@ import { Route as DashboardIndexRouteImport } from "./routes/_dashboard/index"
 import { Route as DashboardSettingsRouteImport } from "./routes/_dashboard/settings"
 import { Route as DashboardNeedsActionRouteImport } from "./routes/_dashboard/needs-action"
 import { Route as DashboardLeadsRouteImport } from "./routes/_dashboard/leads"
+import { Route as DashboardDemoRouteImport } from "./routes/_dashboard/demo"
 import { Route as DashboardCallsRouteImport } from "./routes/_dashboard/calls"
 import { Route as DashboardAppointmentsRouteImport } from "./routes/_dashboard/appointments"
 import { Route as AuthLoginRouteImport } from "./routes/_auth/login"
 import { Route as AuthForgotPasswordRouteImport } from "./routes/_auth/forgot-password"
 import { Route as DashboardCallsIdRouteImport } from "./routes/_dashboard/calls_.$id"
+import { Route as DashboardAdminVapiAccountsRouteImport } from "./routes/_dashboard/admin.vapi-accounts"
+import { Route as DashboardAdminUsersRouteImport } from "./routes/_dashboard/admin.users"
+import { Route as DashboardAdminNicheRouteImport } from "./routes/_dashboard/admin.niche"
+import { Route as DashboardAdminModelConfigRouteImport } from "./routes/_dashboard/admin.model-config"
+import { Route as DashboardAdminDemoDataRouteImport } from "./routes/_dashboard/admin.demo-data"
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: "/reset-password",
@@ -55,6 +61,11 @@ const DashboardLeadsRoute = DashboardLeadsRouteImport.update({
   path: "/leads",
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardDemoRoute = DashboardDemoRouteImport.update({
+  id: "/demo",
+  path: "/demo",
+  getParentRoute: () => DashboardRoute,
+} as any)
 const DashboardCallsRoute = DashboardCallsRouteImport.update({
   id: "/calls",
   path: "/calls",
@@ -80,6 +91,33 @@ const DashboardCallsIdRoute = DashboardCallsIdRouteImport.update({
   path: "/calls/$id",
   getParentRoute: () => DashboardRoute,
 } as any)
+const DashboardAdminVapiAccountsRoute =
+  DashboardAdminVapiAccountsRouteImport.update({
+    id: "/admin/vapi-accounts",
+    path: "/admin/vapi-accounts",
+    getParentRoute: () => DashboardRoute,
+  } as any)
+const DashboardAdminUsersRoute = DashboardAdminUsersRouteImport.update({
+  id: "/admin/users",
+  path: "/admin/users",
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardAdminNicheRoute = DashboardAdminNicheRouteImport.update({
+  id: "/admin/niche",
+  path: "/admin/niche",
+  getParentRoute: () => DashboardRoute,
+} as any)
+const DashboardAdminModelConfigRoute =
+  DashboardAdminModelConfigRouteImport.update({
+    id: "/admin/model-config",
+    path: "/admin/model-config",
+    getParentRoute: () => DashboardRoute,
+  } as any)
+const DashboardAdminDemoDataRoute = DashboardAdminDemoDataRouteImport.update({
+  id: "/admin/demo-data",
+  path: "/admin/demo-data",
+  getParentRoute: () => DashboardRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   "/": typeof DashboardIndexRoute
@@ -88,9 +126,15 @@ export interface FileRoutesByFullPath {
   "/login": typeof AuthLoginRoute
   "/appointments": typeof DashboardAppointmentsRoute
   "/calls": typeof DashboardCallsRoute
+  "/demo": typeof DashboardDemoRoute
   "/leads": typeof DashboardLeadsRoute
   "/needs-action": typeof DashboardNeedsActionRoute
   "/settings": typeof DashboardSettingsRoute
+  "/admin/demo-data": typeof DashboardAdminDemoDataRoute
+  "/admin/model-config": typeof DashboardAdminModelConfigRoute
+  "/admin/niche": typeof DashboardAdminNicheRoute
+  "/admin/users": typeof DashboardAdminUsersRoute
+  "/admin/vapi-accounts": typeof DashboardAdminVapiAccountsRoute
   "/calls/$id": typeof DashboardCallsIdRoute
 }
 export interface FileRoutesByTo {
@@ -100,9 +144,15 @@ export interface FileRoutesByTo {
   "/login": typeof AuthLoginRoute
   "/appointments": typeof DashboardAppointmentsRoute
   "/calls": typeof DashboardCallsRoute
+  "/demo": typeof DashboardDemoRoute
   "/leads": typeof DashboardLeadsRoute
   "/needs-action": typeof DashboardNeedsActionRoute
   "/settings": typeof DashboardSettingsRoute
+  "/admin/demo-data": typeof DashboardAdminDemoDataRoute
+  "/admin/model-config": typeof DashboardAdminModelConfigRoute
+  "/admin/niche": typeof DashboardAdminNicheRoute
+  "/admin/users": typeof DashboardAdminUsersRoute
+  "/admin/vapi-accounts": typeof DashboardAdminVapiAccountsRoute
   "/calls/$id": typeof DashboardCallsIdRoute
 }
 export interface FileRoutesById {
@@ -114,10 +164,16 @@ export interface FileRoutesById {
   "/_auth/login": typeof AuthLoginRoute
   "/_dashboard/appointments": typeof DashboardAppointmentsRoute
   "/_dashboard/calls": typeof DashboardCallsRoute
+  "/_dashboard/demo": typeof DashboardDemoRoute
   "/_dashboard/leads": typeof DashboardLeadsRoute
   "/_dashboard/needs-action": typeof DashboardNeedsActionRoute
   "/_dashboard/settings": typeof DashboardSettingsRoute
   "/_dashboard/": typeof DashboardIndexRoute
+  "/_dashboard/admin/demo-data": typeof DashboardAdminDemoDataRoute
+  "/_dashboard/admin/model-config": typeof DashboardAdminModelConfigRoute
+  "/_dashboard/admin/niche": typeof DashboardAdminNicheRoute
+  "/_dashboard/admin/users": typeof DashboardAdminUsersRoute
+  "/_dashboard/admin/vapi-accounts": typeof DashboardAdminVapiAccountsRoute
   "/_dashboard/calls_/$id": typeof DashboardCallsIdRoute
 }
 export interface FileRouteTypes {
@@ -129,9 +185,15 @@ export interface FileRouteTypes {
     | "/login"
     | "/appointments"
     | "/calls"
+    | "/demo"
     | "/leads"
     | "/needs-action"
     | "/settings"
+    | "/admin/demo-data"
+    | "/admin/model-config"
+    | "/admin/niche"
+    | "/admin/users"
+    | "/admin/vapi-accounts"
     | "/calls/$id"
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -141,9 +203,15 @@ export interface FileRouteTypes {
     | "/login"
     | "/appointments"
     | "/calls"
+    | "/demo"
     | "/leads"
     | "/needs-action"
     | "/settings"
+    | "/admin/demo-data"
+    | "/admin/model-config"
+    | "/admin/niche"
+    | "/admin/users"
+    | "/admin/vapi-accounts"
     | "/calls/$id"
   id:
     | "__root__"
@@ -154,10 +222,16 @@ export interface FileRouteTypes {
     | "/_auth/login"
     | "/_dashboard/appointments"
     | "/_dashboard/calls"
+    | "/_dashboard/demo"
     | "/_dashboard/leads"
     | "/_dashboard/needs-action"
     | "/_dashboard/settings"
     | "/_dashboard/"
+    | "/_dashboard/admin/demo-data"
+    | "/_dashboard/admin/model-config"
+    | "/_dashboard/admin/niche"
+    | "/_dashboard/admin/users"
+    | "/_dashboard/admin/vapi-accounts"
     | "/_dashboard/calls_/$id"
   fileRoutesById: FileRoutesById
 }
@@ -218,6 +292,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof DashboardLeadsRouteImport
       parentRoute: typeof DashboardRoute
     }
+    "/_dashboard/demo": {
+      id: "/_dashboard/demo"
+      path: "/demo"
+      fullPath: "/demo"
+      preLoaderRoute: typeof DashboardDemoRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     "/_dashboard/calls": {
       id: "/_dashboard/calls"
       path: "/calls"
@@ -253,6 +334,41 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof DashboardCallsIdRouteImport
       parentRoute: typeof DashboardRoute
     }
+    "/_dashboard/admin/vapi-accounts": {
+      id: "/_dashboard/admin/vapi-accounts"
+      path: "/admin/vapi-accounts"
+      fullPath: "/admin/vapi-accounts"
+      preLoaderRoute: typeof DashboardAdminVapiAccountsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    "/_dashboard/admin/users": {
+      id: "/_dashboard/admin/users"
+      path: "/admin/users"
+      fullPath: "/admin/users"
+      preLoaderRoute: typeof DashboardAdminUsersRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    "/_dashboard/admin/niche": {
+      id: "/_dashboard/admin/niche"
+      path: "/admin/niche"
+      fullPath: "/admin/niche"
+      preLoaderRoute: typeof DashboardAdminNicheRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    "/_dashboard/admin/model-config": {
+      id: "/_dashboard/admin/model-config"
+      path: "/admin/model-config"
+      fullPath: "/admin/model-config"
+      preLoaderRoute: typeof DashboardAdminModelConfigRouteImport
+      parentRoute: typeof DashboardRoute
+    }
+    "/_dashboard/admin/demo-data": {
+      id: "/_dashboard/admin/demo-data"
+      path: "/admin/demo-data"
+      fullPath: "/admin/demo-data"
+      preLoaderRoute: typeof DashboardAdminDemoDataRouteImport
+      parentRoute: typeof DashboardRoute
+    }
   }
 }
 
@@ -271,20 +387,32 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 interface DashboardRouteChildren {
   DashboardAppointmentsRoute: typeof DashboardAppointmentsRoute
   DashboardCallsRoute: typeof DashboardCallsRoute
+  DashboardDemoRoute: typeof DashboardDemoRoute
   DashboardLeadsRoute: typeof DashboardLeadsRoute
   DashboardNeedsActionRoute: typeof DashboardNeedsActionRoute
   DashboardSettingsRoute: typeof DashboardSettingsRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
+  DashboardAdminDemoDataRoute: typeof DashboardAdminDemoDataRoute
+  DashboardAdminModelConfigRoute: typeof DashboardAdminModelConfigRoute
+  DashboardAdminNicheRoute: typeof DashboardAdminNicheRoute
+  DashboardAdminUsersRoute: typeof DashboardAdminUsersRoute
+  DashboardAdminVapiAccountsRoute: typeof DashboardAdminVapiAccountsRoute
   DashboardCallsIdRoute: typeof DashboardCallsIdRoute
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardAppointmentsRoute: DashboardAppointmentsRoute,
   DashboardCallsRoute: DashboardCallsRoute,
+  DashboardDemoRoute: DashboardDemoRoute,
   DashboardLeadsRoute: DashboardLeadsRoute,
   DashboardNeedsActionRoute: DashboardNeedsActionRoute,
   DashboardSettingsRoute: DashboardSettingsRoute,
   DashboardIndexRoute: DashboardIndexRoute,
+  DashboardAdminDemoDataRoute: DashboardAdminDemoDataRoute,
+  DashboardAdminModelConfigRoute: DashboardAdminModelConfigRoute,
+  DashboardAdminNicheRoute: DashboardAdminNicheRoute,
+  DashboardAdminUsersRoute: DashboardAdminUsersRoute,
+  DashboardAdminVapiAccountsRoute: DashboardAdminVapiAccountsRoute,
   DashboardCallsIdRoute: DashboardCallsIdRoute,
 }
 

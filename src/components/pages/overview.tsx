@@ -1,41 +1,27 @@
 import { useState, useEffect, useRef } from "react"
+import { callerPhoneLabel, isWebTestCall } from "@/lib/caller-label"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Link } from "@tanstack/react-router"
+import { Link, useNavigate } from "@tanstack/react-router"
 import {
   BarChart,
   Bar,
+  Cell,
   XAxis,
-  YAxis,
   Tooltip,
   ResponsiveContainer,
-  AreaChart,
-  Area,
 } from "recharts"
 import {
   Phone,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  ArrowRight,
   ChevronRight,
   CheckCircle2,
   XCircle,
   AlertTriangle,
   Bell,
   Clock,
+  Info,
 } from "lucide-react"
 
 // ─── Premium SVG Icons ────────────────────────────────────
-
-function IconPhoneCall({ color, size = 14 }: { color: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.42 2 2 0 0 1 3.6 1.24h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-      <path d="M14.05 2a9 9 0 0 1 7.94 7.94"/>
-      <path d="M14.05 6A5 5 0 0 1 18 9.95"/>
-    </svg>
-  )
-}
 
 function IconCalendar({ color, size = 14 }: { color: string; size?: number }) {
   return (
@@ -45,26 +31,6 @@ function IconCalendar({ color, size = 14 }: { color: string; size?: number }) {
       <line x1="8" y1="2" x2="8" y2="6"/>
       <line x1="3" y1="10" x2="21" y2="10"/>
       <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/>
-    </svg>
-  )
-}
-
-function IconUsers({ color, size = 14 }: { color: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-      <circle cx="9" cy="7" r="4"/>
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-      <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-    </svg>
-  )
-}
-
-function IconClock({ color, size = 14 }: { color: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10"/>
-      <polyline points="12 6 12 12 16 14"/>
     </svg>
   )
 }
@@ -83,6 +49,8 @@ import {
   getWeeklyCallStats,
   getUnresolvedOperationalEvents,
   getPendingCallQueue,
+  getMonthCallStats,
+  getBusinessSettings,
   resolveOperationalEvent,
   markQueueItemHandled,
 } from "@/lib/api"
@@ -90,6 +58,8 @@ import { useAuth } from "@/lib/auth"
 import { useTheme } from "@/lib/theme"
 import { supabase } from "@/lib/supabase"
 import { TestCallButton } from "@/components/dashboard/test-call-button"
+import { HoverTip, agentStatusCopy } from "@/components/dashboard/hover-tip"
+import { pickGreeting, type Greeting } from "@/lib/greetings"
 import type { Call, Appointment, OperationalEvent, CallQueueItem } from "@/lib/types"
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -134,7 +104,7 @@ function formatElapsed(iso: string): string {
 function buildCallSummary(call: Call): string {
   if (call.summary) return call.summary
   const extracted = call.extracted_data ?? {}
-  const name = (extracted.caller_name as string) ?? call.caller_phone ?? "Unknown"
+  const name = (extracted.caller_name as string) ?? callerPhoneLabel(call)
   const service = (extracted.service_needed as string) ?? null
   const outcomeMap: Record<string, string> = {
     appointment_booked: "Appointment booked",
@@ -144,32 +114,43 @@ function buildCallSummary(call: Call): string {
     missed: "Missed",
   }
   const outcome = call.outcome ? outcomeMap[call.outcome] ?? call.outcome.replace(/_/g, " ") : ""
+  // Test calls: the title already says "Test call", so describe what happened.
+  if (isWebTestCall(call)) {
+    if ((call.duration_secs ?? 0) < 20) return "Hung up after the greeting"
+    return service ? `${service} · ${outcome}` : outcome || "Talked to the assistant"
+  }
   if (service) return `${name} · ${service}`
   return `${name} · ${outcome}`
 }
 
 const NAME_TITLES = new Set(["dr", "mr", "mrs", "ms", "prof", "rev", "sir", "madam", "mx"])
 
-function getGreeting(name: string | null): string {
+function firstNameOf(name: string | null): string | null {
   const tokens = name?.trim().split(/\s+/).filter(Boolean) ?? []
   while (tokens.length > 1 && NAME_TITLES.has(tokens[0].replace(/\./g, "").toLowerCase())) {
     tokens.shift()
   }
-  const firstName = tokens[0] ?? null
-  const hour = new Date().getHours()
-  return firstName
-    ? (hour < 12 ? `Good morning, ${firstName}` : hour < 17 ? `Good afternoon, ${firstName}` : `Good evening, ${firstName}`)
-    : (hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening")
+  return tokens[0] ?? null
 }
 
+// Coarse, human countdown: precise only when it's close.
+// "In 12m" · "In 1h 30m" · "In 11h" · "Tomorrow" · "In 3 days"
 function timeUntil(iso: string): string {
-  const diffMs = new Date(iso).getTime() - Date.now()
+  const target = new Date(iso)
+  const diffMs = target.getTime() - Date.now()
   if (diffMs <= 0) return ""
   const mins = Math.floor(diffMs / 60_000)
   if (mins < 60) return `In ${mins}m`
   const hrs = Math.floor(mins / 60)
-  const rem = mins % 60
-  return rem > 0 ? `In ${hrs}h ${rem}m` : `In ${hrs}h`
+  const now = new Date()
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const dayDiff = Math.round((startOfDay(target) - startOfDay(now)) / 86_400_000)
+  if (dayDiff === 0) {
+    const rem = mins % 60
+    return hrs < 2 && rem > 0 ? `In ${hrs}h ${rem}m` : `In ${hrs}h`
+  }
+  if (dayDiff === 1) return "Tomorrow"
+  return `In ${dayDiff} days`
 }
 
 // ─── Outcome config ───────────────────────────────────────
@@ -202,187 +183,221 @@ function OutcomeBadge({ outcome }: { outcome: Call["outcome"] }) {
   )
 }
 
-// ─── Sparkline ────────────────────────────────────────────
-
-function Sparkline({ data, color, gradientId }: { data: number[]; color: string; gradientId: string }) {
-  if (!data.length || !data.some(v => v > 0)) return null
-  const pts = data.map((v, i) => ({ i, v }))
-  return (
-    <ResponsiveContainer width="100%" height={56}>
-      <AreaChart data={pts} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
-        <defs>
-          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity={0.28} />
-            <stop offset="100%" stopColor={color} stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.75}
-          fill={`url(#${gradientId})`} dot={false} isAnimationActive={false}
-          strokeLinecap="round" strokeLinejoin="round" />
-      </AreaChart>
-    </ResponsiveContainer>
-  )
-}
-
-// ─── Trend Badge ──────────────────────────────────────────
-
-function TrendBadge({ today, yesterday }: { today: number; yesterday: number }) {
-  const { resolvedTheme } = useTheme()
-  const isDark = resolvedTheme === "dark"
-  if (today === 0 && yesterday === 0) return null
-  const diff = today - yesterday
-  // Don't fabricate percentages off a zero baseline — "growth from zero" is undefined.
-  // Cap displayed pct at 999% so a hot day never breaks the layout.
-  const pct = yesterday > 0 ? Math.min(999, Math.round(Math.abs(diff / yesterday) * 100)) : null
-  const label = pct !== null ? `${pct}%` : "New"
-
-  if (diff > 0) return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 3,
-      fontSize: 10.5, fontWeight: 600, padding: "2px 7px", borderRadius: 999,
-      color: "#065F46", background: "#D1FAE5", border: "1px solid rgba(16,185,129,0.2)",
-      letterSpacing: "0.01em", whiteSpace: "nowrap",
-    }}>
-      <TrendingUp style={{ width: 9, height: 9 }} strokeWidth={2} />
-      {label}
-    </span>
-  )
-
-  if (diff < 0) return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 3,
-      fontSize: 10.5, fontWeight: 600, padding: "2px 7px", borderRadius: 999,
-      color: isDark ? "#FCA5A5" : "#991B1B",
-      background: isDark ? "rgba(229,72,77,0.1)" : "#FEE2E2",
-      border: "1px solid rgba(229,72,77,0.18)",
-      letterSpacing: "0.01em", whiteSpace: "nowrap",
-    }}>
-      <TrendingDown style={{ width: 9, height: 9 }} strokeWidth={2} />
-      {label}
-    </span>
-  )
-
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 3,
-      fontSize: 10.5, fontWeight: 600, padding: "2px 7px", borderRadius: 999,
-      color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)",
-      background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
-      border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)"}`,
-      letterSpacing: "0.01em", whiteSpace: "nowrap",
-    }}>
-      <Minus style={{ width: 8, height: 8 }} strokeWidth={2} />
-      Same
-    </span>
-  )
-}
-
 // ─── Stat Card ────────────────────────────────────────────
 
-function StatCard({ value, label, sublabel, icon: Icon, iconColor, cardBg,
-  sparkData, sparkColor, gradientId, trendToday, trendYesterday }: {
+// One hero metric (big number + sparkline) and compact secondaries.
+// Flat surfaces, no icon tiles — the number is the design.
+
+function MetricValue({ value, size }: { value: number | string; size: number }) {
+  return (
+    <p className="stat-card-value" style={{
+      fontSize: size, fontWeight: 600,
+      color: "var(--foreground)",
+      lineHeight: 1, fontFamily: "Geist Mono, monospace",
+      fontVariantNumeric: "tabular-nums", letterSpacing: "-0.04em",
+    }}>
+      {value === "--" ? (
+        <span style={{ display: "inline-block", width: size * 0.6, height: 3, background: "currentColor", borderRadius: 2, opacity: 0.18, verticalAlign: "middle" }} />
+      ) : value}
+    </p>
+  )
+}
+
+const metricLabelStyle: React.CSSProperties = {
+  fontSize: 12, fontWeight: 500,
+  color: "var(--muted-foreground)",
+  letterSpacing: "-0.01em",
+}
+
+function PrimaryStatCard({ value, label, sublabel, days }: {
   value: number | string
   label: string
   sublabel?: string
-  icon: ({ color, size }: { color: string; size?: number }) => React.ReactElement
-  iconColor: string
-  cardBg: string
-  sparkData?: number[]
-  sparkColor?: string
-  gradientId?: string
-  trendToday?: number
-  trendYesterday?: number
+  days: WeekDay[]
 }) {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === "dark"
-  const hasSpark = sparkData && sparkData.length > 1 && sparkData.some(v => v > 0)
-  const showTrend = trendToday !== undefined && trendYesterday !== undefined
+  const today = days[6]
+  const yesterday = days[5]
+  const delta = today && yesterday ? today.appointments - yesterday.appointments : null
+  const hasData = days.some(d => d.calls > 0)
+  const chartData = days.map((d, i) => ({
+    ...d,
+    other: Math.max(0, d.calls - d.appointments),
+    isToday: i === days.length - 1,
+  }))
+  const muted = isDark ? "rgba(255,255,255,0.12)" : "rgba(10,10,11,0.08)"
 
   return (
-    <div className="stat-card-root" style={{
-      padding: 2, borderRadius: 22,
-      background: isDark ? "rgba(255,255,255,0.04)" : cardBg,
-      border: isDark ? "1px solid rgba(255,255,255,0.07)" : `1px solid ${cardBg}`,
-      boxShadow: isDark
-        ? "0 1px 3px rgba(0,0,0,0.2), 0 8px 24px rgba(0,0,0,0.12)"
-        : "0 1px 2px rgba(0,0,0,0.03), 0 8px 24px rgba(0,0,0,0.05)",
-      minHeight: 165, height: "100%",
-      display: "flex", flexDirection: "column",
-      cursor: "default",
+    <div className="ios-card stat-primary" style={{
+      padding: "20px 22px 16px",
+      display: "grid", gridTemplateColumns: "minmax(150px, 0.8fr) 1.6fr", gap: 20,
+      height: "100%",
     }}>
-      <div style={{
-        flex: 1, borderRadius: 20, overflow: "hidden",
-        display: "flex", flexDirection: "column",
-        background: isDark ? "var(--card)" : "#ffffff",
-        boxShadow: isDark ? "inset 0 1px 0 rgba(255,255,255,0.06)" : "inset 0 1px 0 rgba(255,255,255,0.9)",
-      }}>
-        <div className="stat-card-inner" style={{ padding: "18px 18px 12px", flex: 1, display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-              <div style={{
-                width: 26, height: 26, borderRadius: 7,
-                background: isDark ? "rgba(255,255,255,0.07)" : cardBg,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                border: isDark ? "1px solid rgba(255,255,255,0.07)" : "1px solid rgba(0,0,0,0.04)",
-                flexShrink: 0,
-              }}>
-                <Icon color={iconColor} size={12} />
-              </div>
-              <p style={{
-                fontSize: 10.5, fontWeight: 600,
-                color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.32)",
-                letterSpacing: "0.05em", textTransform: "uppercase",
-              }}>
-                {label}
-              </p>
-            </div>
-            {showTrend && typeof trendToday === "number" && typeof trendYesterday === "number" && (
-              <TrendBadge today={trendToday} yesterday={trendYesterday} />
-            )}
-          </div>
-
-          <p className="stat-card-value" style={{
-            fontSize: 40, fontWeight: 700,
-            color: isDark ? "#F2F2F7" : "#0A0A0B",
-            lineHeight: 1, fontFamily: "Geist Mono, monospace",
-            fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em", marginBottom: 4,
-          }}>
-            {value === "--" ? (
-              <span style={{ display: "inline-block", width: 24, height: 3, background: "currentColor", borderRadius: 2, opacity: 0.18, verticalAlign: "middle" }} />
-            ) : value}
-          </p>
-
-          {sublabel && (
-            <p style={{ fontSize: 11, color: isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.32)", letterSpacing: "-0.01em" }}>
-              {sublabel}
-            </p>
-          )}
-          <div style={{ flex: 1 }} />
+      <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <p style={metricLabelStyle}>{label}</p>
+        <div style={{ marginTop: 14 }}>
+          <MetricValue value={value} size={56} />
         </div>
+        {delta !== null && delta !== 0 && (
+          <p style={{
+            fontSize: 12, fontWeight: 600, marginTop: 10, letterSpacing: "-0.01em",
+            color: delta > 0 ? "#059669" : (isDark ? "#FCA5A5" : "#DC2626"),
+          }}>
+            {delta > 0 ? "↑" : "↓"} {Math.abs(delta)} vs yesterday
+          </p>
+        )}
+        {sublabel && (
+          <p style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 4, letterSpacing: "-0.01em" }}>
+            {sublabel}
+          </p>
+        )}
+        <div style={{ flex: 1 }} />
+        <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--muted-foreground)" }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: "#10B981" }} /> Booked
+          </span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--muted-foreground)" }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: muted }} /> Other calls
+          </span>
+        </div>
+      </div>
 
-        {hasSpark && gradientId ? (
-          <div style={{ marginTop: -10 }}>
-            <Sparkline data={sparkData!} color={sparkColor ?? iconColor} gradientId={gradientId} />
-          </div>
+      <div className="stat-primary-chart" style={{ minWidth: 0, minHeight: 170 }}>
+        {hasData ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} barCategoryGap="28%" margin={{ top: 6, right: 0, left: 0, bottom: 0 }}>
+              <XAxis dataKey="date" axisLine={false} tickLine={false} interval={0}
+                tick={{ fontSize: 11, fill: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)", fontFamily: "Geist, sans-serif" }} />
+              <Tooltip
+                cursor={{ fill: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.025)", radius: 6 }}
+                content={({ active, payload, label: dayLabel }) => {
+                  if (!active || !payload?.length) return null
+                  const row = payload[0]?.payload as { calls: number; appointments: number }
+                  return (
+                    <div className="chart-tooltip">
+                      <p style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", marginBottom: 4 }}>{dayLabel}</p>
+                      <p style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{row.appointments} booked · {row.calls} calls</p>
+                    </div>
+                  )
+                }}
+              />
+              <Bar dataKey="appointments" stackId="d" maxBarSize={34} isAnimationActive={false}>
+                {chartData.map((d, i) => <Cell key={i} fill="#10B981" fillOpacity={d.isToday ? 1 : 0.55} />)}
+              </Bar>
+              <Bar dataKey="other" stackId="d" maxBarSize={34} radius={[5, 5, 0, 0]} isAnimationActive={false}>
+                {chartData.map((d, i) => <Cell key={i} fill={d.isToday ? (isDark ? "rgba(255,255,255,0.22)" : "rgba(10,10,11,0.16)") : muted} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         ) : (
-          <div style={{ height: 14 }} />
+          <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <p style={{ fontSize: 12, color: "var(--muted-foreground)" }}>Your week will chart here once calls come in</p>
+          </div>
         )}
       </div>
     </div>
   )
 }
 
+// 7-day trend with its own legend: day initials under each bar, and a
+// caption that swaps to the exact value for whichever bar is hovered.
+function MiniBars({ series, labels, color, format }: {
+  series: number[]
+  labels: string[]
+  color: string
+  format: (v: number) => string
+}) {
+  const [hover, setHover] = useState<number | null>(null)
+  const max = Math.max(...series, 1)
+  const caption = hover === null
+    ? "Last 7 days"
+    : `${hover === series.length - 1 ? "Today" : labels[hover]} · ${format(series[hover])}`
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0 }}
+      onMouseLeave={() => setHover(null)}>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 28 }}>
+        {series.map((v, i) => {
+          const isToday = i === series.length - 1
+          const active = hover === i
+          return (
+            <span key={i}
+              onMouseEnter={() => setHover(i)}
+              title={`${labels[i]}: ${format(v)}`}
+              style={{
+                width: 9, borderRadius: 2, cursor: "default",
+                height: Math.max(3, Math.round((v / max) * 28)),
+                background: color,
+                opacity: active ? 1 : hover !== null ? 0.3 : v === 0 ? 0.15 : isToday ? 1 : 0.45,
+                transition: "opacity 0.12s",
+              }} />
+          )
+        })}
+      </div>
+      <div style={{ display: "flex", gap: 4 }}>
+        {labels.map((l, i) => (
+          <span key={i} style={{
+            width: 9, textAlign: "center", fontSize: 8.5, lineHeight: 1,
+            color: hover === i ? "var(--foreground)" : "var(--muted-foreground)",
+            opacity: hover === i ? 1 : 0.7, fontWeight: hover === i ? 700 : 500,
+          }}>
+            {l.charAt(0)}
+          </span>
+        ))}
+      </div>
+      <span style={{
+        fontSize: 10.5, color: hover === null ? "var(--muted-foreground)" : "var(--foreground)",
+        fontWeight: hover === null ? 400 : 600, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums",
+      }}>
+        {caption}
+      </span>
+    </div>
+  )
+}
+
+function CompactStatCard({ value, label, sublabel, series, seriesLabels, formatPoint, color }: {
+  value: number | string
+  label: string
+  sublabel?: string
+  series?: number[]
+  seriesLabels?: string[]
+  formatPoint?: (v: number) => string
+  color: string
+}) {
+  return (
+    <div className="ios-card stat-compact" style={{
+      padding: "14px 18px",
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+    }}>
+      <div style={{ minWidth: 0 }}>
+        <p style={metricLabelStyle}>{label}</p>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginTop: 6, minWidth: 0 }}>
+          <MetricValue value={value} size={26} />
+          {sublabel && (
+            <p style={{
+              fontSize: 11.5, color: "var(--muted-foreground)", letterSpacing: "-0.01em",
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0,
+            }}>
+              {sublabel}
+            </p>
+          )}
+        </div>
+      </div>
+      {series && seriesLabels && series.some(v => v > 0) && (
+        <MiniBars series={series} labels={seriesLabels} color={color} format={formatPoint ?? (v => String(v))} />
+      )}
+    </div>
+  )
+}
+
 // ─── Skeleton ─────────────────────────────────────────────
 
-function StatSkeleton() {
+function StatSkeleton({ primary }: { primary?: boolean }) {
   return (
-    <div className="ios-card" style={{ padding: "18px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <div className="skeleton" style={{ width: 26, height: 26, borderRadius: 7 }} />
-        <div className="skeleton" style={{ width: 40, height: 18, borderRadius: 999 }} />
-      </div>
-      <div className="skeleton" style={{ height: 36, width: 48, marginBottom: 6, borderRadius: 6 }} />
-      <div className="skeleton" style={{ height: 10, width: 80, borderRadius: 6 }} />
+    <div className="ios-card" style={{ padding: primary ? "20px 22px" : "14px 18px", height: "100%" }}>
+      <div className="skeleton" style={{ height: 10, width: 80, borderRadius: 6, marginBottom: primary ? 16 : 8 }} />
+      <div className="skeleton" style={{ height: primary ? 48 : 20, width: primary ? 72 : 36, borderRadius: 6 }} />
     </div>
   )
 }
@@ -390,8 +405,9 @@ function StatSkeleton() {
 // ─── Status Strip ─────────────────────────────────────────
 // Calm 3-card operational reassurance band. Passive by default.
 
-function StatusStrip({ clinicActive, actionCount, nextAppointment, liveCall, elapsed }: {
+function StatusStrip({ clinicActive, agentStatus, actionCount, nextAppointment, liveCall, elapsed }: {
   clinicActive: boolean
+  agentStatus: { hasPhone: boolean; isActive: boolean; exhausted: boolean }
   actionCount: number
   nextAppointment: Appointment | null
   liveCall: Call | null
@@ -409,7 +425,6 @@ function StatusStrip({ clinicActive, actionCount, nextAppointment, liveCall, ela
     borderRadius: 14,
     background: isDark ? "var(--card)" : "#ffffff",
     border: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"}`,
-    boxShadow: isDark ? "none" : "0 1px 2px rgba(0,0,0,0.025)",
     padding: "14px 16px",
     minWidth: 0,
     overflow: "hidden",
@@ -440,27 +455,37 @@ function StatusStrip({ clinicActive, actionCount, nextAppointment, liveCall, ela
 
   const aiDotColor = liveCall ? "#10B981" : clinicActive ? "#10B981" : "#E5484D"
   const aiPrimary = liveCall ? `On call · ${elapsed || "…"}` : clinicActive ? "Live" : "Offline"
-  const aiMeta = liveCall ? "Active conversation" : clinicActive ? "Answering calls" : "Not accepting calls"
+  const aiMeta = liveCall ? "Active conversation"
+    : clinicActive ? "Answering calls"
+    : agentStatus.exhausted ? "Out of call minutes"
+    : !agentStatus.isActive ? "Account not active"
+    : !agentStatus.hasPhone ? "No phone number connected"
+    : "Not accepting calls"
 
   const needsDotColor = actionCount > 0 ? "#F59E0B" : "#10B981"
   const needsPrimary = actionCount > 0
     ? `${actionCount} ${actionCount === 1 ? "item" : "items"} to review`
     : "All clear"
-  const needsMeta = actionCount > 0 ? "Open Needs Action →" : "No issues right now"
+  const needsMeta = actionCount > 0 ? "Missed calls and unfinished bookings" : "No issues right now"
 
   return (
     <div style={{ display: "flex", gap: 10 }} className="status-strip">
       {/* AI Agent */}
-      <div style={stripCard}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-          <span
-            className={liveCall || clinicActive ? "animate-live-pulse" : undefined}
-            style={{ width: 6, height: 6, borderRadius: "50%", background: aiDotColor, flexShrink: 0 }}
-          />
-          <p style={labelStyle}>AI Agent</p>
-        </div>
-        <p style={primaryStyle}>{aiPrimary}</p>
-        <p style={metaStyle}>{aiMeta}</p>
+      <div style={{ flex: 1, minWidth: 0, display: "flex" }}>
+        <HoverTip block {...agentStatusCopy({ onCall: !!liveCall, ...agentStatus })}>
+          <div tabIndex={0} style={{ ...stripCard, height: "100%", cursor: "help", outline: "none" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+              <span
+                className={liveCall || clinicActive ? "animate-live-pulse" : undefined}
+                style={{ width: 6, height: 6, borderRadius: "50%", background: aiDotColor, flexShrink: 0 }}
+              />
+              <p style={labelStyle}>AI Agent</p>
+              <Info style={{ width: 11, height: 11, color: "var(--muted-foreground)", opacity: 0.6, marginLeft: "auto" }} strokeWidth={1.75} />
+            </div>
+            <p style={primaryStyle}>{aiPrimary}</p>
+            <p style={metaStyle}>{aiMeta}</p>
+          </div>
+        </HoverTip>
       </div>
 
       {/* Needs Attention */}
@@ -474,16 +499,14 @@ function StatusStrip({ clinicActive, actionCount, nextAppointment, liveCall, ela
             <span style={{ width: 6, height: 6, borderRadius: "50%", background: needsDotColor, flexShrink: 0 }} />
             <p style={labelStyle}>Needs Attention</p>
           </div>
-          {actionCount > 0 && (
-            <ChevronRight style={{ width: 12, height: 12, color: "var(--muted-foreground)", flexShrink: 0 }} strokeWidth={1.75} />
-          )}
         </div>
         <p style={primaryStyle}>{needsPrimary}</p>
         <p style={metaStyle}>{needsMeta}</p>
       </Link>
 
       {/* Next Appointment */}
-      <div style={stripCard}>
+      <Link to="/appointments" search={{ open: nextAppointment?.id }}
+        style={{ ...stripCard, textDecoration: "none", cursor: "pointer" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <span style={{
             width: 6, height: 6, borderRadius: "50%",
@@ -513,7 +536,7 @@ function StatusStrip({ clinicActive, actionCount, nextAppointment, liveCall, ela
             <p style={metaStyle}>Bookings will land here</p>
           </>
         )}
-      </div>
+      </Link>
     </div>
   )
 }
@@ -580,7 +603,7 @@ function StatusStripCompact({
       </Link>
 
       {/* Next Appointment */}
-      <Link to="/appointments" style={pillStyle}>
+      <Link to="/appointments" search={{ open: nextAppointment?.id }} style={pillStyle}>
         <span style={{ width: 6, height: 6, borderRadius: "50%", background: nextDotColor, flexShrink: 0 }} />
         <span style={textStyle}>{nextText}</span>
       </Link>
@@ -603,6 +626,13 @@ function NotificationBell() {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+
+  function openCall(callId: string | null) {
+    if (!callId) return
+    setOpen(false)
+    navigate({ to: "/calls/$id", params: { id: callId } })
+  }
 
   const { data: events = [], refetch: refetchEvents } = useQuery({
     queryKey: ["operational-events"],
@@ -644,7 +674,10 @@ function NotificationBell() {
     queryClient.setQueryData<CallQueueItem[]>(["call-queue"], prev => (prev ?? []).filter(q => q.id !== id))
   }
 
-  const actionableEvents = events.filter(e => e.event_type !== "concurrent_call")
+  // A partial booking raises both an event and a queue item for the same call;
+  // show it once (the queue item, which has the caller's name and service).
+  const queuedCallIds = new Set(queue.map(q => q.call_id).filter(Boolean))
+  const actionableEvents = events.filter(e => e.event_type !== "concurrent_call" && !(e.call_id && queuedCallIds.has(e.call_id)))
   const totalCount = actionableEvents.length + queue.length
   const hasItems = totalCount > 0
 
@@ -659,7 +692,6 @@ function NotificationBell() {
           border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "var(--border)"}`,
           display: "flex", alignItems: "center", justifyContent: "center",
           cursor: "pointer", transition: "background 0.15s", flexShrink: 0,
-          boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
         }}
       >
         <Bell style={{ width: 14, height: 14, color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)" }} strokeWidth={1.75} />
@@ -733,9 +765,13 @@ function NotificationBell() {
                 const reason = (p.ended_reason as string) ?? null
                 const callId = event.call_id
                 return (
-                  <div key={event.id} style={{
+                  <div key={event.id} className="row-hover"
+                    role={callId ? "button" : undefined} tabIndex={callId ? 0 : undefined}
+                    onClick={() => openCall(callId)}
+                    onKeyDown={e => { if (e.key === "Enter") openCall(callId) }}
+                    style={{
                     display: "flex", alignItems: "flex-start", gap: 11,
-                    padding: "11px 16px",
+                    padding: "11px 16px", cursor: callId ? "pointer" : "default",
                     borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)"}`,
                   }}>
                     <div style={{
@@ -761,17 +797,7 @@ function NotificationBell() {
                         {phone ?? "Unknown caller"}
                         {reason && <span style={{ color: "var(--muted-foreground)", marginLeft: 5, fontSize: 11 }}>{reason.replace(/-/g, " ")}</span>}
                       </p>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        {callId && (
-                          <Link to="/calls/$id" params={{ id: callId }} onClick={() => setOpen(false)} style={{
-                            fontSize: 11, fontWeight: 500, color: "var(--muted-foreground)",
-                            textDecoration: "none", padding: "3px 9px", borderRadius: 7,
-                            border: "1px solid var(--border)", background: "var(--card)",
-                            letterSpacing: "-0.01em", whiteSpace: "nowrap",
-                          }}>
-                            View
-                          </Link>
-                        )}
+                      <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>
                         <button type="button" onClick={() => handleResolveEvent(event.id)} style={{
                           fontSize: 11, fontWeight: 500, color: "var(--muted-foreground)",
                           cursor: "pointer", padding: "3px 9px", borderRadius: 7,
@@ -782,15 +808,20 @@ function NotificationBell() {
                         </button>
                       </div>
                     </div>
+                    {callId && <ChevronRight style={{ width: 14, height: 14, color: "var(--muted-foreground)", opacity: 0.6, flexShrink: 0, alignSelf: "center" }} />}
                   </div>
                 )
               })}
               {queue.map((item) => {
                 const isPartial = item.queue_type === "partial_booking"
                 return (
-                  <div key={item.id} style={{
+                  <div key={item.id} className="row-hover"
+                    role={item.call_id ? "button" : undefined} tabIndex={item.call_id ? 0 : undefined}
+                    onClick={() => openCall(item.call_id)}
+                    onKeyDown={e => { if (e.key === "Enter") openCall(item.call_id) }}
+                    style={{
                     display: "flex", alignItems: "flex-start", gap: 11,
-                    padding: "11px 16px",
+                    padding: "11px 16px", cursor: item.call_id ? "pointer" : "default",
                     borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)"}`,
                   }}>
                     <div style={{
@@ -804,28 +835,38 @@ function NotificationBell() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: 12.5, fontWeight: 500, color: "var(--foreground)", letterSpacing: "-0.01em", marginBottom: 2 }}>
                         {item.caller_name ?? item.caller_phone ?? "Unknown caller"}
-                        {isPartial && (
-                          <span style={{
-                            marginLeft: 6, fontSize: 10.5, fontWeight: 700, color: "#92400E",
-                            background: "#FEF3C7", padding: "1px 6px", borderRadius: 999,
-                            border: "1px solid rgba(245,158,11,0.2)",
-                          }}>
-                            Partial booking
-                          </span>
-                        )}
+                        <span style={{
+                          marginLeft: 6, fontSize: 10.5, fontWeight: 700, padding: "1px 6px", borderRadius: 999,
+                          color: isPartial ? "#92400E" : "var(--muted-foreground)",
+                          background: isPartial ? "#FEF3C7" : "var(--muted)",
+                          border: isPartial ? "1px solid rgba(245,158,11,0.2)" : "1px solid var(--border)",
+                        }}>
+                          {isPartial ? "Partial booking" : "Missed call"}
+                        </span>
                       </p>
                       <p style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 7, letterSpacing: "-0.01em" }}>
                         {item.service_needed ? `${item.service_needed} · ` : ""}{timeAgo(item.created_at)}
                       </p>
-                      <button type="button" onClick={() => handleQueueHandled(item.id)} style={{
-                        fontSize: 11, fontWeight: 500, color: "var(--muted-foreground)",
-                        cursor: "pointer", padding: "3px 9px", borderRadius: 7,
-                        border: "1px solid var(--border)", background: "var(--card)",
-                        letterSpacing: "-0.01em", whiteSpace: "nowrap",
-                      }}>
-                        Mark handled
-                      </button>
+                      <div style={{ display: "flex", gap: 6 }} onClick={e => e.stopPropagation()}>
+                        {item.caller_phone && (
+                          <a href={`tel:${item.caller_phone}`} style={{
+                            fontSize: 11, fontWeight: 600, color: "var(--background)", background: "var(--foreground)",
+                            textDecoration: "none", padding: "3px 9px", borderRadius: 7, whiteSpace: "nowrap",
+                          }}>
+                            Call back
+                          </a>
+                        )}
+                        <button type="button" onClick={() => handleQueueHandled(item.id)} style={{
+                          fontSize: 11, fontWeight: 500, color: "var(--muted-foreground)",
+                          cursor: "pointer", padding: "3px 9px", borderRadius: 7,
+                          border: "1px solid var(--border)", background: "var(--card)",
+                          letterSpacing: "-0.01em", whiteSpace: "nowrap",
+                        }}>
+                          Mark handled
+                        </button>
+                      </div>
                     </div>
+                    {item.call_id && <ChevronRight style={{ width: 14, height: 14, color: "var(--muted-foreground)", opacity: 0.6, flexShrink: 0, alignSelf: "center" }} />}
                   </div>
                 )
               })}
@@ -847,174 +888,24 @@ function NotificationBell() {
   )
 }
 
-// ─── Weekly Chart ─────────────────────────────────────────
-// Compact executive summary: KPI on left, mini bar chart on right
-
 type WeekDay = { date: string; calls: number; leads: number; appointments: number }
-
-function WeeklyChart() {
-  const { resolvedTheme } = useTheme()
-  const isDark = resolvedTheme === "dark"
-  const { data: raw, isLoading } = useQuery({ queryKey: ["weekly-stats"], queryFn: getWeeklyCallStats })
-  const days: WeekDay[] = raw ?? []
-  const totalCalls = days.reduce((s, d) => s + d.calls, 0)
-  const totalBooked = days.reduce((s, d) => s + d.appointments, 0)
-  // Shape per-day data for the stacked bar: green base = appointments,
-  // purple cap = calls beyond bookings. Single bar per day centres on its
-  // label tick, fixing the grouped-bar offset that drifted bars off-axis.
-  const chartData = days.map(d => ({
-    ...d,
-    callsRemaining: Math.max(0, d.calls - d.appointments),
-  }))
-  // Cap at 100% — see note in OverviewPage. Inconsistent seeds can push booked > calls.
-  const rawRate = totalCalls > 0 ? Math.round((totalBooked / totalCalls) * 100) : null
-  const bookingRate = rawRate !== null && rawRate >= 0 && rawRate <= 100 ? rawRate : null
-  const bookingRateDisplay = bookingRate !== null ? `${bookingRate}%` : "--"
-
-  // Single-day "today vs yesterday" comparison as a lightweight trend signal.
-  // Skip if yesterday was zero — growth-from-zero isn't a meaningful percentage.
-  const todayCalls = days[6]?.calls ?? 0
-  const yestCalls = days[5]?.calls ?? 0
-  const trendDiff = yestCalls > 0
-    ? Math.max(-999, Math.min(999, Math.round(((todayCalls - yestCalls) / yestCalls) * 100)))
-    : null
-
-  return (
-    <div className="ios-card" style={{ overflow: "hidden", padding: 0, display: "flex", flexDirection: "column" }}>
-      {/* Header: compact, KPI inline with title */}
-      <div style={{
-        padding: "14px 16px 8px",
-        display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12,
-      }}>
-        <div style={{ minWidth: 0 }}>
-          <p style={{ fontSize: 11, fontWeight: 600,
-            color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.42)",
-            letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 4 }}>
-            This Week
-          </p>
-          <p style={{ fontSize: 11.5, color: "var(--muted-foreground)", letterSpacing: "-0.01em", fontVariantNumeric: "tabular-nums" }}>
-            {isLoading ? "—" : `${totalCalls} call${totalCalls !== 1 ? "s" : ""} · ${totalBooked} booked`}
-          </p>
-        </div>
-        <div style={{ textAlign: "right", flexShrink: 0 }}>
-          {isLoading ? (
-            <div className="skeleton" style={{ height: 28, width: 64, borderRadius: 6 }} />
-          ) : (
-            <>
-              <p style={{
-                fontSize: 24, fontWeight: 700, color: isDark ? "#F2F2F7" : "#0A0A0B",
-                lineHeight: 1, fontFamily: "Geist Mono, monospace",
-                letterSpacing: "-0.04em", fontVariantNumeric: "tabular-nums",
-              }}>
-                {bookingRateDisplay}
-              </p>
-              <p style={{
-                fontSize: 10, color: "var(--muted-foreground)",
-                letterSpacing: "-0.01em", marginTop: 3,
-              }}>
-                Booking rate
-                {trendDiff !== null && trendDiff !== 0 && (
-                  <span style={{
-                    marginLeft: 6, fontWeight: 600,
-                    color: trendDiff > 0 ? (isDark ? "#6EE7B7" : "#059669") : (isDark ? "#FCA5A5" : "#DC2626"),
-                  }}>
-                    {trendDiff > 0 ? "↑" : "↓"} {Math.abs(trendDiff)}%
-                  </span>
-                )}
-              </p>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Chart fills remaining space — no fixed height, no dead zone */}
-      <div style={{ flex: 1, minHeight: 0, padding: "0 8px 10px", display: "flex" }}>
-        {isLoading ? (
-          <div style={{ flex: 1, display: "flex", alignItems: "flex-end", gap: 6, padding: "8px 8px 0" }}>
-            {[55, 75, 38, 95, 65, 48, 85].map((h, i) => (
-              <div key={i} style={{ flex: 1, display: "flex", gap: 1.5, alignItems: "flex-end" }}>
-                <div className="skeleton" style={{ flex: 1, height: h * 0.65, borderRadius: "3px 3px 0 0" }} />
-                <div className="skeleton" style={{ flex: 1, height: h * 0.35, borderRadius: "3px 3px 0 0", opacity: 0.5 }} />
-              </div>
-            ))}
-          </div>
-        ) : totalCalls === 0 ? (
-          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <p style={{ fontSize: 12, color: isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.3)", letterSpacing: "-0.01em" }}>
-              No calls yet this week
-            </p>
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={chartData}
-              barCategoryGap="35%"
-              margin={{ top: 8, right: 4, left: 4, bottom: 0 }}
-            >
-              <XAxis dataKey="date" axisLine={false} tickLine={false}
-                tick={{ fontSize: 10, fill: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.32)", fontFamily: "Geist, sans-serif" }}
-                interval={0} />
-              <Tooltip cursor={{ fill: isDark ? "rgba(255,255,255,0.03)" : "rgba(99,102,241,0.04)", radius: 4 }}
-                content={({ active, payload, label }) => {
-                  if (!active || !payload?.length) return null
-                  // Both segments live on the same stack — pull from the day record directly.
-                  const dayRow = payload[0]?.payload as { calls?: number; appointments?: number } | undefined
-                  const calls = dayRow?.calls ?? 0
-                  const booked = dayRow?.appointments ?? 0
-                  return (
-                    <div className="chart-tooltip">
-                      <p style={{ fontSize: 11, fontWeight: 600, color: "var(--foreground)", marginBottom: 5, letterSpacing: "-0.01em" }}>{label}</p>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                        {[{ color: "#6366F1", label: `${calls} call${calls !== 1 ? "s" : ""}` }, { color: "#10B981", label: `${booked} booked` }].map(({ color, label: lbl }) => (
-                          <div key={lbl} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                            <span style={{ width: 6, height: 6, borderRadius: 2, background: color, flexShrink: 0 }} />
-                            <span style={{ fontSize: 11, color: "var(--muted-foreground)", fontVariantNumeric: "tabular-nums" }}>{lbl}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                }}
-              />
-              {/* Single bar per day, stacked: green "booked" base + purple "uncovered calls" cap.
-                  This guarantees each bar sits dead-centre on its day label. Booked goes on
-                  the bottom so the green portion reads as "calls we converted". */}
-              <Bar dataKey="appointments" stackId="day" fill="#10B981" fillOpacity={isDark ? 0.75 : 0.9} maxBarSize={11} />
-              <Bar dataKey="callsRemaining" stackId="day" fill="#6366F1" fillOpacity={isDark ? 0.7 : 0.85} radius={[3, 3, 0, 0]} maxBarSize={11} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
-      {/* Footer legend */}
-      {!isLoading && totalCalls > 0 && (
-        <div style={{
-          padding: "8px 16px 12px",
-          borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"}`,
-          display: "flex", alignItems: "center", gap: 14,
-        }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>
-            <span style={{ width: 7, height: 7, borderRadius: 2, background: "#10B981" }} />
-            Booked
-          </span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>
-            <span style={{ width: 7, height: 7, borderRadius: 2, background: "#6366F1" }} />
-            Other calls
-          </span>
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ─── Call Minutes Card ────────────────────────────────────
 // Compact usage summary: "120 / 500 mins" + horizontal bar + footer meta
 
-function CallMinutesCard({ secondsRemaining, allowOverage }: { secondsRemaining: number; allowOverage: boolean }) {
+function CallMinutesCard({ secondsRemaining: balanceSecs, allowOverage, monthStats, usageFromCalls }: {
+  secondsRemaining: number
+  allowOverage: boolean
+  monthStats?: { calls: number; secs: number }
+  // Demo accounts: generated calls never touch the billing balance, so usage
+  // is derived from the month's call durations instead.
+  usageFromCalls?: boolean
+}) {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === "dark"
   const FULL_SECS = 5 * 60 * 60
   const FULL_MINS = Math.floor(FULL_SECS / 60)
+  const secondsRemaining = usageFromCalls && monthStats ? FULL_SECS - monthStats.secs : balanceSecs
   const isExhausted = secondsRemaining <= 0
   const remainSecs = Math.max(0, secondsRemaining)
   const usedSecs = FULL_SECS - remainSecs
@@ -1098,14 +989,35 @@ function CallMinutesCard({ secondsRemaining, allowOverage }: { secondsRemaining:
         }}>
           {isExhausted && !allowOverage ? "Limit reached" : `${usedPct}% used`}
         </p>
-        <Link to="/settings" style={{
+        <Link to="/calls" style={{
           fontSize: 11, fontWeight: 500,
           color: isDark ? "#818CF8" : "#6366F1",
           textDecoration: "none", letterSpacing: "-0.01em",
         }}>
-          View usage
+          See calls
         </Link>
       </div>
+
+      {/* This month at a glance — fills the card with context, not whitespace */}
+      {monthStats && monthStats.calls > 0 && (
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8,
+          margin: "14px 16px 0", paddingTop: 12, borderTop: "1px solid var(--border)",
+        }}>
+          {[
+            { label: "Calls", value: String(monthStats.calls) },
+            { label: "Avg call", value: formatDuration(Math.round(monthStats.secs / monthStats.calls)) },
+            { label: "Left", value: `${Math.max(0, Math.floor(secondsRemaining / 60))}m` },
+          ].map(item => (
+            <div key={item.label} style={{ minWidth: 0 }}>
+              <p style={{ fontSize: 10.5, color: "var(--muted-foreground)", marginBottom: 2 }}>{item.label}</p>
+              <p style={{ fontSize: 15, fontWeight: 600, color: "var(--foreground)", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>
+                {item.value}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Footer: reset info */}
       <div style={{
@@ -1176,7 +1088,7 @@ function ScheduleCard({ appointments }: { appointments: Appointment[] }) {
           onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = isDark ? "rgba(255,255,255,0.65)" : "rgba(0,0,0,0.6)")}
           onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)")}
         >
-          View all <ArrowRight style={{ width: 9, height: 9 }} strokeWidth={1.5} />
+          View all
         </Link>
       </div>
 
@@ -1261,7 +1173,7 @@ function ActivityRow({ call, delay }: { call: Call & { is_repeat_caller?: boolea
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === "dark"
   const cfg = OUTCOME_CONFIG[call.outcome ?? ""] ?? null
-  const callerDisplay = call.caller_phone ?? "Unknown"
+  const callerDisplay = callerPhoneLabel(call)
   const summary = buildCallSummary(call)
 
   return (
@@ -1330,7 +1242,6 @@ function ActivityRow({ call, delay }: { call: Call & { is_repeat_caller?: boolea
         <span style={{ fontSize: 10.5, color: isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.28)", whiteSpace: "nowrap" }}>
           {timeAgo(call.started_at ?? call.created_at)}
         </span>
-        <ArrowRight style={{ width: 9, height: 9, color: isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.22)" }} strokeWidth={1.5} />
       </div>
     </Link>
   )
@@ -1359,7 +1270,10 @@ function GhostActivityRow() {
 
 // ─── Footer Status ────────────────────────────────────────
 
-function FooterStatus({ clinicActive }: { clinicActive: boolean }) {
+function FooterStatus({ clinicActive, agentStatus }: {
+  clinicActive: boolean
+  agentStatus: { hasPhone: boolean; isActive: boolean; exhausted: boolean }
+}) {
   const { data: liveCall } = useQuery({
     queryKey: ["live-call"],
     queryFn: getLiveCallStatus,
@@ -1380,12 +1294,22 @@ function FooterStatus({ clinicActive }: { clinicActive: boolean }) {
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [liveCall?.id, liveCall?.created_at])
 
-  if (!clinicActive) return (
-    <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "4px 0 20px" }}>
-      <XCircle style={{ width: 13, height: 13, color: "#E5484D", flexShrink: 0 }} strokeWidth={1.5} />
-      <span style={{ fontSize: 11.5, color: "#E5484D", letterSpacing: "-0.01em" }}>Orvia is not configured - check settings</span>
-    </div>
-  )
+  if (!clinicActive) {
+    // Same wording as the AI Agent tooltip. A missing phone number is a setup
+    // step, not an error, so it reads neutral; paused/inactive stay red.
+    const { title, body } = agentStatusCopy(agentStatus)
+    const isSetupStep = agentStatus.isActive && !agentStatus.exhausted && !agentStatus.hasPhone
+    return (
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 7, padding: "4px 0 20px" }}>
+        {isSetupStep
+          ? <Info style={{ width: 13, height: 13, color: "var(--muted-foreground)", flexShrink: 0, marginTop: 1 }} strokeWidth={1.75} />
+          : <XCircle style={{ width: 13, height: 13, color: "#E5484D", flexShrink: 0, marginTop: 1 }} strokeWidth={1.5} />}
+        <span style={{ fontSize: 11.5, letterSpacing: "-0.01em", color: isSetupStep ? "var(--muted-foreground)" : "#E5484D" }}>
+          <span style={{ fontWeight: 600 }}>{title}.</span> {body}
+        </span>
+      </div>
+    )
+  }
 
   if (liveCall) return (
     <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "4px 0 20px" }}>
@@ -1407,39 +1331,23 @@ function FooterStatus({ clinicActive }: { clinicActive: boolean }) {
 
 // ─── Mock data (dev only) ─────────────────────────────────
 
-const MOCK_EVENTS: OperationalEvent[] = [
-  { id: "mock-1", business_id: "mock", call_id: null, event_type: "ai_failure", severity: "warning", resolved: false, payload: { caller_phone: "+1 (512) 555-0192", ended_reason: "silence-timed-out" }, created_at: new Date(Date.now() - 8 * 60_000).toISOString() },
-  { id: "mock-2", business_id: "mock", call_id: null, event_type: "partial_booking", severity: "warning", resolved: false, payload: { caller_phone: "+1 (737) 555-0847", service_needed: "Pipe repair" }, created_at: new Date(Date.now() - 23 * 60_000).toISOString() },
-]
-const MOCK_QUEUE: CallQueueItem[] = [
-  { id: "mock-q-1", business_id: "mock", call_id: null, queue_type: "missed_callback", priority: 5, caller_phone: "+1 (210) 555-0374", caller_name: "Marcus Webb", service_needed: "Water heater install", status: "pending", handled_by: null, handled_at: null, created_at: new Date(Date.now() - 4 * 60_000).toISOString() },
-]
-
-// ─── Page ─────────────────────────────────────────────────
-
 export default function OverviewPage() {
   const { profile } = useAuth()
   const queryClient = useQueryClient()
-  const [mockActive, setMockActive] = useState(false)
   const [liveElapsed, setLiveElapsed] = useState("")
   const liveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Picked once per visit (not per refetch) so the header doesn't reshuffle
+  // every 30 seconds while you're looking at it.
+  const greetingRef = useRef<Greeting | null>(null)
 
-  function toggleMock() {
-    if (!mockActive) {
-      queryClient.setQueryData(["operational-events"], MOCK_EVENTS)
-      queryClient.setQueryData(["call-queue"], MOCK_QUEUE)
-    } else {
-      queryClient.setQueryData(["operational-events"], [])
-      queryClient.setQueryData(["call-queue"], [])
-    }
-    setMockActive(!mockActive)
-  }
 
   const briefing = useQuery({ queryKey: ["briefing"], queryFn: getBriefing, refetchInterval: 30_000 })
   const weeklyQuery = useQuery({ queryKey: ["weekly-stats"], queryFn: getWeeklyCallStats })
   const liveCallQuery = useQuery({ queryKey: ["live-call"], queryFn: getLiveCallStatus, refetchInterval: 10_000 })
   const { data: opEvents = [] } = useQuery({ queryKey: ["operational-events"], queryFn: getUnresolvedOperationalEvents, refetchInterval: 30_000 })
   const { data: callQueue = [] } = useQuery({ queryKey: ["call-queue"], queryFn: getPendingCallQueue, refetchInterval: 30_000 })
+  const { data: monthStats } = useQuery({ queryKey: ["month-call-stats"], queryFn: getMonthCallStats, refetchInterval: 60_000 })
+  const { data: businessSettings } = useQuery({ queryKey: ["business-settings"], queryFn: getBusinessSettings })
 
   useEffect(() => {
     const liveCall = liveCallQuery.data
@@ -1454,9 +1362,7 @@ export default function OverviewPage() {
   }, [liveCallQuery.data?.id, liveCallQuery.data?.created_at])
 
   const weeklyDays = weeklyQuery.data ?? []
-  const callSparkData = weeklyDays.map(d => d.calls)
-  const apptSparkData = weeklyDays.map(d => d.appointments)
-  const leadSparkData = weeklyDays.map(d => d.leads)
+  const weekLabels = weeklyDays.map(d => d.date)
   const todayStats = weeklyDays[6]
   const yestStats = weeklyDays[5]
 
@@ -1471,10 +1377,12 @@ export default function OverviewPage() {
       </div>
       <div className="skeleton" style={{ height: 64, borderRadius: 14 }} />
       <div className="overview-stat-grid">
-        <StatSkeleton /><StatSkeleton /><StatSkeleton /><StatSkeleton />
+        <StatSkeleton primary />
+        <div className="stat-compact-stack">
+          <StatSkeleton /><StatSkeleton /><StatSkeleton />
+        </div>
       </div>
       <div className="overview-bottom-grid-3">
-        <div className="ios-card" style={{ height: 220 }} />
         <div className="ios-card" style={{ height: 220 }} />
         <div className="ios-card" style={{ height: 220 }} />
       </div>
@@ -1533,42 +1441,58 @@ export default function OverviewPage() {
   }).length
 
   const callsSublabel = callsTrend ?? (calls === 1 ? "1 call today" : `${calls} calls today`)
-  const apptSublabel = todayApptCount > 0
-    ? `${todayApptCount} today · ${upcomingAppointments.length} this week`
-    : upcomingAppointments.length > 0
-      ? `${upcomingAppointments.length} this week`
-      : "none booked yet"
+  // Same measure as the big number (bookings *made*), so the two never
+  // disagree — appointments *scheduled* for today live in Coming Up.
+  const apptSublabel = weeklyTotalBooked > 0
+    ? `${weeklyTotalBooked} booked in the last 7 days`
+    : "none booked yet"
   const leadsSublabel = leadsTrend ?? (leads === 1 ? "1 new today" : `${leads} new today`)
   const bookingSublabel = bookingRatePct !== null
     ? `${weeklyTotalBooked} booked · ${weeklyTotalCalls} calls`
     : weeklyTotalCalls === 0 ? "no calls this week" : "—"
-  const greeting = getGreeting(profile.fullName)
   const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
-  const statusLine = calls === 0
-    ? "Your AI receptionist is on duty."
-    : appointments > 0
-      ? `${calls} call${calls !== 1 ? "s" : ""} handled · ${appointments} appointment${appointments !== 1 ? "s" : ""} booked`
-      : `${calls} call${calls !== 1 ? "s" : ""} handled today`
-
   const now = new Date()
   const nextAppointment = upcomingAppointments
     .filter(a => new Date(a.scheduled_start) >= now)
     .sort((a, b) => new Date(a.scheduled_start).getTime() - new Date(b.scheduled_start).getTime())[0] ?? null
 
-  const actionableCount = opEvents.filter(e => e.event_type !== "concurrent_call").length + callQueue.length
+  // Same dedupe as the bell: a partial booking's event and queue item count once.
+  const queuedCallIds = new Set(callQueue.map(q => q.call_id).filter(Boolean))
+  const actionableCount = opEvents.filter(e => e.event_type !== "concurrent_call" && !(e.call_id && queuedCallIds.has(e.call_id))).length + callQueue.length
+
+  if (!greetingRef.current) {
+    greetingRef.current = pickGreeting({
+      firstName: firstNameOf(profile.fullName),
+      now: new Date(),
+      callsToday: calls,
+      bookedToday: appointments,
+      leadsToday: leads,
+      bookedThisWeek: weeklyTotalBooked,
+      nextAppointment: nextAppointment ? { name: nextAppointment.customer_name, at: new Date(nextAppointment.scheduled_start) } : null,
+      actionCount: actionableCount,
+      agentLive: !!clinicActive,
+    })
+  }
+  const greeting = greetingRef.current
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <style>{`
         .overview-stat-grid {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: 1.25fr 1fr;
           gap: 12px;
           align-items: stretch;
         }
+        .stat-compact-stack {
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+        .stat-compact-stack > * { flex: 1; }
         .overview-bottom-grid-3 {
           display: grid;
-          grid-template-columns: 1fr 1.55fr 0.9fr;
+          grid-template-columns: 1.6fr 1fr;
           gap: 12px;
           /* Equal heights: grid stretches all cards to match the tallest peer.
              ScheduleCard self-caps with internal scroll, so it never becomes
@@ -1604,7 +1528,7 @@ export default function OverviewPage() {
           .status-strip > * { flex: 1 1 calc(50% - 5px) !important; min-width: 0 !important; }
         }
         @media (max-width: 700px) {
-          .overview-stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+          .overview-stat-grid { grid-template-columns: 1fr; gap: 10px; }
           .overview-bottom-grid-3 { grid-template-columns: 1fr; }
           .overview-header-right { display: none !important; }
           .overview-header h1 { font-size: 22px !important; }
@@ -1618,43 +1542,36 @@ export default function OverviewPage() {
           .overview-stat-grid { gap: 8px; }
         }
         @media (max-width: 700px) {
-          .stat-card-value { font-size: 32px !important; }
-          .stat-card-inner { padding: 14px 14px 10px !important; }
-          .stat-card-root { min-height: 130px !important; }
+          .stat-primary { grid-template-columns: 1fr !important; }
+          .stat-primary .stat-card-value { font-size: 44px !important; }
+          .stat-primary-chart { min-height: 140px !important; height: 140px; }
         }
       `}</style>
 
       {/* ── Header ────────────────────────────────────────── */}
+      {/* position+zIndex: the fade-up transform makes this a stacking context;
+          lifting it keeps the bell dropdown above the cards below. */}
       <div className="overview-header animate-fade-up animate-fade-up-1"
-        style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 2 }}>
+        style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 2, position: "relative", zIndex: 30 }}>
         <div>
           <h1 style={{
             fontSize: 26, fontWeight: 700, letterSpacing: "-0.5px",
             color: "var(--foreground)", marginBottom: 5, lineHeight: 1.2, fontFamily: "Geist, sans-serif",
             display: "flex", alignItems: "center", gap: 8,
           }}>
-            {greeting}
-            <img src="/wave-emoji.png" alt="" style={{ width: 28, height: 28, display: "inline-block", verticalAlign: "middle" }} />
+            {greeting.headline}
+            {greeting.emoji === "wave"
+              ? <img src="/wave-emoji.png" alt="" style={{ width: 28, height: 28, display: "inline-block", verticalAlign: "middle" }} />
+              : <span aria-hidden style={{ fontSize: 24, lineHeight: 1 }}>{greeting.emoji}</span>}
           </h1>
           <p style={{ fontSize: 12.5, color: "var(--muted-foreground)", lineHeight: 1.5, letterSpacing: "-0.01em" }}>
             {todayStr}
             <span style={{ margin: "0 7px", opacity: 0.4 }}>&middot;</span>
-            {statusLine}
+            {greeting.subline}
           </p>
         </div>
 
         <div className="overview-header-right" style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-          {import.meta.env.DEV && (
-            <button onClick={toggleMock} style={{
-              fontSize: 10.5, fontWeight: 600, padding: "4px 10px", borderRadius: 999,
-              border: `1px solid ${mockActive ? "rgba(229,72,77,0.3)" : "var(--border)"}`,
-              background: mockActive ? "rgba(229,72,77,0.07)" : "var(--card)",
-              color: mockActive ? "#E5484D" : "var(--muted-foreground)",
-              cursor: "pointer", letterSpacing: "0.02em", transition: "all 0.15s",
-            }}>
-              {mockActive ? "Clear mock" : "Mock alerts"}
-            </button>
-          )}
           <TestCallButton />
           <NotificationBell />
         </div>
@@ -1665,6 +1582,11 @@ export default function OverviewPage() {
           CSS swaps them via media query at 700px. */}
       <StatusStrip
         clinicActive={!!clinicActive}
+        agentStatus={{
+          hasPhone: !!d?.businessHasPhone,
+          isActive: d?.businessStatus === "active",
+          exhausted: !(d?.hasCredits ?? false),
+        }}
         actionCount={actionableCount}
         nextAppointment={nextAppointment}
         liveCall={liveCallQuery.data ?? null}
@@ -1678,30 +1600,24 @@ export default function OverviewPage() {
       />
 
       {/* ── KPI Cards ─────────────────────────────────────── */}
+      {/* Appointments booked is the outcome owners pay for — it gets the hero slot. */}
       <div className="overview-stat-grid">
-        <StatCard
-          value={calls} label="Calls Handled"
-          sublabel={callsSublabel}
-          icon={IconPhoneCall} iconColor="#6366F1" cardBg="#EEF2FF"
-          sparkData={callSparkData} sparkColor="#6366F1" gradientId="spark-calls"
-        />
-        <StatCard
-          value={appointments} label="Appointments"
+        <PrimaryStatCard
+          value={appointments} label="Appointments booked today"
           sublabel={apptSublabel}
-          icon={IconCalendar} iconColor="#10B981" cardBg="#ECFDF5"
-          sparkData={apptSparkData} sparkColor="#10B981" gradientId="spark-appts"
+          days={weeklyDays}
         />
-        <StatCard
-          value={leads} label="Leads"
-          sublabel={leadsSublabel}
-          icon={IconUsers} iconColor="#D97706" cardBg="#FFFBEB"
-          sparkData={leadSparkData} sparkColor="#F59E0B" gradientId="spark-leads"
-        />
-        <StatCard
-          value={bookingRateDisplay} label="Booking Rate"
-          sublabel={bookingSublabel}
-          icon={IconClock} iconColor="#8B5CF6" cardBg="#F5F3FF"
-        />
+        <div className="stat-compact-stack">
+          <CompactStatCard value={calls} label="Calls handled today" sublabel={callsSublabel}
+            series={weeklyDays.map(d => d.calls)} seriesLabels={weekLabels}
+            formatPoint={v => `${v} call${v === 1 ? "" : "s"}`} color="#6366F1" />
+          <CompactStatCard value={leads} label="New leads today" sublabel={leadsSublabel}
+            series={weeklyDays.map(d => d.leads)} seriesLabels={weekLabels}
+            formatPoint={v => `${v} lead${v === 1 ? "" : "s"}`} color="#F59E0B" />
+          <CompactStatCard value={bookingRateDisplay} label="Booking rate · 7 days" sublabel={bookingSublabel}
+            series={weeklyDays.map(d => d.calls > 0 ? Math.round((d.appointments / d.calls) * 100) : 0)} seriesLabels={weekLabels}
+            formatPoint={v => `${v}% booked`} color="#10B981" />
+        </div>
       </div>
 
       {/* ── Schedule / Chart / Minutes ─────────────────────── */}
@@ -1711,8 +1627,12 @@ export default function OverviewPage() {
         </p>
         <div className="overview-bottom-grid-3">
           <ScheduleCard appointments={upcomingAppointments} />
-          <WeeklyChart />
-          <CallMinutesCard secondsRemaining={secondsRemaining} allowOverage={allowOverage} />
+          <CallMinutesCard
+            secondsRemaining={secondsRemaining}
+            allowOverage={allowOverage}
+            monthStats={monthStats}
+            usageFromCalls={!!businessSettings?.settings.demo_autofill}
+          />
         </div>
       </div>
 
@@ -1752,7 +1672,7 @@ export default function OverviewPage() {
                 onMouseEnter={e => ((e.currentTarget as HTMLElement).style.opacity = "1")}
                 onMouseLeave={e => ((e.currentTarget as HTMLElement).style.opacity = "0.65")}
               >
-                See all <ArrowRight style={{ width: 10, height: 10 }} strokeWidth={1.5} />
+                See all
               </Link>
             )}
           </div>
@@ -1770,7 +1690,11 @@ export default function OverviewPage() {
       </div>
 
       {/* Footer */}
-      <FooterStatus clinicActive={!!clinicActive} />
+      <FooterStatus clinicActive={!!clinicActive} agentStatus={{
+        hasPhone: !!d?.businessHasPhone,
+        isActive: d?.businessStatus === "active",
+        exhausted: !(d?.hasCredits ?? false),
+      }} />
     </div>
   )
 }

@@ -53,6 +53,13 @@ export interface BusinessSettings {
   // FAQ the AI can answer
   faq?: BusinessFAQ[];
 
+  // Industry playbook the AI follows (see src/lib/vapi/niche-profiles.ts).
+  // Set from /admin/niche; unset = the original generic playbook.
+  niche?: "dental" | "plumbing" | "hvac" | "real_estate" | "customer_support";
+  // Region for generated demo data (names, phone formats). Admin demo only.
+  demo_region?: "in" | "us";
+  demo_autofill?: boolean;
+
   // AI personality
   receptionist_name?: string;
   tone?: string;
@@ -75,11 +82,31 @@ export interface BusinessSettings {
   service_area_zips?: string[];
 
   // Calendar
+  // "live": the AI checks real availability (hours, existing bookings, the
+  // connected Google Calendar) and writes bookings to that calendar.
+  // "simulated": demo mode — the AI always finds plausible openings and
+  // bookings only land in the dashboard. Defaults to "live".
+  scheduling_mode?: "live" | "simulated";
   calendar_id?: string;
   calendar_provider?: "google";
   slot_duration_default?: number;
   buffer_between_appointments?: number;
   max_appointments_per_day?: number;
+
+  // Admin-only override of the exact model/voice/transcriber stack.
+  // When present, buildAssistantConfig uses these instead of the
+  // language-preference defaults. Set from /admin/model-config.
+  model_config?: {
+    llmProvider?: string;
+    llmModel?: string;
+    temperature?: number;
+    voiceProvider?: string;
+    voiceId?: string;
+    voiceModel?: string;
+    transcriberProvider?: string;
+    transcriberModel?: string;
+    transcriberLanguage?: string;
+  };
 }
 
 export interface User {
@@ -165,6 +192,28 @@ export interface Lead {
   notes: string | null;
   status: "new" | "contacted" | "booked" | "closed" | "lost";
   created_at: string;
+  updated_at: string;
+}
+
+export interface VapiAccount {
+  id: string;
+  label: string;
+  public_key: string;
+  private_key: string | null;
+  balance_usd: number | null;
+  status: "active" | "exhausted" | "disabled";
+  is_active: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GoogleCalendarConnection {
+  id: string;
+  business_id: string;
+  google_email: string | null;
+  calendar_id: string;
+  connected_at: string;
   updated_at: string;
 }
 

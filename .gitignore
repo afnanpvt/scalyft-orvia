@@ -62,3 +62,6 @@ supabase/.temp/
 /s1-*.png
 /section-*.png
 /system prompt/
+
+# TanStack Router build cache
+.tanstack/

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Link } from "@tanstack/react-router"
+import { useNavigate } from "@tanstack/react-router"
 import { AlertTriangle, Phone, CheckCircle2, X, Filter as FilterIcon } from "lucide-react"
 
 import {
@@ -37,14 +37,18 @@ function timeAgo(iso: string): string {
   return `${days}d ago`
 }
 
-function EventCard({ event, onResolve }: { event: OperationalEvent; onResolve: (id: string) => void }) {
+function EventCard({ event, onResolve, onOpen }: { event: OperationalEvent; onResolve: (id: string) => void; onOpen: (callId: string | null) => void }) {
   const sev = SEVERITY_STYLES[event.severity]
   const p = event.payload ?? {}
   const phone = (p.caller_phone as string) ?? null
   const reason = (p.ended_reason as string) ?? null
 
   return (
-    <div className="ios-card" style={{ padding: 14 }}>
+    <div className={event.call_id ? "ios-card ios-card-interactive" : "ios-card"}
+      role={event.call_id ? "button" : undefined} tabIndex={event.call_id ? 0 : undefined}
+      onClick={() => onOpen(event.call_id)}
+      onKeyDown={e => { if (e.key === "Enter") onOpen(event.call_id) }}
+      style={{ padding: 14, cursor: event.call_id ? "pointer" : "default" }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
         <div style={{
           width: 32, height: 32, borderRadius: 10, flexShrink: 0,
@@ -72,12 +76,7 @@ function EventCard({ event, onResolve }: { event: OperationalEvent; onResolve: (
               {reason.replace(/-/g, " ")}
             </p>
           )}
-          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-            {event.call_id && (
-              <Link to="/calls/$id" params={{ id: event.call_id }} style={pillBtn}>
-                View call
-              </Link>
-            )}
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }} onClick={e => e.stopPropagation()}>
             <button type="button" onClick={() => onResolve(event.id)} style={pillBtn}>
               <CheckCircle2 size={11} strokeWidth={1.75} /> Resolve
             </button>
@@ -88,10 +87,14 @@ function EventCard({ event, onResolve }: { event: OperationalEvent; onResolve: (
   )
 }
 
-function QueueCard({ item, onHandled }: { item: CallQueueItem; onHandled: (id: string) => void }) {
+function QueueCard({ item, onHandled, onOpen }: { item: CallQueueItem; onHandled: (id: string) => void; onOpen: (callId: string | null) => void }) {
   const isPartial = item.queue_type === "partial_booking"
   return (
-    <div className="ios-card" style={{ padding: 14 }}>
+    <div className={item.call_id ? "ios-card ios-card-interactive" : "ios-card"}
+      role={item.call_id ? "button" : undefined} tabIndex={item.call_id ? 0 : undefined}
+      onClick={() => onOpen(item.call_id)}
+      onKeyDown={e => { if (e.key === "Enter") onOpen(item.call_id) }}
+      style={{ padding: 14, cursor: item.call_id ? "pointer" : "default" }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
         <div style={{
           width: 32, height: 32, borderRadius: 10, flexShrink: 0,
@@ -110,7 +113,7 @@ function QueueCard({ item, onHandled }: { item: CallQueueItem; onHandled: (id: s
               border: `1px solid ${isPartial ? "rgba(245,158,11,0.25)" : "var(--border)"}`,
               letterSpacing: "0.01em",
             }}>
-              {isPartial ? "Partial booking" : "Missed callback"}
+              {isPartial ? "Partial booking" : "Missed call"}
             </span>
             <span style={{ fontSize: 11, color: "var(--muted-foreground)" }}>{timeAgo(item.created_at)}</span>
           </div>
@@ -122,12 +125,7 @@ function QueueCard({ item, onHandled }: { item: CallQueueItem; onHandled: (id: s
               {item.service_needed}
             </p>
           )}
-          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-            {item.call_id && (
-              <Link to="/calls/$id" params={{ id: item.call_id }} style={pillBtn}>
-                View call
-              </Link>
-            )}
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }} onClick={e => e.stopPropagation()}>
             {item.caller_phone && (
               <a href={`tel:${item.caller_phone}`} style={pillBtn}>
                 <Phone size={11} strokeWidth={1.75} /> Call back
@@ -155,8 +153,13 @@ const pillBtn: React.CSSProperties = {
 export default function NeedsActionPage() {
   const [filter, setFilter] = useState<Filter>("all")
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
-  const { data: events = [], isLoading: eventsLoading } = useQuery({
+  function openCall(callId: string | null) {
+    if (callId) navigate({ to: "/calls/$id", params: { id: callId } })
+  }
+
+  const { data: rawEvents = [], isLoading: eventsLoading } = useQuery({
     queryKey: ["operational-events"],
     queryFn: getUnresolvedOperationalEvents,
     refetchInterval: 30_000,
@@ -166,6 +169,10 @@ export default function NeedsActionPage() {
     queryFn: getPendingCallQueue,
     refetchInterval: 30_000,
   })
+
+  // Same dedupe as the bell: a partial booking's event and queue item show once.
+  const queuedCallIds = new Set(queue.map(q => q.call_id).filter(Boolean))
+  const events = rawEvents.filter(e => !(e.call_id && queuedCallIds.has(e.call_id)))
 
   async function handleResolveEvent(id: string) {
     await resolveOperationalEvent(id)
@@ -253,10 +260,10 @@ export default function NeedsActionPage() {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {showEvents && sortedEvents.map(e => (
-            <EventCard key={e.id} event={e} onResolve={handleResolveEvent} />
+            <EventCard key={e.id} event={e} onResolve={handleResolveEvent} onOpen={openCall} />
           ))}
           {showQueue && queue.map(item => (
-            <QueueCard key={item.id} item={item} onHandled={handleQueueHandled} />
+            <QueueCard key={item.id} item={item} onHandled={handleQueueHandled} onOpen={openCall} />
           ))}
         </div>
       )}
