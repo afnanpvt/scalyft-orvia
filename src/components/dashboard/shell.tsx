@@ -103,6 +103,7 @@ const NAV_ADMIN = [
   { label: "Demo Data", to: "/admin/demo-data", icon: Database },
   { label: "Model Config", to: "/admin/model-config", icon: Sliders },
   { label: "Vapi Accounts", to: "/admin/vapi-accounts", icon: KeyRound },
+  { label: "Gemini Spike", to: "/admin/gemini-spike", icon: Sparkles },
 ] as const;
 
 type AdminNavEntry = (typeof NAV_ADMIN)[number];

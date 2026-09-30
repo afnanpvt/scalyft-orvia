@@ -6,6 +6,7 @@ import {
 } from "lucide-react"
 
 import { getBusinessSettings, getActiveVapiPublicKey, getAppointmentByVapiCallId } from "@/lib/api"
+import { useGeminiCall } from "@/lib/gemini/use-gemini-call"
 import { useAssistantCall, type CallPhase, type TranscriptEntry } from "@/lib/vapi/use-assistant-call"
 import { OrviaLogo } from "@/components/brand/orvia-logo"
 import { useTheme } from "@/lib/theme"
@@ -462,11 +463,15 @@ function DemoStage({ phase, speaking, elapsed, agentName }: {
   )
 }
 
-export default function DemoPage() {
+export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}) {
   const { data: business } = useQuery({ queryKey: ["business-settings"], queryFn: getBusinessSettings })
   const { data: activeVaultKey } = useQuery({ queryKey: ["active-vapi-key"], queryFn: getActiveVapiPublicKey, staleTime: 10_000 })
 
-  const call = useAssistantCall()
+  // Spike: /demo?engine=gemini runs the voice on Gemini Live instead of Vapi.
+  const useGemini = engine ? engine === "gemini" : typeof window !== "undefined" && new URLSearchParams(window.location.search).get("engine") === "gemini"
+  const vapiCall = useAssistantCall()
+  const geminiCall = useGeminiCall()
+  const call = useGemini ? geminiCall : vapiCall
   const [appointment, setAppointment] = useState<Appointment | null>(null)
 
   const [timeOffsetMs, setTimeOffsetMs] = useState(0)
@@ -475,7 +480,7 @@ export default function DemoPage() {
   const [speakingCaption, setSpeakingCaption] = useState("")
   const reminderTriggeredForRef = useRef<string | null>(null)
 
-  const publicKey = activeVaultKey || ENV_VAPI_PUBLIC_KEY
+  const publicKey = useGemini ? "gemini" : (activeVaultKey || ENV_VAPI_PUBLIC_KEY)
   const agentName = business?.settings.receptionist_name || "Orvia"
   const niche = business?.settings.niche ?? "dental"
   const busy = call.phase === "preparing" || call.phase === "mic" || call.phase === "connecting"
@@ -562,7 +567,7 @@ export default function DemoPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <span className="animate-live-pulse" style={{ width: 7, height: 7, borderRadius: "50%", background: "#10B981" }} />
           <p style={{ fontSize: 11, fontWeight: 700, color: "var(--muted-foreground)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-            Live demo · {NICHE_LABEL[niche] ?? "AI receptionist"}
+            Live demo · {NICHE_LABEL[niche] ?? "AI receptionist"}{useGemini ? " · Gemini spike" : ""}
           </p>
         </div>
         <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--foreground)", letterSpacing: "-0.03em", marginBottom: 6 }}>

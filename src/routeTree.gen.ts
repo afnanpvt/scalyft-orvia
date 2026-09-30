@@ -26,6 +26,7 @@ import { Route as DashboardAdminVapiAccountsRouteImport } from "./routes/_dashbo
 import { Route as DashboardAdminUsersRouteImport } from "./routes/_dashboard/admin.users"
 import { Route as DashboardAdminNicheRouteImport } from "./routes/_dashboard/admin.niche"
 import { Route as DashboardAdminModelConfigRouteImport } from "./routes/_dashboard/admin.model-config"
+import { Route as DashboardAdminGeminiSpikeRouteImport } from "./routes/_dashboard/admin.gemini-spike"
 import { Route as DashboardAdminDemoDataRouteImport } from "./routes/_dashboard/admin.demo-data"
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -113,6 +114,12 @@ const DashboardAdminModelConfigRoute =
     path: "/admin/model-config",
     getParentRoute: () => DashboardRoute,
   } as any)
+const DashboardAdminGeminiSpikeRoute =
+  DashboardAdminGeminiSpikeRouteImport.update({
+    id: "/admin/gemini-spike",
+    path: "/admin/gemini-spike",
+    getParentRoute: () => DashboardRoute,
+  } as any)
 const DashboardAdminDemoDataRoute = DashboardAdminDemoDataRouteImport.update({
   id: "/admin/demo-data",
   path: "/admin/demo-data",
@@ -131,6 +138,7 @@ export interface FileRoutesByFullPath {
   "/needs-action": typeof DashboardNeedsActionRoute
   "/settings": typeof DashboardSettingsRoute
   "/admin/demo-data": typeof DashboardAdminDemoDataRoute
+  "/admin/gemini-spike": typeof DashboardAdminGeminiSpikeRoute
   "/admin/model-config": typeof DashboardAdminModelConfigRoute
   "/admin/niche": typeof DashboardAdminNicheRoute
   "/admin/users": typeof DashboardAdminUsersRoute
@@ -149,6 +157,7 @@ export interface FileRoutesByTo {
   "/needs-action": typeof DashboardNeedsActionRoute
   "/settings": typeof DashboardSettingsRoute
   "/admin/demo-data": typeof DashboardAdminDemoDataRoute
+  "/admin/gemini-spike": typeof DashboardAdminGeminiSpikeRoute
   "/admin/model-config": typeof DashboardAdminModelConfigRoute
   "/admin/niche": typeof DashboardAdminNicheRoute
   "/admin/users": typeof DashboardAdminUsersRoute
@@ -170,6 +179,7 @@ export interface FileRoutesById {
   "/_dashboard/settings": typeof DashboardSettingsRoute
   "/_dashboard/": typeof DashboardIndexRoute
   "/_dashboard/admin/demo-data": typeof DashboardAdminDemoDataRoute
+  "/_dashboard/admin/gemini-spike": typeof DashboardAdminGeminiSpikeRoute
   "/_dashboard/admin/model-config": typeof DashboardAdminModelConfigRoute
   "/_dashboard/admin/niche": typeof DashboardAdminNicheRoute
   "/_dashboard/admin/users": typeof DashboardAdminUsersRoute
@@ -190,6 +200,7 @@ export interface FileRouteTypes {
     | "/needs-action"
     | "/settings"
     | "/admin/demo-data"
+    | "/admin/gemini-spike"
     | "/admin/model-config"
     | "/admin/niche"
     | "/admin/users"
@@ -208,6 +219,7 @@ export interface FileRouteTypes {
     | "/needs-action"
     | "/settings"
     | "/admin/demo-data"
+    | "/admin/gemini-spike"
     | "/admin/model-config"
     | "/admin/niche"
     | "/admin/users"
@@ -228,6 +240,7 @@ export interface FileRouteTypes {
     | "/_dashboard/settings"
     | "/_dashboard/"
     | "/_dashboard/admin/demo-data"
+    | "/_dashboard/admin/gemini-spike"
     | "/_dashboard/admin/model-config"
     | "/_dashboard/admin/niche"
     | "/_dashboard/admin/users"
@@ -362,6 +375,13 @@ declare module "@tanstack/react-router" {
       preLoaderRoute: typeof DashboardAdminModelConfigRouteImport
       parentRoute: typeof DashboardRoute
     }
+    "/_dashboard/admin/gemini-spike": {
+      id: "/_dashboard/admin/gemini-spike"
+      path: "/admin/gemini-spike"
+      fullPath: "/admin/gemini-spike"
+      preLoaderRoute: typeof DashboardAdminGeminiSpikeRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     "/_dashboard/admin/demo-data": {
       id: "/_dashboard/admin/demo-data"
       path: "/admin/demo-data"
@@ -393,6 +413,7 @@ interface DashboardRouteChildren {
   DashboardSettingsRoute: typeof DashboardSettingsRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   DashboardAdminDemoDataRoute: typeof DashboardAdminDemoDataRoute
+  DashboardAdminGeminiSpikeRoute: typeof DashboardAdminGeminiSpikeRoute
   DashboardAdminModelConfigRoute: typeof DashboardAdminModelConfigRoute
   DashboardAdminNicheRoute: typeof DashboardAdminNicheRoute
   DashboardAdminUsersRoute: typeof DashboardAdminUsersRoute
@@ -409,6 +430,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardSettingsRoute: DashboardSettingsRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   DashboardAdminDemoDataRoute: DashboardAdminDemoDataRoute,
+  DashboardAdminGeminiSpikeRoute: DashboardAdminGeminiSpikeRoute,
   DashboardAdminModelConfigRoute: DashboardAdminModelConfigRoute,
   DashboardAdminNicheRoute: DashboardAdminNicheRoute,
   DashboardAdminUsersRoute: DashboardAdminUsersRoute,
