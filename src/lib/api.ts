@@ -59,6 +59,20 @@ export async function getCalls(
   return { calls: (data as Call[]) ?? [], total: count ?? 0 };
 }
 
+// All calls that started within [monthStart, monthEnd) — powers the Calls
+// page's calendar view (month grid + per-day list). Capped well above any
+// realistic single-business monthly volume.
+export async function getCallsByRange(rangeStart: Date, rangeEnd: Date): Promise<Call[]> {
+  const { data } = await supabase
+    .from("calls")
+    .select("*")
+    .gte("created_at", rangeStart.toISOString())
+    .lt("created_at", rangeEnd.toISOString())
+    .order("created_at", { ascending: false })
+    .limit(2000);
+  return (data as Call[]) ?? [];
+}
+
 export async function getCallById(id: string): Promise<Call | null> {
   const { data } = await supabase
     .from("calls")
@@ -156,6 +170,19 @@ export async function getAppointments(opts?: {
   if (opts?.status) query = query.eq("status", opts.status);
 
   const { data } = await query.limit(100);
+  return (data as Appointment[]) ?? [];
+}
+
+// All appointments scheduled within [rangeStart, rangeEnd) — powers the
+// Appointments page's calendar view.
+export async function getAppointmentsByRange(rangeStart: Date, rangeEnd: Date): Promise<Appointment[]> {
+  const { data } = await supabase
+    .from("appointments")
+    .select("*")
+    .gte("scheduled_start", rangeStart.toISOString())
+    .lt("scheduled_start", rangeEnd.toISOString())
+    .order("scheduled_start", { ascending: true })
+    .limit(2000);
   return (data as Appointment[]) ?? [];
 }
 
@@ -656,6 +683,15 @@ export async function setDemoAutofill(enabled: boolean) {
 export async function generateDemoDataNow(count = 6) {
   const { data, error } = await supabase.rpc("admin_generate_demo_now", { p_count: count });
   return { created: (data as number | null) ?? 0, error: error?.message ?? null };
+}
+
+// Admin-only: raises fresh Needs Attention items from existing demo calls
+// that haven't been turned into an alert yet — a lighter touch than
+// regenerating the whole week, for when everything's been dismissed and
+// there's nothing left to demo with.
+export async function syncDemoAlerts() {
+  const { data, error } = await supabase.rpc("admin_sync_demo_alerts");
+  return { pending: (data as number | null) ?? 0, error: error?.message ?? null };
 }
 
 export async function regenerateDemoWeek() {

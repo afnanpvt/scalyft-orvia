@@ -22,7 +22,7 @@ const QUERY_KEYS = [
 ]
 
 export default function AdminNichePage() {
-  const { profile } = useAuth()
+  const { profile, updateProfile } = useAuth()
   const queryClient = useQueryClient()
   const [refreshData, setRefreshData] = useState(true)
   const [applying, setApplying] = useState<Niche | null>(null)
@@ -64,6 +64,16 @@ export default function AdminNichePage() {
       setMessage({ kind: "error", text: error })
       return
     }
+
+    // The greeting/sidebar show whoever is logged in, not the business
+    // settings — without this the header keeps saying "Dr. Rajesh Kumar"
+    // no matter which niche is active. Only touches the account doing the
+    // switch, so it's the presenter's own name that follows the persona.
+    const ownerName = preset.settings.business_owner
+    if (ownerName && ownerName !== profile.fullName) {
+      await updateProfile(ownerName)
+    }
+
     let note = ""
     if (refreshData) {
       const regen = await regenerateDemoWeek()

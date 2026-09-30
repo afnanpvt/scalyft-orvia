@@ -1,14 +1,16 @@
 import { useMemo, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
-import { AlertTriangle, Phone, CheckCircle2, X, Filter as FilterIcon } from "lucide-react"
+import { AlertTriangle, Phone, CheckCircle2, X, Filter as FilterIcon, BellRing, RefreshCw } from "lucide-react"
 
 import {
   getUnresolvedOperationalEvents,
   getPendingCallQueue,
   resolveOperationalEvent,
   markQueueItemHandled,
+  syncDemoAlerts,
 } from "@/lib/api"
+import { useAuth } from "@/lib/auth"
 import type { OperationalEvent, CallQueueItem } from "@/lib/types"
 
 type Filter = "all" | "events" | "queue"
@@ -152,8 +154,20 @@ const pillBtn: React.CSSProperties = {
 
 export default function NeedsActionPage() {
   const [filter, setFilter] = useState<Filter>("all")
+  const [syncing, setSyncing] = useState(false)
+  const { profile } = useAuth()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+
+  async function handleSyncAlerts() {
+    setSyncing(true)
+    await syncDemoAlerts()
+    setSyncing(false)
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["operational-events"] }),
+      queryClient.invalidateQueries({ queryKey: ["call-queue"] }),
+    ])
+  }
 
   function openCall(callId: string | null) {
     if (callId) navigate({ to: "/calls/$id", params: { id: callId } })
@@ -256,6 +270,18 @@ export default function NeedsActionPage() {
           <p style={{ fontSize: 13, color: "var(--muted-foreground)" }}>
             Issues and queued callbacks show up here when they need you.
           </p>
+          {profile.role === "admin" && (
+            <button type="button" onClick={handleSyncAlerts} disabled={syncing}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6, marginTop: 16,
+                fontSize: 12, fontWeight: 600, padding: "6px 12px", borderRadius: 8,
+                border: "1px solid var(--border)", background: "var(--card)", color: "var(--muted-foreground)",
+                cursor: syncing ? "wait" : "pointer",
+              }}>
+              {syncing ? <RefreshCw size={12} className="animate-spin" /> : <BellRing size={12} />}
+              Add demo items (admin)
+            </button>
+          )}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

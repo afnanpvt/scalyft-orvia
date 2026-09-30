@@ -1,13 +1,14 @@
 import { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { ShieldAlert, Sparkles, Trash2, RefreshCw } from "lucide-react"
-import { getDemoDataStats, setDemoAutofill, generateDemoDataNow, clearDemoData } from "@/lib/api"
+import { ShieldAlert, Sparkles, Trash2, RefreshCw, BellRing } from "lucide-react"
+import { getDemoDataStats, setDemoAutofill, generateDemoDataNow, clearDemoData, syncDemoAlerts } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 
 // Every dashboard query that generated rows feed into — refreshed after any
 // change here so Overview/Calls/etc. reflect it without a reload.
 const DASHBOARD_QUERY_KEYS = [
   ["demo-data-stats"], ["briefing"], ["weekly-stats"], ["calls"], ["appointments"], ["leads"], ["month-call-stats"],
+  ["operational-events"], ["call-queue"],
 ]
 
 function timeAgo(iso: string): string {
@@ -33,7 +34,7 @@ function Stat({ label, value }: { label: string; value: number | string }) {
 export default function AdminDemoDataPage() {
   const { profile } = useAuth()
   const queryClient = useQueryClient()
-  const [busy, setBusy] = useState<null | "toggle" | "generate" | "clear">(null)
+  const [busy, setBusy] = useState<null | "toggle" | "generate" | "clear" | "alerts">(null)
   const [confirmClear, setConfirmClear] = useState(false)
   const [message, setMessage] = useState<{ kind: "ok" | "error"; text: string } | null>(null)
 
@@ -84,6 +85,17 @@ export default function AdminDemoDataPage() {
     const { removed, error } = await clearDemoData()
     setBusy(null)
     setMessage(error ? { kind: "error", text: error } : { kind: "ok", text: `Removed ${removed} demo calls and everything linked to them.` })
+    await refreshAll()
+  }
+
+  async function handleSyncAlerts() {
+    setBusy("alerts")
+    const { pending, error } = await syncDemoAlerts()
+    setBusy(null)
+    setMessage(error ? { kind: "error", text: error } : {
+      kind: "ok",
+      text: pending > 0 ? `Needs Attention now has ${pending} item${pending === 1 ? "" : "s"}.` : "No untouched demo calls left to raise as alerts — try Generate a batch first.",
+    })
     await refreshAll()
   }
 
@@ -169,6 +181,27 @@ export default function AdminDemoDataPage() {
             {message.text}
           </p>
         )}
+      </div>
+
+      {/* Needs Attention */}
+      <div className="ios-card" style={{ padding: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
+        <div style={{ minWidth: 0 }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "var(--foreground)", marginBottom: 3 }}>Needs Attention</p>
+          <p style={{ fontSize: 12.5, color: "var(--muted-foreground)", lineHeight: 1.45 }}>
+            Dismissing or marking items handled doesn't delete them, so once you've cleared the bell it stays clear.
+            Use this to raise a fresh missed call and partial booking for demoing again.
+          </p>
+        </div>
+        <button type="button" onClick={handleSyncAlerts} disabled={busy !== null}
+          style={{
+            display: "flex", alignItems: "center", gap: 7, flexShrink: 0,
+            fontSize: 13, fontWeight: 600, padding: "8px 14px", borderRadius: 10,
+            border: "1px solid var(--border)", background: "var(--card)", color: "var(--foreground)",
+            cursor: busy ? "wait" : "pointer", opacity: busy && busy !== "alerts" ? 0.5 : 1,
+          }}>
+          {busy === "alerts" ? <RefreshCw size={14} className="animate-spin" /> : <BellRing size={14} />}
+          Refresh alerts
+        </button>
       </div>
     </div>
   )

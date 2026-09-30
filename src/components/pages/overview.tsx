@@ -3,8 +3,9 @@ import { callerPhoneLabel, isWebTestCall } from "@/lib/caller-label"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useNavigate } from "@tanstack/react-router"
 import {
-  BarChart,
+  ComposedChart,
   Bar,
+  Line,
   Cell,
   XAxis,
   Tooltip,
@@ -19,6 +20,8 @@ import {
   Bell,
   Clock,
   Info,
+  BellRing,
+  RefreshCw,
 } from "lucide-react"
 
 // ─── Premium SVG Icons ────────────────────────────────────
@@ -53,6 +56,7 @@ import {
   getBusinessSettings,
   resolveOperationalEvent,
   markQueueItemHandled,
+  syncDemoAlerts,
 } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 import { useTheme } from "@/lib/theme"
@@ -227,6 +231,9 @@ function PrimaryStatCard({ value, label, sublabel, days }: {
     isToday: i === days.length - 1,
   }))
   const muted = isDark ? "rgba(255,255,255,0.12)" : "rgba(10,10,11,0.08)"
+  const mutedHover = isDark ? "rgba(255,255,255,0.24)" : "rgba(10,10,11,0.16)"
+  const [hoverIdx, setHoverIdx] = useState<number | null>(null)
+  const lineTotal = isDark ? "rgba(255,255,255,0.5)" : "rgba(10,10,11,0.4)"
 
   return (
     <div className="ios-card stat-primary" style={{
@@ -266,11 +273,13 @@ function PrimaryStatCard({ value, label, sublabel, days }: {
       <div className="stat-primary-chart" style={{ minWidth: 0, minHeight: 170 }}>
         {hasData ? (
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} barCategoryGap="28%" margin={{ top: 6, right: 0, left: 0, bottom: 0 }}>
+            <ComposedChart data={chartData} barCategoryGap="28%" margin={{ top: 10, right: 6, left: 6, bottom: 0 }}
+              onMouseMove={state => setHoverIdx(state?.isTooltipActive && typeof state.activeTooltipIndex === "number" ? state.activeTooltipIndex : null)}
+              onMouseLeave={() => setHoverIdx(null)}>
               <XAxis dataKey="date" axisLine={false} tickLine={false} interval={0}
                 tick={{ fontSize: 11, fill: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)", fontFamily: "Geist, sans-serif" }} />
               <Tooltip
-                cursor={{ fill: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.025)", radius: 6 }}
+                cursor={false}
                 content={({ active, payload, label: dayLabel }) => {
                   if (!active || !payload?.length) return null
                   const row = payload[0]?.payload as { calls: number; appointments: number }
@@ -283,12 +292,14 @@ function PrimaryStatCard({ value, label, sublabel, days }: {
                 }}
               />
               <Bar dataKey="appointments" stackId="d" maxBarSize={34} isAnimationActive={false}>
-                {chartData.map((d, i) => <Cell key={i} fill="#10B981" fillOpacity={d.isToday ? 1 : 0.55} />)}
+                {chartData.map((d, i) => <Cell key={i} fill="#10B981" fillOpacity={hoverIdx === i ? 1 : 0.4} style={{ transition: "fill-opacity 150ms" }} />)}
               </Bar>
               <Bar dataKey="other" stackId="d" maxBarSize={34} radius={[5, 5, 0, 0]} isAnimationActive={false}>
-                {chartData.map((d, i) => <Cell key={i} fill={d.isToday ? (isDark ? "rgba(255,255,255,0.22)" : "rgba(10,10,11,0.16)") : muted} />)}
+                {chartData.map((_, i) => <Cell key={i} fill={hoverIdx === i ? mutedHover : muted} fillOpacity={hoverIdx === i ? 1 : 0.55} style={{ transition: "fill-opacity 150ms" }} />)}
               </Bar>
-            </BarChart>
+            <Line type="linear" dataKey="calls" stroke={lineTotal} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" isAnimationActive={false}
+                dot={{ r: 2.5, fill: lineTotal, strokeWidth: 0 }} activeDot={{ r: 4, fill: isDark ? "#fff" : "#0A0A0B", stroke: "var(--card, #fff)", strokeWidth: 2 }} />
+            </ComposedChart>
           </ResponsiveContainer>
         ) : (
           <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -624,9 +635,21 @@ function NotificationBell() {
   const { resolvedTheme } = useTheme()
   const isDark = resolvedTheme === "dark"
   const [open, setOpen] = useState(false)
+  const [syncing, setSyncing] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const { profile } = useAuth()
+
+  async function handleSyncAlerts() {
+    setSyncing(true)
+    await syncDemoAlerts()
+    setSyncing(false)
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["operational-events"] }),
+      queryClient.invalidateQueries({ queryKey: ["call-queue"] }),
+    ])
+  }
 
   function openCall(callId: string | null) {
     if (!callId) return
@@ -755,6 +778,18 @@ function NotificationBell() {
               <p style={{ fontSize: 11.5, color: "var(--muted-foreground)", letterSpacing: "-0.01em" }}>
                 No items need your attention
               </p>
+              {profile.role === "admin" && (
+                <button type="button" onClick={handleSyncAlerts} disabled={syncing}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6, marginTop: 14,
+                    fontSize: 11, fontWeight: 600, padding: "5px 10px", borderRadius: 7,
+                    border: "1px solid var(--border)", background: "var(--card)", color: "var(--muted-foreground)",
+                    cursor: syncing ? "wait" : "pointer",
+                  }}>
+                  {syncing ? <RefreshCw size={11} className="animate-spin" /> : <BellRing size={11} />}
+                  Add demo items (admin)
+                </button>
+              )}
             </div>
           ) : (
             <div style={{ maxHeight: 360, overflowY: "auto" }}>
