@@ -9,6 +9,7 @@ import { getBusinessSettings, getActiveVapiPublicKey, getAppointmentByVapiCallId
 import { useGeminiCall } from "@/lib/gemini/use-gemini-call"
 import { loadGeminiOptions, saveGeminiOptions, type GeminiOptions } from "@/lib/gemini/options"
 import { GeminiSettings } from "@/components/dashboard/gemini-settings"
+import { SpikeCalendar } from "@/components/dashboard/spike-calendar"
 import { useAssistantCall, type CallPhase, type TranscriptEntry } from "@/lib/vapi/use-assistant-call"
 import { OrviaLogo } from "@/components/brand/orvia-logo"
 import { useTheme } from "@/lib/theme"
@@ -151,10 +152,13 @@ function TranscriptPanel({ entries }: { entries: TranscriptEntry[] }) {
 
 // ─── Booking confirmation ────────────────────────────────
 
+interface BookedNotice { id: string; name: string; service: string; start: string }
+
 // Pops over the page the moment a booking lands, then clears itself.
-function BookedPopup({ appointment, onClose }: { appointment: Appointment; onClose: () => void }) {
-  const time = new Date(appointment.scheduled_start).toLocaleString("en-US", {
-    weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+// `timeZone` is the clinic's, so the time matches what the caller was told.
+function BookedPopup({ booking, timeZone, onClose }: { booking: BookedNotice; timeZone?: string; onClose: () => void }) {
+  const time = new Date(booking.start).toLocaleString("en-US", {
+    timeZone, weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
   })
   return (
     <div style={{ position: "fixed", top: 20, left: 0, right: 0, zIndex: 60, display: "flex", justifyContent: "center", padding: "0 16px", pointerEvents: "none" }}>
@@ -172,7 +176,7 @@ function BookedPopup({ appointment, onClose }: { appointment: Appointment; onClo
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: 14, fontWeight: 650, color: "var(--foreground)", letterSpacing: "-0.01em" }}>Appointment booked</p>
           <p style={{ fontSize: 12.5, color: "var(--muted-foreground)", marginTop: 2, letterSpacing: "-0.01em" }}>
-            {appointment.customer_name} · {appointment.service_type ?? "Service"}
+            {booking.name} · {booking.service}
           </p>
           <p style={{ fontSize: 12.5, color: "var(--foreground)", marginTop: 1, letterSpacing: "-0.01em" }}>{time}</p>
         </div>
@@ -532,9 +536,13 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
     return () => clearInterval(t)
   }, [timeOffsetMs])
 
+  // Gemini spike with simulated tools: bookings live in the spike calendar,
+  // not Supabase, so there's nothing to poll for.
+  const simulated = useGemini && geminiOpts.toolMode === "simulated"
+
   // ── Poll for the booked appointment once the call ends ──
   useEffect(() => {
-    if (call.phase !== "ended" || !call.vapiCallId || appointment) return
+    if (simulated || call.phase !== "ended" || !call.vapiCallId || appointment) return
     let cancelled = false
     let attempts = 0
     const vapiCallId = call.vapiCallId
@@ -547,7 +555,7 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
     }
     poll()
     return () => { cancelled = true }
-  }, [call.phase, call.vapiCallId, appointment])
+  }, [simulated, call.phase, call.vapiCallId, appointment])
 
   // ── Gemini: show the booking the moment the tool confirms it, mid-call ──
   const geminiBookedAt = geminiCall.bookedAt
@@ -565,14 +573,21 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
     return () => { cancelled = true }
   }, [useGemini, geminiBookedAt, geminiCallId])
 
-  // ── Booking pop-up: shown once per appointment, clears after 7 s ──
-  const [popup, setPopup] = useState<Appointment | null>(null)
+  // ── Booking pop-up: once per booking (real or simulated), clears after 7 s ──
+  const notice: BookedNotice | null = appointment
+    ? { id: appointment.id, name: appointment.customer_name, service: appointment.service_type ?? "Service", start: appointment.scheduled_start }
+    : useGemini && geminiCall.lastBooking
+      ? { id: geminiCall.lastBooking.id, name: geminiCall.lastBooking.name, service: geminiCall.lastBooking.service, start: geminiCall.lastBooking.start }
+      : null
+  const noticeId = notice?.id ?? null
+  const [popup, setPopup] = useState<BookedNotice | null>(null)
+  // Keyed on the id so a re-fetched copy of the same booking doesn't re-pop.
   useEffect(() => {
-    if (!appointment) return
-    setPopup(appointment)
+    if (!notice) return
+    setPopup(notice)
     const t = setTimeout(() => setPopup(null), 7000)
     return () => clearTimeout(t)
-  }, [appointment])
+  }, [noticeId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Reminder trigger: simulated clock crosses the 30-min-before window ──
   useEffect(() => {
@@ -722,6 +737,8 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
         )}
       </div>
 
+      {simulated && business && <SpikeCalendar business={business} highlightId={geminiCall.lastBooking?.id} />}
+
       {appointment && (
         <div style={{ marginBottom: 16 }}>
           <BookingConfirmationCard appointment={appointment} />
@@ -751,7 +768,7 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
         />
       )}
 
-      {popup && <BookedPopup appointment={popup} onClose={() => setPopup(null)} />}
+      {popup && <BookedPopup booking={popup} timeZone={business?.timezone} onClose={() => setPopup(null)} />}
     </div>
   )
 }

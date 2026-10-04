@@ -6,12 +6,15 @@ import { buildAssistantConfig } from "@/lib/vapi/build-assistant-config"
 import type { CallPhase, TranscriptEntry } from "@/lib/vapi/use-assistant-call"
 import { DEFAULT_GEMINI_OPTIONS, GEMINI_MODELS, type GeminiOptions } from "@/lib/gemini/options"
 import { loadCaptureWorklet, loadPlaybackWorklet } from "@/lib/gemini/audio-worklets"
+import { normalizeSlot } from "@/lib/gemini/time"
+import { simulateTool, type SpikeBooking } from "@/lib/gemini/spike-calendar"
 import type { Business } from "@/lib/types"
 
 // Spike: the same browser test call as useAssistantCall, but the voice runs on
 // Gemini Live instead of Vapi. Same return shape so the demo page can swap
-// between them. Tool calls go through the gemini-tool edge function, which
-// forwards to the existing Vapi tool endpoints.
+// between them. Tool calls are either simulated against the spike calendar
+// in the browser, or sent through the gemini-tool edge function to the
+// existing Vapi tool endpoints.
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
 const IN_RATE = 16000
@@ -47,42 +50,13 @@ const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 function transcriptionConfigFor(business: Business): AudioTranscriptionConfig {
   const s = business.settings
   const services = s.service_details?.map(d => d.name) ?? s.services ?? []
-  const vocabulary = [business.name, s.receptionist_name, ...services, ...WEEKDAYS]
+  // No business name: callers rarely say it, and the bias made the live
+  // transcript hear "Hi" as "Smile Dental Clinic".
+  const vocabulary = [s.receptionist_name, ...services, ...WEEKDAYS]
     .filter((v): v is string => !!v && v.trim().length > 0)
     .slice(0, 40)
   const languageCodes = TRANSCRIPTION_LANGUAGES[s.language_preference ?? "english"]
   return { customVocabulary: vocabulary, ...(languageCodes ? { languageCodes } : {}) }
-}
-
-// "YYYY-MM-DDTHH:mm" wall-clock time of an instant in a timezone.
-function wallClock(d: Date, tz: string): string {
-  const p = Object.fromEntries(
-    new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
-      .formatToParts(d).map(x => [x.type, x.value]),
-  )
-  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`
-}
-
-// Wall-clock time in a timezone → the real instant.
-function zonedToUtc(wall: string, tz: string): Date {
-  const guess = new Date(`${wall}:00Z`)
-  const offsetMs = new Date(`${wallClock(guess, tz)}:00Z`).getTime() - guess.getTime()
-  return new Date(guess.getTime() - offsetMs)
-}
-
-// Gemini often books with the clinic's local time written as an ISO string,
-// with no offset or a wrong "Z" (10:00 local sent as 10:00 UTC), and
-// book-appointment reads offset-less times as UTC. Snap the slot back to
-// the matching one check_availability offered; failing that, read an
-// offset-less time as clinic time.
-function normalizeSlot(slot: string, tz: string, offered: string[]): string {
-  const wall = slot.slice(0, 16)
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(wall)) return slot
-  const exact = offered.find(o => new Date(o).getTime() === new Date(slot).getTime())
-  if (exact) return exact
-  const local = offered.find(o => wallClock(new Date(o), tz) === wall)
-  if (local) return local
-  return /(Z|[+-]\d{2}:?\d{2})$/i.test(slot) ? slot : zonedToUtc(wall, tz).toISOString()
 }
 
 function phraseMatcher(phrases: string[]): RegExp | null {
@@ -128,6 +102,17 @@ function closeMessage(code: number, reason: string): string {
 // is left out: too slow for a phone call.
 const FALLBACK_MODELS = ["gemini-3.8-live", "gemini-3.1-flash-live-preview", "gemini-2.5-flash-native-audio-latest"]
 
+// Streaming speech-to-text. The voice models only send the caller's words
+// once they stop talking; this one sends the utterance so far about every
+// half second, which drives the word-by-word caller transcript.
+const TRANSCRIBE_MODEL = "gemini-3.5-transcribe-live"
+
+async function fetchLiveToken(): Promise<string | null> {
+  const r = await authedFetch("gemini-live-token")
+  if (!r.ok) return null
+  return ((await r.json()) as { token?: string }).token ?? null
+}
+
 type FunctionDecl = { name: string; description: string; parametersJsonSchema: unknown }
 
 export function useGeminiCall() {
@@ -141,6 +126,8 @@ export function useGeminiCall() {
   const [activeModel, setActiveModel] = useState<string | null>(null)
   // Set when book_appointment succeeds mid-call, so the page can show it right away.
   const [bookedAt, setBookedAt] = useState<number | null>(null)
+  // With simulated tools: the booking just written to the spike calendar.
+  const [lastBooking, setLastBooking] = useState<SpikeBooking | null>(null)
 
   const transcriptRef = useRef<TranscriptEntry[]>([])
   useEffect(() => { transcriptRef.current = transcript }, [transcript])
@@ -186,6 +173,32 @@ export function useGeminiCall() {
     setTranscript(prev => (prev.some(e => e.partial) ? prev.map(e => (e.partial ? { ...e, partial: false } : e)) : prev))
   }, [])
 
+  // Word-by-word caller text from the transcription session. Each update
+  // carries the whole utterance so far, so the bubble's text is replaced, and
+  // the bubble keeps updating in place even after the assistant starts replying.
+  const callerEntryId = useRef<string | null>(null)
+  const setCallerUtterance = useCallback((text: string, final: boolean) => {
+    const clean = text.trim()
+    let id = callerEntryId.current
+    if (!id && !clean) return
+    const isNew = !id
+    if (!id) {
+      id = `user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+      callerEntryId.current = id
+    }
+    // A new caller utterance closes the assistant's open bubble.
+    const closing = isNew ? partialIds.current.assistant : null
+    if (isNew) partialIds.current.assistant = null
+    if (final) callerEntryId.current = null
+    const entryId = id
+    setTranscript(prev => {
+      const next = closing ? prev.map(e => (e.id === closing ? { ...e, partial: false } : e)) : prev
+      return next.some(e => e.id === entryId)
+        ? next.map(e => (e.id === entryId ? { ...e, text: clean, partial: !final } : e))
+        : [...next, { id: entryId, role: "user" as const, text: clean, partial: !final }]
+    })
+  }, [])
+
   const start = useCallback(async (business: Business, opts: GeminiOptions = DEFAULT_GEMINI_OPTIONS) => {
     cancelledRef.current = false
     setError(null)
@@ -194,7 +207,9 @@ export function useGeminiCall() {
     setVapiCallId(null)
     setActiveModel(null)
     setBookedAt(null)
+    setLastBooking(null)
     partialIds.current = { assistant: null, user: null }
+    callerEntryId.current = null
 
     // Created synchronously inside the click so the browser lets them play.
     // Created later (after the token fetch and mic prompt) they can start
@@ -209,6 +224,7 @@ export function useGeminiCall() {
     let player: AudioWorkletNode | null = null
     let capture: AudioWorkletNode | null = null
     let micSource: MediaStreamAudioSourceNode | null = null
+    let transcriber: Session | null = null
     let micLive = false
     let assistantPlaying = false
     let closed = false
@@ -218,6 +234,8 @@ export function useGeminiCall() {
       closed = true
       try { sessionRef.current?.close() } catch { /* already closed */ }
       sessionRef.current = null
+      try { transcriber?.close() } catch { /* already closed */ }
+      transcriber = null
       micSource?.disconnect()
       capture?.disconnect()
       player?.disconnect()
@@ -239,7 +257,14 @@ export function useGeminiCall() {
 
     try {
       setPhase("preparing")
-      const [tokenResp, demoToken] = await Promise.all([authedFetch("gemini-live-token"), getDemoCallToken()])
+      // Real tools need the demo token for the bridge; the live transcript
+      // needs its own single-use Gemini token.
+      const liveTools = opts.toolMode === "live"
+      const [tokenResp, demoToken, transcriberToken] = await Promise.all([
+        authedFetch("gemini-live-token"),
+        liveTools ? getDemoCallToken() : Promise.resolve(null),
+        opts.liveTranscript ? fetchLiveToken().catch(() => null) : Promise.resolve(null),
+      ])
       if (cancelledRef.current) return
       if (!tokenResp.ok) { fail("Gemini isn't available right now."); return }
       const { token, model: defaultModel } = await tokenResp.json() as { token: string; model: string }
@@ -248,7 +273,9 @@ export function useGeminiCall() {
       // With the demo token the bridge skips its own auth and DB lookups.
       const toolHeaders: Record<string, string> = demoToken ? { "x-orvia-demo-token": demoToken } : {}
       // Wake the tool functions now so the first lookup doesn't pay for a cold start.
-      void authedFetch("gemini-tool", { method: "POST", headers: toolHeaders, body: JSON.stringify({ tool: "warmup" }) }).catch(() => {})
+      if (liveTools) {
+        void authedFetch("gemini-tool", { method: "POST", headers: toolHeaders, body: JSON.stringify({ tool: "warmup" }) }).catch(() => {})
+      }
 
       const workletsReady = Promise.all([loadCaptureWorklet(inCtx), loadPlaybackWorklet(outCtx)])
 
@@ -313,8 +340,12 @@ export function useGeminiCall() {
         setSpeaking(e.data)
       }
 
-      // Every slot check_availability has offered this call, for normalizeSlot.
+      // Every slot offered to the caller this call, for normalizeSlot.
       const offeredSlots: string[] = []
+      const rememberOffered = (result: unknown) => {
+        const iso = (result as { slots_iso?: unknown } | undefined)?.slots_iso
+        if (Array.isArray(iso)) offeredSlots.push(...iso.filter((s): s is string => typeof s === "string"))
+      }
       const timezone = business.timezone || "America/Chicago"
 
       const runTool = async (fc: { id?: string; name?: string; args?: Record<string, unknown> }) => {
@@ -324,6 +355,13 @@ export function useGeminiCall() {
           if (slot !== args.slot) console.info("Gemini slot normalized", args.slot, "→", slot)
           args = { ...args, slot }
         }
+        // Simulated: answered instantly from the spike calendar, no network.
+        if (!liveTools) {
+          const { result, booking } = simulateTool(fc.name, args, business)
+          rememberOffered(result)
+          if (booking) setLastBooking(booking)
+          return { id: fc.id, name: fc.name, response: { result } }
+        }
         try {
           const r = await authedFetch("gemini-tool", {
             method: "POST",
@@ -331,8 +369,7 @@ export function useGeminiCall() {
             body: JSON.stringify({ tool: fc.name, args, call_id: callId, tool_call_id: fc.id }),
           })
           const body = await r.json() as { result?: unknown; error?: string }
-          const iso = (body.result as { slots_iso?: unknown } | undefined)?.slots_iso
-          if (fc.name === "check_availability" && Array.isArray(iso)) offeredSlots.push(...iso.filter((s): s is string => typeof s === "string"))
+          rememberOffered(body.result)
           if (fc.name === "book_appointment" && r.ok && (body.result as { success?: boolean } | undefined)?.success) {
             setBookedAt(Date.now())
           }
@@ -405,7 +442,8 @@ export function useGeminiCall() {
               }
               if (sc?.inputTranscription?.text) {
                 callerSpoke = true
-                appendTranscript("user", sc.inputTranscription.text)
+                // The live transcript session owns caller text while it runs.
+                if (!transcriber) appendTranscript("user", sc.inputTranscription.text)
               }
               if (sc?.outputTranscription?.text) {
                 assistantTurnText += sc.outputTranscription.text
@@ -493,6 +531,32 @@ export function useGeminiCall() {
       const session = await openSession(token, null)
       if (!session) return
 
+      // Live caller transcript: a second, text-only session fed the same mic
+      // audio. Not awaited, so a slow or failed connect never delays the call;
+      // without it, caller text falls back to the voice model's per-sentence
+      // transcription.
+      if (transcriberToken) {
+        void new GoogleGenAI({ apiKey: transcriberToken }).live.connect({
+          model: TRANSCRIBE_MODEL,
+          config: { responseModalities: [Modality.TEXT], inputAudioTranscription: transcriptionConfigFor(business) },
+          callbacks: {
+            onmessage: (msg: LiveServerMessage) => {
+              const sc = msg.serverContent
+              if (sc?.interimInputTranscription?.text) setCallerUtterance(sc.interimInputTranscription.text, false)
+              if (sc?.inputTranscription?.text) setCallerUtterance(sc.inputTranscription.text, true)
+            },
+            onerror: (e: ErrorEvent) => console.warn("Live transcript error", e),
+            onclose: (e: CloseEvent) => {
+              if (!closed) console.warn("Live transcript closed; using per-sentence transcript", e.code, e.reason)
+              transcriber = null
+            },
+          },
+        }).then(t => {
+          if (closed) t.close()
+          else transcriber = t
+        }).catch(e => console.warn("Live transcript unavailable", e))
+      }
+
       // Mic → 16 kHz PCM → Gemini. The 16 kHz context lets the browser
       // resample with filtering; decimating 48 kHz audio by hand folds hiss
       // and "s" sounds into the speech band and garbles the transcript.
@@ -518,10 +582,11 @@ export function useGeminiCall() {
       // can't hear itself through the speakers.
       capture = new AudioWorkletNode(inCtx, "orvia-capture")
       capture.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
-        const s = sessionRef.current
-        if (!s || !micLive) return
+        if (!micLive) return
         const data = !opts.bargeIn && assistantPlaying ? SILENCE_B64 : bytesToB64(new Uint8Array(e.data))
-        s.sendRealtimeInput({ audio: { data, mimeType: "audio/pcm;rate=16000" } })
+        const audio = { data, mimeType: "audio/pcm;rate=16000" }
+        sessionRef.current?.sendRealtimeInput({ audio })
+        transcriber?.sendRealtimeInput({ audio })
       }
       // Zero-gain path to the destination keeps the capture node rendering.
       const sink = inCtx.createGain()
@@ -536,7 +601,7 @@ export function useGeminiCall() {
       console.error(e)
       fail("Couldn't start the call. Try again in a moment.")
     }
-  }, [appendTranscript, finalizeTranscript])
+  }, [appendTranscript, finalizeTranscript, setCallerUtterance])
 
   const stop = useCallback(() => {
     cancelledRef.current = true
@@ -551,5 +616,5 @@ export function useGeminiCall() {
     setElapsed(0)
   }, [])
 
-  return { phase, error, transcript, speaking, elapsed, vapiCallId, activeModel, bookedAt, start, stop, reset }
+  return { phase, error, transcript, speaking, elapsed, vapiCallId, activeModel, bookedAt, lastBooking, start, stop, reset }
 }

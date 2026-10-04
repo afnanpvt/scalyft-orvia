@@ -16,6 +16,12 @@ export interface GeminiOptions {
   // false = mic is muted while the assistant talks. Stops it hearing itself
   // through laptop speakers, at the cost of the caller not being able to cut in.
   bargeIn: boolean
+  // "simulated": tool calls are answered instantly in the browser against
+  // the spike calendar. "live": they hit the real Supabase functions.
+  toolMode: "simulated" | "live"
+  // Streams the caller's words as they speak through a second Gemini
+  // session (gemini-3.5-transcribe-live). Off = text appears per sentence.
+  liveTranscript: boolean
 }
 
 export const GEMINI_MODELS = [
@@ -45,6 +51,8 @@ export const DEFAULT_GEMINI_OPTIONS: GeminiOptions = {
   endSensitivity: "default",
   silenceMs: 0,
   bargeIn: true,
+  toolMode: "simulated",
+  liveTranscript: true,
 }
 
 const STORAGE_KEY = "orvia.geminiSpike.options"

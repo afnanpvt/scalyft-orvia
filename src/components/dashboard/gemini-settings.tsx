@@ -79,6 +79,18 @@ export function GeminiSettings({ value, onChange, locked, activeModel }: {
             <option value={1200}>1200 ms</option>
           </select>
         </Field>
+        <Field label="Tools" hint={value.toolMode === "simulated" ? "Instant. Bookings go to the spike calendar below." : "Supabase and Google Calendar. Slower."}>
+          <select style={fieldStyle} value={value.toolMode} onChange={e => set("toolMode", e.target.value as GeminiOptions["toolMode"])}>
+            <option value="simulated">Simulated</option>
+            <option value="live">Real</option>
+          </select>
+        </Field>
+        <Field label="Live caller transcript" hint="Word by word as the caller speaks.">
+          <select style={fieldStyle} value={value.liveTranscript ? "on" : "off"} onChange={e => set("liveTranscript", e.target.value === "on")}>
+            <option value="on">On</option>
+            <option value="off">Off, per sentence</option>
+          </select>
+        </Field>
         <Field label="Caller can interrupt" hint="Turn off if the assistant cuts itself off on speakers.">
           <select style={fieldStyle} value={value.bargeIn ? "yes" : "no"} onChange={e => set("bargeIn", e.target.value === "yes")}>
             <option value="yes">Yes</option>
