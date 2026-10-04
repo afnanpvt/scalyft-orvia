@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { GoogleGenAI, Modality, type LiveServerMessage, type Session } from "@google/genai"
+import { EndSensitivity, GoogleGenAI, Modality, ThinkingLevel, type LiveConnectConfig, type LiveServerMessage, type Session } from "@google/genai"
 import { supabase } from "@/lib/supabase"
 import { buildAssistantConfig } from "@/lib/vapi/build-assistant-config"
 import type { CallPhase, TranscriptEntry } from "@/lib/vapi/use-assistant-call"
+import { GEMINI_MODELS, type GeminiOptions } from "@/lib/gemini/options"
 import type { Business } from "@/lib/types"
 
 // Spike: the same browser test call as useAssistantCall, but the voice runs on
@@ -91,9 +92,7 @@ export function useGeminiCall() {
     setTranscript(prev => prev.map(e => (e.partial ? { ...e, partial: false } : e)))
   }, [])
 
-  // `_publicKey` is unused; kept so the signature matches useAssistantCall.
-  const start = useCallback(async (business: Business, _publicKey?: string) => {
-    void _publicKey
+  const start = useCallback(async (business: Business, opts?: GeminiOptions) => {
     cancelledRef.current = false
     setError(null)
     setTranscript([])
@@ -132,7 +131,8 @@ export function useGeminiCall() {
       setPhase("preparing")
       const tokenResp = await authedFetch("gemini-live-token")
       if (!tokenResp.ok) { fail("Gemini isn't available right now."); return }
-      const { token, model } = await tokenResp.json() as { token: string; model: string }
+      const { token, model: defaultModel } = await tokenResp.json() as { token: string; model: string }
+      const model = opts?.model ?? defaultModel
       if (cancelledRef.current) return
 
       setPhase("mic")
@@ -199,16 +199,30 @@ export function useGeminiCall() {
         }
       }
 
+      const modelInfo = GEMINI_MODELS.find(m => m.id === model)
+      const activity: NonNullable<LiveConnectConfig["realtimeInputConfig"]>["automaticActivityDetection"] = {}
+      if (opts?.endSensitivity === "high") activity.endOfSpeechSensitivity = EndSensitivity.END_SENSITIVITY_HIGH
+      if (opts?.endSensitivity === "low") activity.endOfSpeechSensitivity = EndSensitivity.END_SENSITIVITY_LOW
+      if (opts && opts.silenceMs > 0) activity.silenceDurationMs = opts.silenceMs
+
+      const liveConfig: LiveConnectConfig = {
+        responseModalities: [Modality.AUDIO],
+        systemInstruction: `${cfg.model.systemPrompt}\n\n# Opening\nWhen the call connects, say exactly: "${cfg.firstMessage}" and then wait for the caller.`,
+        tools: [{ functionDeclarations }],
+        inputAudioTranscription: {},
+        outputAudioTranscription: {},
+      }
+      if (opts?.voice) liveConfig.speechConfig = { voiceConfig: { prebuiltVoiceConfig: { voiceName: opts.voice } } }
+      // 3.8 rejects thinkingLevel, so it's only sent to models that accept it.
+      if (opts && modelInfo?.supportsThinkingLevel) {
+        liveConfig.thinkingConfig = { thinkingLevel: ThinkingLevel[opts.thinkingLevel.toUpperCase() as keyof typeof ThinkingLevel] }
+      }
+      if (Object.keys(activity).length) liveConfig.realtimeInputConfig = { automaticActivityDetection: activity }
+
       const ai = new GoogleGenAI({ apiKey: token })
       const session = await ai.live.connect({
         model,
-        config: {
-          responseModalities: [Modality.AUDIO],
-          systemInstruction: `${cfg.model.systemPrompt}\n\n# Opening\nWhen the call connects, say exactly: "${cfg.firstMessage}" and then wait for the caller.`,
-          tools: [{ functionDeclarations }],
-          inputAudioTranscription: {},
-          outputAudioTranscription: {},
-        },
+        config: liveConfig,
         callbacks: {
           onopen: () => {
             if (cancelledRef.current) return

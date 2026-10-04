@@ -7,6 +7,8 @@ import {
 
 import { getBusinessSettings, getActiveVapiPublicKey, getAppointmentByVapiCallId } from "@/lib/api"
 import { useGeminiCall } from "@/lib/gemini/use-gemini-call"
+import { loadGeminiOptions, saveGeminiOptions, type GeminiOptions } from "@/lib/gemini/options"
+import { GeminiSettings } from "@/components/dashboard/gemini-settings"
 import { useAssistantCall, type CallPhase, type TranscriptEntry } from "@/lib/vapi/use-assistant-call"
 import { OrviaLogo } from "@/components/brand/orvia-logo"
 import { useTheme } from "@/lib/theme"
@@ -472,6 +474,8 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
   const vapiCall = useAssistantCall()
   const geminiCall = useGeminiCall()
   const call = useGemini ? geminiCall : vapiCall
+  const [geminiOpts, setGeminiOpts] = useState<GeminiOptions>(loadGeminiOptions)
+  const updateGeminiOpts = (v: GeminiOptions) => { setGeminiOpts(v); saveGeminiOptions(v) }
   const [appointment, setAppointment] = useState<Appointment | null>(null)
 
   const [timeOffsetMs, setTimeOffsetMs] = useState(0)
@@ -527,7 +531,8 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
     setTimeOffsetMs(0)
     setReminderState("idle")
     reminderTriggeredForRef.current = null
-    call.start(business, publicKey)
+    if (useGemini) geminiCall.start(business, geminiOpts)
+    else vapiCall.start(business, publicKey)
   }
 
   const speakReminder = useCallback(() => {
@@ -577,6 +582,8 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
           Talk to it right here in the browser. Book something real and watch it land on the dashboard.
         </p>
       </div>
+
+      {useGemini && <GeminiSettings value={geminiOpts} onChange={updateGeminiOpts} locked={busy || call.phase === "active"} />}
 
       <div className="demo-grid" style={{ marginBottom: 16 }}>
         {/* Stage */}
