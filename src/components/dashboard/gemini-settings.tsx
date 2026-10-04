@@ -69,7 +69,8 @@ export function GeminiSettings({ value, onChange, locked, activeModel }: {
             <option value="low">Low (patient)</option>
           </select>
         </Field>
-        <Field label="Silence before reply">
+        <Field label="Silence before reply" hint="Short values split pauses like “ah… Monday” into two turns.">
+
           <select style={fieldStyle} value={value.silenceMs} onChange={e => set("silenceMs", Number(e.target.value))}>
             <option value={0}>Default</option>
             <option value={300}>300 ms</option>

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { useQuery } from "@tanstack/react-query"
 import {
   PhoneCall, PhoneOff, Loader2, Mic, CalendarCheck2, CalendarSearch, MessageSquareText, BellRing,
-  Clock, RotateCcw, FastForward, PhoneIncoming, Volume2,
+  Clock, RotateCcw, FastForward, PhoneIncoming, Volume2, X,
 } from "lucide-react"
 
 import { getBusinessSettings, getActiveVapiPublicKey, getAppointmentByVapiCallId } from "@/lib/api"
@@ -150,6 +150,42 @@ function TranscriptPanel({ entries }: { entries: TranscriptEntry[] }) {
 }
 
 // ─── Booking confirmation ────────────────────────────────
+
+// Pops over the page the moment a booking lands, then clears itself.
+function BookedPopup({ appointment, onClose }: { appointment: Appointment; onClose: () => void }) {
+  const time = new Date(appointment.scheduled_start).toLocaleString("en-US", {
+    weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  })
+  return (
+    <div style={{ position: "fixed", top: 20, left: 0, right: 0, zIndex: 60, display: "flex", justifyContent: "center", padding: "0 16px", pointerEvents: "none" }}>
+      <div role="status" aria-live="polite" className="ios-card animate-fade-up" style={{
+        pointerEvents: "auto", width: "100%", maxWidth: 420, padding: "14px 14px 14px 16px",
+        display: "flex", alignItems: "center", gap: 12,
+        borderColor: "rgba(16,185,129,0.35)", boxShadow: "0 12px 32px rgba(0,0,0,0.12)",
+      }}>
+        <div style={{
+          width: 38, height: 38, borderRadius: 12, flexShrink: 0,
+          background: "#D1FAE5", display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <CalendarCheck2 style={{ width: 18, height: 18, color: "#059669" }} strokeWidth={2} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 14, fontWeight: 650, color: "var(--foreground)", letterSpacing: "-0.01em" }}>Appointment booked</p>
+          <p style={{ fontSize: 12.5, color: "var(--muted-foreground)", marginTop: 2, letterSpacing: "-0.01em" }}>
+            {appointment.customer_name} · {appointment.service_type ?? "Service"}
+          </p>
+          <p style={{ fontSize: 12.5, color: "var(--foreground)", marginTop: 1, letterSpacing: "-0.01em" }}>{time}</p>
+        </div>
+        <button type="button" onClick={onClose} aria-label="Dismiss" style={{
+          width: 28, height: 28, borderRadius: 8, border: "none", background: "transparent",
+          color: "var(--muted-foreground)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        }}>
+          <X size={15} />
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function BookingConfirmationCard({ appointment }: { appointment: Appointment }) {
   const time = new Date(appointment.scheduled_start).toLocaleString("en-US", {
@@ -513,6 +549,31 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
     return () => { cancelled = true }
   }, [call.phase, call.vapiCallId, appointment])
 
+  // ── Gemini: show the booking the moment the tool confirms it, mid-call ──
+  const geminiBookedAt = geminiCall.bookedAt
+  const geminiCallId = geminiCall.vapiCallId
+  useEffect(() => {
+    if (!useGemini || !geminiBookedAt || !geminiCallId) return
+    let cancelled = false
+    void (async () => {
+      for (let i = 0; i < 5 && !cancelled; i++) {
+        const found = await getAppointmentByVapiCallId(geminiCallId)
+        if (found) { if (!cancelled) setAppointment(found); return }
+        await new Promise(r => setTimeout(r, 1000))
+      }
+    })()
+    return () => { cancelled = true }
+  }, [useGemini, geminiBookedAt, geminiCallId])
+
+  // ── Booking pop-up: shown once per appointment, clears after 7 s ──
+  const [popup, setPopup] = useState<Appointment | null>(null)
+  useEffect(() => {
+    if (!appointment) return
+    setPopup(appointment)
+    const t = setTimeout(() => setPopup(null), 7000)
+    return () => clearTimeout(t)
+  }, [appointment])
+
   // ── Reminder trigger: simulated clock crosses the 30-min-before window ──
   useEffect(() => {
     if (!appointment) return
@@ -689,6 +750,8 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
           speakingCaption={speakingCaption}
         />
       )}
+
+      {popup && <BookedPopup appointment={popup} onClose={() => setPopup(null)} />}
     </div>
   )
 }

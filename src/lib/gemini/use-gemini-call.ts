@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { EndSensitivity, GoogleGenAI, Modality, ThinkingLevel, type LiveConnectConfig, type LiveServerMessage, type Session } from "@google/genai"
+import { EndSensitivity, GoogleGenAI, Modality, ThinkingLevel, type AudioTranscriptionConfig, type LiveConnectConfig, type LiveServerMessage, type Session } from "@google/genai"
 import { supabase } from "@/lib/supabase"
 import { getDemoCallToken } from "@/lib/api"
 import { buildAssistantConfig } from "@/lib/vapi/build-assistant-config"
@@ -14,13 +14,82 @@ import type { Business } from "@/lib/types"
 // forwards to the existing Vapi tool endpoints.
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
+const IN_RATE = 16000
 const OUT_RATE = 24000
 // 40 ms of 16 kHz 16-bit silence, sent instead of mic audio while muted.
 const SILENCE_B64 = btoa(String.fromCharCode(...new Uint8Array(1280)))
 
 // Gemini waits silently on a tool call, so have it cover the gap out loud.
 const LOOKUP_INSTRUCTION = `# While Looking Things Up
-Before you call check_availability, book_appointment or capture_lead, first say a short natural filler out loud, like "One sec, let me check that." Never go silent while a lookup runs.`
+Before you call check_availability, book_appointment or capture_lead, first say a short natural filler out loud, like "One sec, let me check that." Never go silent while a lookup runs.
+When you call book_appointment, pass slot exactly as one of the slots_iso values check_availability returned. Never write the time yourself.
+
+# Ending the Call
+When the caller is finished (they say thanks, that's all, or bye), say a short goodbye and then call end_call. Never call end_call while the caller still needs something.`
+
+const END_CALL_TOOL = {
+  name: "end_call",
+  description: "Hang up. Only after the caller has nothing else and you have said goodbye.",
+  parametersJsonSchema: { type: "object", properties: {} },
+}
+
+// Hints for the caller-side transcript. Plain English gets both US and
+// Indian English since the demo is used from both; other languages get
+// their own code plus English, and multilingual is left to auto-detect.
+const TRANSCRIPTION_LANGUAGES: Partial<Record<NonNullable<Business["settings"]["language_preference"]>, string[]>> = {
+  english: ["en-US", "en-IN"],
+  spanish: ["es-US", "en-US"],
+  hindi: ["hi-IN", "en-IN"],
+  kannada: ["kn-IN", "en-IN"],
+}
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+function transcriptionConfigFor(business: Business): AudioTranscriptionConfig {
+  const s = business.settings
+  const services = s.service_details?.map(d => d.name) ?? s.services ?? []
+  const vocabulary = [business.name, s.receptionist_name, ...services, ...WEEKDAYS]
+    .filter((v): v is string => !!v && v.trim().length > 0)
+    .slice(0, 40)
+  const languageCodes = TRANSCRIPTION_LANGUAGES[s.language_preference ?? "english"]
+  return { customVocabulary: vocabulary, ...(languageCodes ? { languageCodes } : {}) }
+}
+
+// "YYYY-MM-DDTHH:mm" wall-clock time of an instant in a timezone.
+function wallClock(d: Date, tz: string): string {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .formatToParts(d).map(x => [x.type, x.value]),
+  )
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`
+}
+
+// Wall-clock time in a timezone → the real instant.
+function zonedToUtc(wall: string, tz: string): Date {
+  const guess = new Date(`${wall}:00Z`)
+  const offsetMs = new Date(`${wallClock(guess, tz)}:00Z`).getTime() - guess.getTime()
+  return new Date(guess.getTime() - offsetMs)
+}
+
+// Gemini often books with the clinic's local time written as an ISO string,
+// with no offset or a wrong "Z" (10:00 local sent as 10:00 UTC), and
+// book-appointment reads offset-less times as UTC. Snap the slot back to
+// the matching one check_availability offered; failing that, read an
+// offset-less time as clinic time.
+function normalizeSlot(slot: string, tz: string, offered: string[]): string {
+  const wall = slot.slice(0, 16)
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(wall)) return slot
+  const exact = offered.find(o => new Date(o).getTime() === new Date(slot).getTime())
+  if (exact) return exact
+  const local = offered.find(o => wallClock(new Date(o), tz) === wall)
+  if (local) return local
+  return /(Z|[+-]\d{2}:?\d{2})$/i.test(slot) ? slot : zonedToUtc(wall, tz).toISOString()
+}
+
+function phraseMatcher(phrases: string[]): RegExp | null {
+  if (!phrases.length) return null
+  const escaped = phrases.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+  return new RegExp(`\\b(${escaped.join("|")})\\b`, "i")
+}
 
 async function authedFetch(path: string, init?: RequestInit): Promise<Response> {
   const { data: { session } } = await supabase.auth.getSession()
@@ -70,6 +139,8 @@ export function useGeminiCall() {
   const [vapiCallId, setVapiCallId] = useState<string | null>(null)
   // The model actually serving the call; differs from the chosen one after a fallback.
   const [activeModel, setActiveModel] = useState<string | null>(null)
+  // Set when book_appointment succeeds mid-call, so the page can show it right away.
+  const [bookedAt, setBookedAt] = useState<number | null>(null)
 
   const transcriptRef = useRef<TranscriptEntry[]>([])
   useEffect(() => { transcriptRef.current = transcript }, [transcript])
@@ -122,13 +193,15 @@ export function useGeminiCall() {
     setElapsed(0)
     setVapiCallId(null)
     setActiveModel(null)
+    setBookedAt(null)
     partialIds.current = { assistant: null, user: null }
 
     // Created synchronously inside the click so the browser lets them play.
     // Created later (after the token fetch and mic prompt) they can start
-    // suspended: no sound, and "speaking" never clears.
+    // suspended: no sound, and "speaking" never clears. The mic context runs
+    // at 16 kHz so the browser does the resampling, with proper filtering.
     const outCtx = new AudioContext({ sampleRate: OUT_RATE })
-    const inCtx = new AudioContext()
+    let inCtx = new AudioContext({ sampleRate: IN_RATE })
     void outCtx.resume().catch(() => {})
     void inCtx.resume().catch(() => {})
 
@@ -200,10 +273,38 @@ export function useGeminiCall() {
       const cfg = buildAssistantConfig(business, SUPABASE_URL) as unknown as {
         model: { systemPrompt: string; tools: Array<{ type: string; function?: { name: string; description: string; parameters: unknown } }> }
         firstMessage: string
+        endCallPhrases?: string[]
       }
-      const functionDeclarations: FunctionDecl[] = cfg.model.tools
-        .filter(t => t.type === "function" && t.function)
-        .map(t => ({ name: t.function!.name, description: t.function!.description, parametersJsonSchema: t.function!.parameters }))
+      const functionDeclarations: FunctionDecl[] = [
+        ...cfg.model.tools
+          .filter(t => t.type === "function" && t.function)
+          .map(t => ({ name: t.function!.name, description: t.function!.description, parametersJsonSchema: t.function!.parameters })),
+        END_CALL_TOOL,
+      ]
+      // Backup for end_call: the same goodbye phrases the Vapi assistant hangs up on.
+      const goodbye = phraseMatcher(cfg.endCallPhrases ?? [])
+      let assistantTurnText = ""
+      let callerSpoke = false
+
+      // Let the goodbye finish playing, then hang up.
+      let hangingUp = false
+      const hangUpAfterSpeech = () => {
+        if (hangingUp) return
+        hangingUp = true
+        const started = Date.now()
+        let quietSince = 0
+        const tick = setInterval(() => {
+          if (closed) { clearInterval(tick); return }
+          const now = Date.now()
+          if (assistantPlaying) quietSince = 0
+          else if (!quietSince) quietSince = now
+          if ((quietSince && now - quietSince > 700 && now - started > 1500) || now - started > 12000) {
+            clearInterval(tick)
+            setPhase("ended")
+            teardown()
+          }
+        }, 100)
+      }
 
       player = new AudioWorkletNode(outCtx, "orvia-playback")
       player.connect(outCtx.destination)
@@ -212,14 +313,29 @@ export function useGeminiCall() {
         setSpeaking(e.data)
       }
 
+      // Every slot check_availability has offered this call, for normalizeSlot.
+      const offeredSlots: string[] = []
+      const timezone = business.timezone || "America/Chicago"
+
       const runTool = async (fc: { id?: string; name?: string; args?: Record<string, unknown> }) => {
+        let args = fc.args ?? {}
+        if (fc.name === "book_appointment" && typeof args.slot === "string") {
+          const slot = normalizeSlot(args.slot, timezone, offeredSlots)
+          if (slot !== args.slot) console.info("Gemini slot normalized", args.slot, "→", slot)
+          args = { ...args, slot }
+        }
         try {
           const r = await authedFetch("gemini-tool", {
             method: "POST",
             headers: toolHeaders,
-            body: JSON.stringify({ tool: fc.name, args: fc.args ?? {}, call_id: callId, tool_call_id: fc.id }),
+            body: JSON.stringify({ tool: fc.name, args, call_id: callId, tool_call_id: fc.id }),
           })
           const body = await r.json() as { result?: unknown; error?: string }
+          const iso = (body.result as { slots_iso?: unknown } | undefined)?.slots_iso
+          if (fc.name === "check_availability" && Array.isArray(iso)) offeredSlots.push(...iso.filter((s): s is string => typeof s === "string"))
+          if (fc.name === "book_appointment" && r.ok && (body.result as { success?: boolean } | undefined)?.success) {
+            setBookedAt(Date.now())
+          }
           return { id: fc.id, name: fc.name, response: r.ok ? { result: body.result } : { error: body.error ?? "Tool failed" } }
         } catch {
           return { id: fc.id, name: fc.name, response: { error: "Tool failed" } }
@@ -236,7 +352,7 @@ export function useGeminiCall() {
           responseModalities: [Modality.AUDIO],
           systemInstruction: `${cfg.model.systemPrompt}\n\n${LOOKUP_INSTRUCTION}\n\n# Opening\nWhen the call connects, say exactly: "${cfg.firstMessage}" and then wait for the caller.`,
           tools: [{ functionDeclarations }],
-          inputAudioTranscription: {},
+          inputAudioTranscription: transcriptionConfigFor(business),
           outputAudioTranscription: {},
         }
         if (opts.voice) c.speechConfig = { voiceConfig: { prebuiltVoiceConfig: { voiceName: opts.voice } } }
@@ -270,7 +386,14 @@ export function useGeminiCall() {
               setPhase("active")
             },
             onmessage: (msg: LiveServerMessage) => {
-              if (gen !== generation) return
+              // Once hanging up, only the goodbye already queued gets played.
+              if (gen !== generation || hangingUp) return
+              // No tool response for end_call: answering it makes the model
+              // announce "the call has been ended" out loud.
+              if (msg.toolCall?.functionCalls?.some(c => c.name === "end_call")) {
+                hangUpAfterSpeech()
+                return
+              }
               const update = msg.sessionResumptionUpdate
               if (update?.resumable && update.newHandle) resumeHandle = update.newHandle
               const sc = msg.serverContent
@@ -280,9 +403,22 @@ export function useGeminiCall() {
                 const samples = b64ToFloat32(part.inlineData.data)
                 player?.port.postMessage(samples, [samples.buffer])
               }
-              if (sc?.inputTranscription?.text) appendTranscript("user", sc.inputTranscription.text)
-              if (sc?.outputTranscription?.text) appendTranscript("assistant", sc.outputTranscription.text)
-              if (sc?.turnComplete) { finalizeTranscript(); micLive = true; dropsOnModel = 0 }
+              if (sc?.inputTranscription?.text) {
+                callerSpoke = true
+                appendTranscript("user", sc.inputTranscription.text)
+              }
+              if (sc?.outputTranscription?.text) {
+                assistantTurnText += sc.outputTranscription.text
+                appendTranscript("assistant", sc.outputTranscription.text)
+              }
+              if (sc?.turnComplete) {
+                finalizeTranscript()
+                micLive = true
+                dropsOnModel = 0
+                // Hang up on a goodbye even if the model forgot to call end_call.
+                if (callerSpoke && goodbye?.test(assistantTurnText)) hangUpAfterSpeech()
+                assistantTurnText = ""
+              }
               const calls = msg.toolCall?.functionCalls
               if (calls?.length) {
                 void Promise.all(calls.map(runTool)).then(functionResponses => {
@@ -357,11 +493,29 @@ export function useGeminiCall() {
       const session = await openSession(token, null)
       if (!session) return
 
-      // Mic → 16 kHz PCM (resampled in the worklet) → Gemini. Until the
-      // greeting finishes nothing is sent: speech during it cancels it. With
-      // barge-in off, silence is sent while the assistant talks so it can't
-      // hear itself through the speakers.
-      micSource = inCtx.createMediaStreamSource(stream)
+      // Mic → 16 kHz PCM → Gemini. The 16 kHz context lets the browser
+      // resample with filtering; decimating 48 kHz audio by hand folds hiss
+      // and "s" sounds into the speech band and garbles the transcript.
+      // Firefox can't connect a mic to a context at a different rate, so it
+      // falls back to the device rate with a low-pass ahead of the worklet.
+      let micInput: AudioNode
+      try {
+        micSource = inCtx.createMediaStreamSource(stream)
+        micInput = micSource
+      } catch {
+        void inCtx.close().catch(() => {})
+        inCtx = new AudioContext()
+        await loadCaptureWorklet(inCtx)
+        micSource = inCtx.createMediaStreamSource(stream)
+        const lowpass = inCtx.createBiquadFilter()
+        lowpass.type = "lowpass"
+        lowpass.frequency.value = 7000
+        micSource.connect(lowpass)
+        micInput = lowpass
+      }
+      // Until the greeting finishes nothing is sent: speech during it cancels
+      // it. With barge-in off, silence is sent while the assistant talks so it
+      // can't hear itself through the speakers.
       capture = new AudioWorkletNode(inCtx, "orvia-capture")
       capture.port.onmessage = (e: MessageEvent<ArrayBuffer>) => {
         const s = sessionRef.current
@@ -372,7 +526,7 @@ export function useGeminiCall() {
       // Zero-gain path to the destination keeps the capture node rendering.
       const sink = inCtx.createGain()
       sink.gain.value = 0
-      micSource.connect(capture)
+      micInput.connect(capture)
       capture.connect(sink).connect(inCtx.destination)
 
       // Nudge the model to speak first.
@@ -397,5 +551,5 @@ export function useGeminiCall() {
     setElapsed(0)
   }, [])
 
-  return { phase, error, transcript, speaking, elapsed, vapiCallId, activeModel, start, stop, reset }
+  return { phase, error, transcript, speaking, elapsed, vapiCallId, activeModel, bookedAt, start, stop, reset }
 }
