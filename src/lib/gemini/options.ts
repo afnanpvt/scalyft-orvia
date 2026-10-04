@@ -13,6 +13,9 @@ export interface GeminiOptions {
   endSensitivity: EndSensitivity
   // Silence needed to end a turn. 0 = Gemini's default.
   silenceMs: number
+  // false = mic is muted while the assistant talks. Stops it hearing itself
+  // through laptop speakers, at the cost of the caller not being able to cut in.
+  bargeIn: boolean
 }
 
 export const GEMINI_MODELS = [
@@ -39,6 +42,7 @@ export const DEFAULT_GEMINI_OPTIONS: GeminiOptions = {
   thinkingLevel: "minimal",
   endSensitivity: "default",
   silenceMs: 0,
+  bargeIn: true,
 }
 
 const STORAGE_KEY = "orvia.geminiSpike.options"

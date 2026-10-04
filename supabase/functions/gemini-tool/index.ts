@@ -2,12 +2,17 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Spike: bridge for Gemini Live tool calls. The browser can't call the Vapi
 // tool endpoints directly (no CORS, and they expect Vapi's auth), so it calls
-// this instead. We authenticate the dashboard user, work out their business,
-// and forward a Vapi-shaped request to the existing tool function.
+// this instead and we forward a Vapi-shaped request to the existing tool function.
+//
+// Fast path: the browser sends the demo-call-token it already holds for the
+// call (x-orvia-demo-token). We forward it untouched and the tool function
+// verifies its HMAC and business scope, so no auth or DB lookups happen here.
+// Slow path (no token, e.g. VAPI_WEBHOOK_SECRET unset): resolve the user's
+// business and forward with the webhook secret.
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-orvia-demo-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -24,6 +29,15 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+function vapiBody(callId: string, toolCallId: string, tool: string, args: Record<string, unknown>) {
+  return JSON.stringify({
+    message: {
+      call: { id: callId },
+      toolCallList: [{ id: toolCallId, name: tool, arguments: args }],
+    },
+  });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS_HEADERS });
   if (req.method !== "POST") return json({ error: "Method Not Allowed" }, 405);
@@ -32,17 +46,6 @@ Deno.serve(async (req: Request) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceRoleKey) return json({ error: "Missing Supabase credentials" }, 500);
 
-  const supabase = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-
-  const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
-  const { data: auth } = await supabase.auth.getUser(jwt);
-  if (!auth.user) return json({ error: "Not authenticated" }, 401);
-
-  const { data: userRow } = await supabase.from("users").select("business_id").eq("id", auth.user.id).single();
-  if (!userRow?.business_id) return json({ error: "No business associated with this account" }, 400);
-
   let body: { tool?: string; args?: Record<string, unknown>; call_id?: string; tool_call_id?: string };
   try {
     body = await req.json();
@@ -50,27 +53,49 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
+  // The gateway has already verified the user's JWT (verify_jwt is on).
+  const demoToken = req.headers.get("x-orvia-demo-token");
+  let businessId: string | null = demoToken ? demoToken.split(".")[0] || null : null;
+  let authHeaders: Record<string, string>;
+
+  if (demoToken && businessId) {
+    authHeaders = { "x-orvia-demo-token": demoToken };
+  } else {
+    const supabase = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+    const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+    const { data: auth } = await supabase.auth.getUser(jwt);
+    if (!auth.user) return json({ error: "Not authenticated" }, 401);
+    const { data: userRow } = await supabase.from("users").select("business_id").eq("id", auth.user.id).single();
+    if (!userRow?.business_id) return json({ error: "No business associated with this account" }, 400);
+    businessId = userRow.business_id;
+    const secret = Deno.env.get("VAPI_WEBHOOK_SECRET");
+    authHeaders = secret ? { "x-vapi-secret": secret } : {};
+  }
+
+  const forward = (path: string, payload: string) =>
+    fetch(`${supabaseUrl}/functions/v1/${path}?business_id=${businessId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${serviceRoleKey}`, ...authHeaders },
+      body: payload,
+    });
+
+  // Called at the start of a call so the first real lookup doesn't pay for
+  // cold starts. Both tools return early on missing arguments, before any DB work.
+  if (body.tool === "warmup") {
+    await Promise.allSettled([
+      forward("check-availability", vapiBody("warmup", "warmup", "check_availability", {})).then((r) => r.text()),
+      forward("book-appointment", vapiBody("warmup", "warmup", "book_appointment", {})).then((r) => r.text()),
+    ]);
+    return json({ ok: true });
+  }
+
   const path = body.tool ? TOOL_PATHS[body.tool] : undefined;
   if (!path || !body.call_id) return json({ error: "Unknown tool or missing call_id" }, 400);
 
-  const toolCallId = body.tool_call_id ?? crypto.randomUUID();
-  const secret = Deno.env.get("VAPI_WEBHOOK_SECRET");
-
-  const resp = await fetch(`${supabaseUrl}/functions/v1/${path}?business_id=${userRow.business_id}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${serviceRoleKey}`,
-      ...(secret ? { "x-vapi-secret": secret } : {}),
-    },
-    body: JSON.stringify({
-      message: {
-        call: { id: body.call_id },
-        toolCallList: [{ id: toolCallId, name: body.tool, arguments: body.args ?? {} }],
-      },
-    }),
-  });
-
+  const resp = await forward(path, vapiBody(body.call_id, body.tool_call_id ?? crypto.randomUUID(), body.tool!, body.args ?? {}));
+  if (resp.status === 401) return json({ error: "Tool auth failed" }, 401);
   if (!resp.ok) return json({ error: `Tool failed (${resp.status})` }, 502);
 
   // Tool functions answer { results: [{ toolCallId, name, result }] } where

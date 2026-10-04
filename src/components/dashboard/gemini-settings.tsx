@@ -70,6 +70,12 @@ export function GeminiSettings({ value, onChange, locked }: { value: GeminiOptio
             <option value={1200}>1200 ms</option>
           </select>
         </Field>
+        <Field label="Caller can interrupt" hint="Turn off if the assistant cuts itself off on speakers.">
+          <select style={fieldStyle} value={value.bargeIn ? "yes" : "no"} onChange={e => set("bargeIn", e.target.value === "yes")}>
+            <option value="yes">Yes</option>
+            <option value="no">No, mute mic while it talks</option>
+          </select>
+        </Field>
       </fieldset>
     </div>
   )
