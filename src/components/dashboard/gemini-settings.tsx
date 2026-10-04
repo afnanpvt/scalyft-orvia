@@ -19,9 +19,17 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   )
 }
 
-export function GeminiSettings({ value, onChange, locked }: { value: GeminiOptions; onChange: (v: GeminiOptions) => void; locked: boolean }) {
+export function GeminiSettings({ value, onChange, locked, activeModel }: {
+  value: GeminiOptions
+  onChange: (v: GeminiOptions) => void
+  locked: boolean
+  // Model serving the current call, which differs from the chosen one after a fallback.
+  activeModel?: string | null
+}) {
   const set = <K extends keyof GeminiOptions>(k: K, v: GeminiOptions[K]) => onChange({ ...value, [k]: v })
   const model = GEMINI_MODELS.find(m => m.id === value.model)
+  const live = activeModel ? GEMINI_MODELS.find(m => m.id === activeModel)?.label ?? activeModel : null
+  const switched = !!activeModel && activeModel !== value.model
 
   return (
     <div className="ios-card" style={{ padding: "16px 18px", marginBottom: 16, opacity: locked ? 0.6 : 1 }}>
@@ -77,6 +85,11 @@ export function GeminiSettings({ value, onChange, locked }: { value: GeminiOptio
           </select>
         </Field>
       </fieldset>
+      {live && (
+        <p style={{ fontSize: 11.5, marginTop: 12, color: switched ? "#B45309" : "var(--muted-foreground)" }}>
+          {switched ? `Live on ${live}. Switched after ${model?.label ?? value.model} dropped the call.` : `Live on ${live}.`}
+        </p>
+      )}
     </div>
   )
 }

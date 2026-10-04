@@ -36,8 +36,10 @@ export const GEMINI_VOICES: Array<[string, string]> = [
   ["Sadaltager", "Knowledgeable"], ["Sulafat", "Warm"],
 ]
 
+// 3.8 Live is the default: 3.1 Flash Live is faster when it works, but as a
+// preview it has had stretches of failing every turn.
 export const DEFAULT_GEMINI_OPTIONS: GeminiOptions = {
-  model: "gemini-3.1-flash-live-preview",
+  model: "gemini-3.8-live",
   voice: "Kore",
   thinkingLevel: "minimal",
   endSensitivity: "default",

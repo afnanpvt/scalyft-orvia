@@ -20,7 +20,7 @@ const SILENCE_B64 = btoa(String.fromCharCode(...new Uint8Array(1280)))
 
 // Gemini waits silently on a tool call, so have it cover the gap out loud.
 const LOOKUP_INSTRUCTION = `# While Looking Things Up
-When you are about to call check_availability, book_appointment or capture_lead, say a short filler like "One sec, let me check." immediately before the call, so the caller isn't left in silence. Only say it when you are calling the tool right away. If you still need to ask the caller something first, just ask.`
+Before you call check_availability, book_appointment or capture_lead, first say a short natural filler out loud, like "One sec, let me check that." Never go silent while a lookup runs.`
 
 async function authedFetch(path: string, init?: RequestInit): Promise<Response> {
   const { data: { session } } = await supabase.auth.getSession()
@@ -55,6 +55,10 @@ function closeMessage(code: number, reason: string): string {
   return `Gemini ended the call (code ${code}).`
 }
 
+// Order to fall back through when a model keeps dropping. Extended thinking
+// is left out: too slow for a phone call.
+const FALLBACK_MODELS = ["gemini-3.8-live", "gemini-3.1-flash-live-preview", "gemini-2.5-flash-native-audio-latest"]
+
 type FunctionDecl = { name: string; description: string; parametersJsonSchema: unknown }
 
 export function useGeminiCall() {
@@ -64,6 +68,11 @@ export function useGeminiCall() {
   const [speaking, setSpeaking] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [vapiCallId, setVapiCallId] = useState<string | null>(null)
+  // The model actually serving the call; differs from the chosen one after a fallback.
+  const [activeModel, setActiveModel] = useState<string | null>(null)
+
+  const transcriptRef = useRef<TranscriptEntry[]>([])
+  useEffect(() => { transcriptRef.current = transcript }, [transcript])
 
   const sessionRef = useRef<Session | null>(null)
   const cancelledRef = useRef(false)
@@ -112,6 +121,7 @@ export function useGeminiCall() {
     setTranscript([])
     setElapsed(0)
     setVapiCallId(null)
+    setActiveModel(null)
     partialIds.current = { assistant: null, user: null }
 
     // Created synchronously inside the click so the browser lets them play.
@@ -145,8 +155,10 @@ export function useGeminiCall() {
     }
     teardownRef.current = teardown
 
+    // First failure wins, so a specific close reason isn't overwritten by
+    // the generic message from the outer catch.
     const fail = (msg: string) => {
-      if (cancelledRef.current) return
+      if (cancelledRef.current || closed) return
       setError(msg)
       setPhase("error")
       teardown()
@@ -214,71 +226,136 @@ export function useGeminiCall() {
         }
       }
 
-      const modelInfo = GEMINI_MODELS.find(m => m.id === model)
       const activity: NonNullable<LiveConnectConfig["realtimeInputConfig"]>["automaticActivityDetection"] = {}
       if (opts.endSensitivity === "high") activity.endOfSpeechSensitivity = EndSensitivity.END_SENSITIVITY_HIGH
       if (opts.endSensitivity === "low") activity.endOfSpeechSensitivity = EndSensitivity.END_SENSITIVITY_LOW
       if (opts.silenceMs > 0) activity.silenceDurationMs = opts.silenceMs
 
-      const liveConfig: LiveConnectConfig = {
-        responseModalities: [Modality.AUDIO],
-        systemInstruction: `${cfg.model.systemPrompt}\n\n${LOOKUP_INSTRUCTION}\n\n# Opening\nWhen the call connects, say exactly: "${cfg.firstMessage}" and then wait for the caller.`,
-        tools: [{ functionDeclarations }],
-        inputAudioTranscription: {},
-        outputAudioTranscription: {},
+      const configFor = (modelId: string): LiveConnectConfig => {
+        const c: LiveConnectConfig = {
+          responseModalities: [Modality.AUDIO],
+          systemInstruction: `${cfg.model.systemPrompt}\n\n${LOOKUP_INSTRUCTION}\n\n# Opening\nWhen the call connects, say exactly: "${cfg.firstMessage}" and then wait for the caller.`,
+          tools: [{ functionDeclarations }],
+          inputAudioTranscription: {},
+          outputAudioTranscription: {},
+        }
+        if (opts.voice) c.speechConfig = { voiceConfig: { prebuiltVoiceConfig: { voiceName: opts.voice } } }
+        // 3.8 rejects thinkingLevel, so it's only sent to models that accept it.
+        if (GEMINI_MODELS.find(m => m.id === modelId)?.supportsThinkingLevel) {
+          c.thinkingConfig = { thinkingLevel: ThinkingLevel[opts.thinkingLevel.toUpperCase() as keyof typeof ThinkingLevel] }
+        }
+        if (Object.keys(activity).length) c.realtimeInputConfig = { automaticActivityDetection: activity }
+        return c
       }
-      if (opts.voice) liveConfig.speechConfig = { voiceConfig: { prebuiltVoiceConfig: { voiceName: opts.voice } } }
-      // 3.8 rejects thinkingLevel, so it's only sent to models that accept it.
-      if (modelInfo?.supportsThinkingLevel) {
-        liveConfig.thinkingConfig = { thinkingLevel: ThinkingLevel[opts.thinkingLevel.toUpperCase() as keyof typeof ThinkingLevel] }
-      }
-      if (Object.keys(activity).length) liveConfig.realtimeInputConfig = { automaticActivityDetection: activity }
 
-      const ai = new GoogleGenAI({ apiKey: token })
-      const session = await ai.live.connect({
-        model,
-        config: liveConfig,
-        callbacks: {
-          onopen: () => {
-            if (cancelledRef.current) return
-            setPhase("active")
+      // Each socket gets a generation number so callbacks from a dropped
+      // socket are ignored once a replacement is open.
+      let generation = 0
+      let resumeHandle: string | null = null
+      let reconnects = 0
+      let dropsOnModel = 0
+      let activeModel = model
+      const untried = FALLBACK_MODELS.filter(m => m !== model)
+      setActiveModel(model)
+
+      const openSession = async (apiKey: string, handle: string | null) => {
+        const gen = ++generation
+        const ai = new GoogleGenAI({ apiKey })
+        const session = await ai.live.connect({
+          model: activeModel,
+          config: { ...configFor(activeModel), sessionResumption: handle ? { handle } : {} },
+          callbacks: {
+            onopen: () => {
+              if (cancelledRef.current) return
+              setPhase("active")
+            },
+            onmessage: (msg: LiveServerMessage) => {
+              if (gen !== generation) return
+              const update = msg.sessionResumptionUpdate
+              if (update?.resumable && update.newHandle) resumeHandle = update.newHandle
+              const sc = msg.serverContent
+              if (sc?.interrupted) player?.port.postMessage("clear")
+              for (const part of sc?.modelTurn?.parts ?? []) {
+                if (!part.inlineData?.data) continue
+                const samples = b64ToFloat32(part.inlineData.data)
+                player?.port.postMessage(samples, [samples.buffer])
+              }
+              if (sc?.inputTranscription?.text) appendTranscript("user", sc.inputTranscription.text)
+              if (sc?.outputTranscription?.text) appendTranscript("assistant", sc.outputTranscription.text)
+              if (sc?.turnComplete) { finalizeTranscript(); micLive = true; dropsOnModel = 0 }
+              const calls = msg.toolCall?.functionCalls
+              if (calls?.length) {
+                void Promise.all(calls.map(runTool)).then(functionResponses => {
+                  if (!closed && gen === generation) sessionRef.current?.sendToolResponse({ functionResponses })
+                })
+              }
+            },
+            // A close event always follows; recovery is handled there.
+            onerror: (e: ErrorEvent) => console.error("Gemini Live error", e),
+            onclose: (e: CloseEvent) => {
+              if (closed || cancelledRef.current || gen !== generation) return
+              if (e.code === 1000) {
+                setPhase(p => (p === "error" ? p : "ended"))
+                teardown()
+                return
+              }
+              void recover(e.code, e.reason)
+            },
           },
-          onmessage: (msg: LiveServerMessage) => {
-            const sc = msg.serverContent
-            if (sc?.interrupted) player?.port.postMessage("clear")
-            for (const part of sc?.modelTurn?.parts ?? []) {
-              if (!part.inlineData?.data) continue
-              const samples = b64ToFloat32(part.inlineData.data)
-              player?.port.postMessage(samples, [samples.buffer])
-            }
-            if (sc?.inputTranscription?.text) appendTranscript("user", sc.inputTranscription.text)
-            if (sc?.outputTranscription?.text) appendTranscript("assistant", sc.outputTranscription.text)
-            if (sc?.turnComplete) { finalizeTranscript(); micLive = true }
-            const calls = msg.toolCall?.functionCalls
-            if (calls?.length) {
-              void Promise.all(calls.map(runTool)).then(functionResponses => {
-                if (!closed) sessionRef.current?.sendToolResponse({ functionResponses })
-              })
-            }
-          },
-          onerror: (e: ErrorEvent) => {
-            console.error("Gemini Live error", e)
-            fail("The call dropped. Check your connection and try again.")
-          },
-          onclose: (e: CloseEvent) => {
-            if (closed || cancelledRef.current) return
-            if (e.code === 1000) {
-              setPhase(p => (p === "error" ? p : "ended"))
-              teardown()
-              return
-            }
-            console.warn("Gemini Live closed", e.code, e.reason)
-            fail(closeMessage(e.code, e.reason))
-          },
-        },
-      })
-      sessionRef.current = session
-      if (cancelledRef.current || closed) { session.close(); return }
+        })
+        if (closed || cancelledRef.current || gen !== generation) { session.close(); return null }
+        sessionRef.current = session
+        return session
+      }
+
+      // Gemini's preview models drop sessions now and then (1011 "Internal
+      // error encountered"), and sometimes a model fails on every turn for a
+      // while. First drop: resume the same conversation on the same model.
+      // Second drop in a row: move to the next model and hand it the
+      // transcript so far. Quota and rejected-settings closes aren't retried.
+      const recover = async (code: number, reason: string) => {
+        console.warn("Gemini Live closed", code, reason, "on", activeModel)
+        sessionRef.current = null
+        const retryable = !/quota|exceeded/i.test(reason) && code !== 1007 && code !== 1008
+        if (!retryable || reconnects >= 4) { fail(closeMessage(code, reason)); return }
+        reconnects++
+        dropsOnModel++
+        const resumeSameModel = dropsOnModel === 1 && !!resumeHandle
+        if (!resumeSameModel) {
+          const next = untried.shift()
+          if (!next) { fail(closeMessage(code, reason)); return }
+          console.warn(`Switching Gemini model: ${activeModel} → ${next}`)
+          activeModel = next
+          resumeHandle = null // handles only work on the model that issued them
+          dropsOnModel = 0
+          setActiveModel(next)
+        }
+        try {
+          const r = await authedFetch("gemini-live-token")
+          if (!r.ok) throw new Error(`gemini-live-token ${r.status}`)
+          const { token: fresh } = await r.json() as { token: string }
+          if (closed || cancelledRef.current) return
+          const s = await openSession(fresh, resumeSameModel ? resumeHandle : null)
+          if (s && !resumeSameModel) {
+            // A fresh session has no memory of the call, so replay it.
+            const recap = transcriptRef.current
+              .map(e => `${e.role === "user" ? "Caller" : "You"}: ${e.text}`)
+              .join("\n")
+            s.sendRealtimeInput({
+              text: recap
+                ? `The line dropped and you've been reconnected. The conversation so far:\n${recap}\n\nDon't greet again. Briefly apologize for the interruption and carry on. If the caller's last request isn't above, ask them to repeat it.`
+                : "The caller has just connected. Greet them now.",
+            })
+            micLive = true
+          }
+        } catch (err) {
+          console.error(err)
+          fail(closeMessage(code, reason))
+        }
+      }
+
+      const session = await openSession(token, null)
+      if (!session) return
 
       // Mic → 16 kHz PCM (resampled in the worklet) → Gemini. Until the
       // greeting finishes nothing is sent: speech during it cancels it. With
@@ -320,5 +397,5 @@ export function useGeminiCall() {
     setElapsed(0)
   }, [])
 
-  return { phase, error, transcript, speaking, elapsed, vapiCallId, start, stop, reset }
+  return { phase, error, transcript, speaking, elapsed, vapiCallId, activeModel, start, stop, reset }
 }

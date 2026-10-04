@@ -583,7 +583,9 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
         </p>
       </div>
 
-      {useGemini && <GeminiSettings value={geminiOpts} onChange={updateGeminiOpts} locked={busy || call.phase === "active"} />}
+      {useGemini && (
+        <GeminiSettings value={geminiOpts} onChange={updateGeminiOpts} locked={busy || call.phase === "active"} activeModel={geminiCall.activeModel} />
+      )}
 
       <div className="demo-grid" style={{ marginBottom: 16 }}>
         {/* Stage */}
