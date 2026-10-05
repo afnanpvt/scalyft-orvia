@@ -10,7 +10,7 @@ import { readBookings, type SpikeBooking } from "@/lib/gemini/spike-calendar"
 // It lives in localStorage and is never sent anywhere.
 
 const DAY = 86_400_000
-const STORAGE_PREFIX = "orvia.guest.data."
+const STORAGE_PREFIX = "orvia.guest.data.v2." // v2: lighter seed; old seeds are ignored
 
 // The dashboard shows every time in the visitor's own time zone, so a guest's
 // business runs on it too. Opening hours, "tomorrow morning" and the times in
@@ -129,7 +129,7 @@ function seed(niche: Niche): Store {
   let n = 0
 
   for (let d = 6; d >= 0; d--) {
-    const count = d === 0 ? 3 : 4 + Math.floor(r() * 5)
+    const count = d === 0 ? 2 : 2 + Math.floor(r() * 3) // light: a week reads as ~20 calls, not 50
     for (let k = 0; k < count; k++) {
       const day = new Date(now - d * DAY)
       day.setHours(8 + Math.floor(r() * 10), Math.floor(r() * 60), Math.floor(r() * 60), 0)
@@ -196,6 +196,22 @@ function seed(niche: Niche): Store {
         ai_failure_reason: null, was_concurrent: false, webhook_received_at: null, created_at: createdAt,
       })
     }
+  }
+
+  // "Coming up" should never look empty: if fewer than 3 bookings are in the
+  // future, move the most recent past ones forward a few days.
+  const MIN_UPCOMING = 3
+  const upcoming = () => appointments.filter(a => new Date(a.scheduled_start).getTime() >= now).length
+  const pastFirst = appointments
+    .filter(a => new Date(a.scheduled_start).getTime() < now)
+    .sort((a, b) => b.scheduled_start.localeCompare(a.scheduled_start))
+  for (const a of pastFirst) {
+    if (upcoming() >= MIN_UPCOMING) break
+    const start = new Date(a.scheduled_start)
+    do { start.setDate(start.getDate() + 3) } while (start.getTime() < now)
+    a.scheduled_start = start.toISOString()
+    a.scheduled_end = new Date(start.getTime() + 45 * 60_000).toISOString()
+    a.status = "confirmed"
   }
 
   calls.sort((a, b) => b.created_at.localeCompare(a.created_at))

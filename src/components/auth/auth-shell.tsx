@@ -23,11 +23,14 @@ export function AuthShell({
   visual,
   heading,
   subheading,
+  leaving = false,
   children,
 }: {
   visual: ReactNode
   heading: string
   subheading: string
+  // Fades the heading and content out, ahead of swapping them.
+  leaving?: boolean
   children: ReactNode
 }) {
   const [panelsOpen, setPanelsOpen] = useState(false)
@@ -85,16 +88,21 @@ export function AuthShell({
               </p>
             </div>
 
-            <div className="mb-8">
-              <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-foreground mb-1.5 leading-tight">
-                {heading}
-              </h1>
-              <p className="text-[14px] text-muted-foreground">
-                {subheading}
-              </p>
+            {/* Keyed so a changed heading animates in instead of snapping. */}
+            <div className={`mb-8 ${leaving ? "auth-swap-out" : ""}`}>
+              <div key={heading} className="auth-swap-in">
+                <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-foreground mb-1.5 leading-tight">
+                  {heading}
+                </h1>
+                <p className="text-[14px] text-muted-foreground">
+                  {subheading}
+                </p>
+              </div>
             </div>
 
-            {children}
+            <div className={leaving ? "auth-swap-out" : undefined}>
+              {children}
+            </div>
 
             <p className="text-[9px] font-medium uppercase tracking-[0.15em] text-muted-foreground/55 mt-16 text-center">
               Powered by{" "}

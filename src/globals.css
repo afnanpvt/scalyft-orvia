@@ -387,6 +387,42 @@
 .animate-gentle-float-delay-2 { animation-delay: 2.4s; }
 .animate-gentle-float-delay-3 { animation-delay: 3.6s; }
 
+/* Sign-in <-> guest picker swap. The old view fades out (.auth-swap-out),
+   the new one rises in (.auth-swap-in), and picker cards cascade by --i. */
+@keyframes authSwapIn {
+  from { opacity: 0; transform: translateY(12px); filter: blur(3px); }
+  to   { opacity: 1; transform: translateY(0);    filter: blur(0); }
+}
+.auth-swap-in { animation: authSwapIn 0.42s var(--ease-out-strong) both; }
+.auth-swap-in-item {
+  animation: authSwapIn 0.5s var(--ease-out-strong) both;
+  animation-delay: calc(80ms + var(--i, 0) * 60ms);
+}
+.auth-swap-out {
+  opacity: 0;
+  transform: translateY(-6px);
+  filter: blur(3px);
+  transition: opacity 0.18s ease, transform 0.18s ease, filter 0.18s ease;
+  pointer-events: none;
+}
+.auth-pick {
+  transition: transform 0.25s var(--ease-out-strong), border-color 0.2s, background-color 0.2s, box-shadow 0.25s, opacity 0.3s;
+}
+.auth-pick:hover { transform: translateY(-1px); }
+.auth-pick:active { transform: scale(0.985); }
+.auth-pick[data-chosen="true"] {
+  transform: scale(1.015);
+  border-color: var(--foreground);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+.auth-pick[data-dimmed="true"] { opacity: 0.35; transform: scale(0.99); }
+
+/* Guest tour: the spotlight and card glide between targets. */
+.tour-move {
+  transition: top 0.5s var(--ease-out-strong), left 0.5s var(--ease-out-strong),
+    width 0.5s var(--ease-out-strong), height 0.5s var(--ease-out-strong), border-radius 0.4s;
+}
+
 /* Reduced-motion guard for the auth-specific animations. */
 @media (prefers-reduced-motion: reduce) {
   .t-panel-slide-x,
@@ -398,6 +434,9 @@
   }
   .t-input { animation: none !important; transform: none !important; }
   .animate-gentle-float { animation: none !important; }
+  .auth-swap-in, .auth-swap-in-item { animation: none !important; }
+  .tour-move { transition: none !important; }
+  .auth-swap-out, .auth-pick { transition: none !important; filter: none !important; }
 }
 
 /* Force-light scope for the auth pages.

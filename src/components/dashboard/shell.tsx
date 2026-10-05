@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { SHOW_AGENT_SETUP_STATUS } from "@/lib/dev-flags";
 import { endGuest, startGuest, useGuestNiche } from "@/lib/guest/session";
+import { startTour } from "@/lib/guest/tour";
 import { NICHE_PRESETS } from "@/lib/niche-presets";
 import { getBusinessBilling } from "@/lib/api";
 import { CommandPalette } from "@/components/dashboard/command-palette";
@@ -33,6 +34,7 @@ import {
   Sparkles,
   Check,
   Repeat,
+  Compass,
 } from "lucide-react";
 
 // ─── Animated Hamburger (21st.dev) ────────────────────────
@@ -204,7 +206,7 @@ function UserDropdown() {
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
-      <button type="button" onClick={() => setOpen(v => !v)} className="user-menu-trigger"
+      <button type="button" onClick={() => setOpen(v => !v)} className="user-menu-trigger" data-tour="user-menu"
         aria-expanded={open} aria-haspopup="menu"
         style={{
           display: "flex", alignItems: "center", gap: 10, width: "100%",
@@ -299,6 +301,7 @@ function UserDropdown() {
                   }} />
               ))}
               <div style={{ height: 1, background: "var(--border)", margin: "4px 2px" }} />
+              <MenuItem icon={Compass} label="Take the tour" onClick={() => { setOpen(false); navigate({ to: "/" }); startTour(); }} />
               <MenuItem icon={LogOut} label="Sign in to an account" onClick={() => { setOpen(false); endGuest(); queryClient.clear(); navigate({ to: "/login" }); }} />
             </div>
           )}
@@ -343,7 +346,7 @@ function MenuItem({ icon: Icon, label, onClick, danger }: {
 function NavItem({ label, to, icon: Icon, pathname }: { label: string; to: string; icon: React.ElementType; pathname: string }) {
   const isActive = to === "/" ? pathname === "/" : pathname.startsWith(to);
   return (
-    <Link to={to} className="sidebar-link"
+    <Link to={to} className="sidebar-link" data-tour={`nav-${label.toLowerCase()}`}
       style={{
         display: "flex", alignItems: "center", gap: 9, padding: "8px 12px", borderRadius: 10,
         fontSize: 13.5, fontWeight: isActive ? 600 : 400,
