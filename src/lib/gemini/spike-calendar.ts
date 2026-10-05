@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react"
 import type { Business } from "@/lib/types"
-import { formatDay, formatTime, isoDate, zonedToUtc } from "@/lib/gemini/time"
+import { formatDay, formatTime, isoDate, wallClock, zonedToUtc } from "@/lib/gemini/time"
 
 // Spike-only calendar. With simulated tools the assistant's
 // check_availability / book_appointment calls are answered here, in the
@@ -142,14 +142,41 @@ export function simulateTool(name: string | undefined, args: Record<string, unkn
     const date = String(args.date ?? "")
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { result: { error: "What date would you like me to check?" } }
     if (dayHours(business, date) === "closed") return { result: { slots: [], message: "We're closed on that day." } }
-    const top = openSlots(business, date, bookings).slice(0, 4)
-    if (!top.length) return { result: { slots: [], message: "No openings on that date." } }
+
+    const open = openSlots(business, date, bookings)
+    if (!open.length) return { result: { slots: [], message: "No openings on that date." } }
+
+    // The caller may ask for a part of the day. Without a filter, a day's
+    // first four slots are all morning, so the agent would wrongly conclude
+    // the afternoon is full: spread the sample across the day instead.
+    const minutes = (d: Date) => { const [h, m] = wallClock(d, tz).slice(11, 16).split(":").map(Number); return h * 60 + m }
+    const part = String(args.part_of_day ?? "").toLowerCase()
+    const after = /^\d{1,2}:\d{2}$/.test(String(args.after_time ?? "")) ? String(args.after_time).split(":").map(Number) : null
+    const afterMin = after ? after[0] * 60 + after[1] : null
+    const inPart = (d: Date) => {
+      const t = minutes(d)
+      if (part === "morning") return t < 12 * 60
+      if (part === "afternoon") return t >= 12 * 60 && t < 17 * 60
+      if (part === "evening") return t >= 17 * 60
+      return true
+    }
+    const filtered = open.filter(d => inPart(d) && (afterMin === null || minutes(d) >= afterMin))
+    const filtering = !!part || afterMin !== null
+
+    if (filtering && !filtered.length) {
+      return { result: { slots: [], message: `Nothing open in that window on ${formatDay(open[0], tz)}.`, other_openings: open.slice(0, 3).map(s => formatTime(s, tz)) } }
+    }
+    const pool = filtering ? filtered : open
+    const pick = pool.length <= 4 ? pool : [0, 1, 2, 3].map(i => pool[Math.round((i * (pool.length - 1)) / 3)])
     return {
       result: {
-        day: formatDay(top[0], tz),
-        slots_voice: top.map(s => formatTime(s, tz)),
-        slots_iso: top.map(s => s.toISOString()),
+        day: formatDay(pick[0], tz),
+        slots_voice: pick.map(s => formatTime(s, tz)),
+        slots_iso: pick.map(s => s.toISOString()),
         timezone: tz,
+        open_count: pool.length,
+        open_between: `${formatTime(pool[0], tz)} and ${formatTime(pool[pool.length - 1], tz)}`,
+        ...(pool.length > pick.length ? { note: "A sample is listed. To check a specific time, call again with part_of_day or after_time." } : {}),
       },
     }
   }

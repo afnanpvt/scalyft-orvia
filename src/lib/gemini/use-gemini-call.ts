@@ -26,6 +26,7 @@ const SILENCE_B64 = btoa(String.fromCharCode(...new Uint8Array(1280)))
 const LOOKUP_INSTRUCTION = `# While Looking Things Up
 Before you call check_availability, book_appointment or capture_lead, first say a short natural filler out loud, like "One sec, let me check that." Never go silent while a lookup runs.
 When you call book_appointment, pass slot exactly as one of the slots_iso values check_availability returned. Never write the time yourself.
+check_availability lists only a sample of a day's openings. If the caller wants a part of the day or a time, call it again with part_of_day or after_time. Never tell the caller a day or a time of day is full unless the tool returned no slots for that exact window.
 
 # Ending the Call
 When the caller is finished (they say thanks, that's all, or bye), say a short goodbye and then call end_call. Never call end_call while the caller still needs something.`
@@ -319,10 +320,27 @@ export function useGeminiCall() {
         firstMessage: string
         endCallPhrases?: string[]
       }
+      // check_availability only lists a few slots; these let the agent ask for
+      // the part of the day the caller wants instead of guessing.
+      const withTimeFilters = (d: FunctionDecl): FunctionDecl => {
+        if (d.name !== "check_availability") return d
+        const schema = d.parametersJsonSchema as { properties?: Record<string, unknown> }
+        return {
+          ...d,
+          parametersJsonSchema: {
+            ...schema,
+            properties: {
+              ...schema.properties,
+              part_of_day: { type: "string", enum: ["morning", "afternoon", "evening"], description: "Only list slots in this part of the day. Use it when the caller prefers one." },
+              after_time: { type: "string", description: "Only list slots at or after this time, 24 hour HH:MM, e.g. 15:00." },
+            },
+          },
+        }
+      }
       const functionDeclarations: FunctionDecl[] = [
         ...cfg.model.tools
           .filter(t => t.type === "function" && t.function)
-          .map(t => ({ name: t.function!.name, description: t.function!.description, parametersJsonSchema: t.function!.parameters })),
+          .map(t => withTimeFilters({ name: t.function!.name, description: t.function!.description, parametersJsonSchema: t.function!.parameters })),
         END_CALL_TOOL,
       ]
       // Backup for end_call: the same goodbye phrases the Vapi assistant hangs up on.
