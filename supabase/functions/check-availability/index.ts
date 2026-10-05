@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { authorizeVapiRequest, unauthorized } from "../_shared/vapi-auth.ts";
 import { getValidGoogleAccessToken, getGoogleBusyRanges } from "../_shared/google-calendar.ts";
+import { zonedDateTimeToUtc } from "../_shared/timezone.ts";
 
 // Vapi tool: check_availability
 // Vapi sends: { message: { toolCallList: [{ id, name, arguments: {...} }] } }
@@ -32,46 +33,6 @@ function parseTimeOfDay(timeStr: string): { hours: number; minutes: number } {
     }
   }
   return { hours, minutes };
-}
-
-// Compute the UTC offset (in minutes) for a given timezone at a given moment.
-// Positive for east of UTC (e.g. +120 for CEST), negative for west (e.g. -300 for CDT).
-function tzOffsetMinutes(date: Date, timezone: string): number {
-  // Format the same instant in the target TZ and in UTC, then diff.
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-  const parts = dtf.formatToParts(date).reduce<Record<string, string>>((acc, p) => {
-    if (p.type !== "literal") acc[p.type] = p.value;
-    return acc;
-  }, {});
-  const asUtc = Date.UTC(
-    parseInt(parts.year),
-    parseInt(parts.month) - 1,
-    parseInt(parts.day),
-    parseInt(parts.hour === "24" ? "0" : parts.hour),
-    parseInt(parts.minute),
-    parseInt(parts.second)
-  );
-  return (asUtc - date.getTime()) / 60000;
-}
-
-// Build a real UTC Date for a wall-clock time in the given timezone on the given calendar date.
-// `dateStr` is YYYY-MM-DD (interpreted in the clinic's local calendar).
-function zonedDateTimeToUtc(dateStr: string, hours: number, minutes: number, timezone: string): Date {
-  const [y, m, d] = dateStr.split("-").map((n) => parseInt(n));
-  // First guess: treat the wall-clock as if it were UTC
-  const guess = new Date(Date.UTC(y, m - 1, d, hours, minutes, 0));
-  // Then correct by the TZ offset at that instant
-  const offset = tzOffsetMinutes(guess, timezone);
-  return new Date(guess.getTime() - offset * 60000);
 }
 
 function generateSlots(

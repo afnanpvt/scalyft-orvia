@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { authorizeVapiRequest, unauthorized } from "../_shared/vapi-auth.ts";
 import { getValidGoogleAccessToken, createGoogleCalendarEvent } from "../_shared/google-calendar.ts";
+import { parseSlot } from "../_shared/timezone.ts";
 
 // Vapi tool: book_appointment
 // Inserts appointment row, updates call outcome, sends confirmation SMS (fire-and-forget).
@@ -11,7 +12,7 @@ interface AppointmentArgs {
   customer_name: string;
   customer_phone: string;
   service_type: string;
-  slot: string; // ISO 8601 datetime
+  slot: string; // ISO 8601 datetime; without an offset it's read as business-local time
   notes?: string;
 }
 
@@ -36,7 +37,7 @@ function vapiResponse(toolCallId: string | null, result: unknown, status = 200):
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function formatSlot(isoString: string, timezone: string): string {
+function formatSlot(slot: Date, timezone: string): string {
   try {
     return new Intl.DateTimeFormat("en-US", {
       timeZone: timezone,
@@ -46,9 +47,9 @@ function formatSlot(isoString: string, timezone: string): string {
       hour: "numeric",
       minute: "2-digit",
       hour12: true,
-    }).format(new Date(isoString));
+    }).format(slot);
   } catch {
-    return isoString;
+    return slot.toISOString();
   }
 }
 
@@ -182,6 +183,15 @@ Deno.serve(async (req: Request) => {
   // is written to the owner's real calendar.
   const schedulingMode = business?.settings?.scheduling_mode ?? "live";
 
+  // Offset-less slots ("2026-10-05T10:00:00") are business-local wall clock,
+  // not UTC. Slots with Z or ±HH:MM pass through unchanged.
+  const slotStart = parseSlot(args.slot, timezone);
+  if (isNaN(slotStart.getTime())) {
+    return vapiResponse(toolCallId, { error: "Couldn't read that time. Please confirm the date and time." });
+  }
+  const slotEnd = new Date(slotStart.getTime() + slotDuration * 60000);
+  const formattedSlot = formatSlot(slotStart, timezone);
+
   // Find call row
   let callRowId: string | null = null;
   if (vapiCallId) {
@@ -218,7 +228,6 @@ Deno.serve(async (req: Request) => {
 
     if (existing) {
       console.log("book-appointment: idempotent return, appointment already exists for call", vapiCallId);
-      const formattedSlot = formatSlot(args.slot, timezone);
       return vapiResponse(toolCallId, {
         success: true,
         appointment_id: existing.id,
@@ -226,10 +235,6 @@ Deno.serve(async (req: Request) => {
       });
     }
   }
-
-  // Calculate end time
-  const slotStart = new Date(args.slot);
-  const slotEnd = new Date(slotStart.getTime() + slotDuration * 60000);
 
   // Insert appointment
   const { data: appointment, error: aptError } = await supabase
@@ -262,8 +267,6 @@ Deno.serve(async (req: Request) => {
         { onConflict: "vapi_call_id" }
       );
   }
-
-  const formattedSlot = formatSlot(args.slot, timezone);
 
   // Google Calendar sync — best-effort, awaited (it's one fast API call and
   // the demo needs google_cal_event_id back immediately for the synced badge).
@@ -321,7 +324,7 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  console.log("book-appointment: booked", appointment?.id, "for business", businessId, "at", args.slot);
+  console.log("book-appointment: booked", appointment?.id, "for business", businessId, "at", slotStart.toISOString(), "from slot", args.slot);
 
   return vapiResponse(toolCallId, {
     success: true,
