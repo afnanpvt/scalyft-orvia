@@ -5,9 +5,10 @@ import { Link, useNavigate } from "@tanstack/react-router"
 import {
   ComposedChart,
   Bar,
-  Line,
+  Area,
   Cell,
   XAxis,
+  YAxis,
   Tooltip,
   ResponsiveContainer,
 } from "recharts"
@@ -233,10 +234,8 @@ function PrimaryStatCard({ value, label, sublabel, days }: {
     other: Math.max(0, d.calls - d.appointments),
     isToday: i === days.length - 1,
   }))
-  const muted = isDark ? "rgba(255,255,255,0.12)" : "rgba(10,10,11,0.08)"
-  const mutedHover = isDark ? "rgba(255,255,255,0.24)" : "rgba(10,10,11,0.16)"
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
-  const lineTotal = isDark ? "rgba(255,255,255,0.6)" : "rgba(10,10,11,0.5)"
+  const maxCalls = Math.max(1, ...days.map(d => d.calls))
 
   return (
     <div className="ios-card stat-primary" data-tour="hero" style={{
@@ -265,10 +264,10 @@ function PrimaryStatCard({ value, label, sublabel, days }: {
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", gap: 12, marginTop: 16 }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--muted-foreground)" }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: "#10B981" }} /> Booked
+            <span style={{ width: 12, height: 3, borderRadius: 3, background: "linear-gradient(90deg,#34D399,#059669)" }} /> Calls
           </span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: "var(--muted-foreground)" }}>
-            <span style={{ width: 8, height: 8, borderRadius: 2, background: muted }} /> Other calls
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: "#10B981", opacity: 0.6 }} /> Booked
           </span>
         </div>
       </div>
@@ -303,20 +302,30 @@ function PrimaryStatCard({ value, label, sublabel, days }: {
                   <stop offset="0%" stopColor={isDark ? "#fff" : "#0A0A0B"} stopOpacity={isDark ? 0.16 : 0.1} />
                   <stop offset="100%" stopColor={isDark ? "#fff" : "#0A0A0B"} stopOpacity={isDark ? 0.05 : 0.03} />
                 </linearGradient>
-                <filter id="ovLineGlow" x="-10%" y="-30%" width="120%" height="160%">
-                  <feDropShadow dx="0" dy="2" stdDeviation="2.5" floodColor={isDark ? "#fff" : "#0A0A0B"} floodOpacity={isDark ? 0.18 : 0.16} />
+                <linearGradient id="ovStroke" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#34D399" />
+                  <stop offset="100%" stopColor="#059669" />
+                </linearGradient>
+                <linearGradient id="ovFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10B981" stopOpacity={isDark ? 0.28 : 0.22} />
+                  <stop offset="100%" stopColor="#10B981" stopOpacity={0} />
+                </linearGradient>
+                <filter id="ovLineGlow" x="-10%" y="-30%" width="120%" height="170%">
+                  <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#059669" floodOpacity={isDark ? 0.4 : 0.3} />
                 </filter>
               </defs>
-              <Bar dataKey="appointments" stackId="d" maxBarSize={30} isAnimationActive={false}>
-                {chartData.map((_, i) => <Cell key={i} fill="url(#ovBooked)" fillOpacity={hoverIdx === i ? 1 : 0.5} style={{ transition: "fill-opacity 200ms" }} />)}
+              <YAxis hide domain={[0, maxCalls * 1.3]} />
+              {/* Bars stay invisible until their day is hovered. */}
+              <Bar dataKey="appointments" stackId="d" maxBarSize={34} isAnimationActive={false}>
+                {chartData.map((_, i) => <Cell key={i} fill="url(#ovBooked)" fillOpacity={hoverIdx === i ? 0.85 : 0} style={{ transition: "fill-opacity 220ms" }} />)}
               </Bar>
-              <Bar dataKey="other" stackId="d" maxBarSize={30} radius={[9, 9, 0, 0]} isAnimationActive={false}>
-                {chartData.map((_, i) => <Cell key={i} fill="url(#ovOther)" fillOpacity={hoverIdx === i ? 1 : 0.85} style={{ transition: "fill-opacity 200ms" }} />)}
+              <Bar dataKey="other" stackId="d" maxBarSize={34} radius={[10, 10, 0, 0]} isAnimationActive={false}>
+                {chartData.map((_, i) => <Cell key={i} fill="url(#ovOther)" fillOpacity={hoverIdx === i ? 1 : 0} style={{ transition: "fill-opacity 220ms" }} />)}
               </Bar>
-              <Line type="monotone" dataKey="calls" stroke={lineTotal} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" isAnimationActive={false}
-                style={{ filter: "url(#ovLineGlow)" }}
-                dot={{ r: 3.5, fill: "var(--card, #fff)", stroke: lineTotal, strokeWidth: 2 }}
-                activeDot={{ r: 5, fill: isDark ? "#fff" : "#0A0A0B", stroke: "var(--card, #fff)", strokeWidth: 2.5 }} />
+              <Area type="natural" dataKey="calls" stroke="url(#ovStroke)" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"
+                fill="url(#ovFill)" isAnimationActive={false} style={{ filter: "url(#ovLineGlow)" }}
+                dot={{ r: 3.5, fill: "var(--card, #fff)", stroke: "#10B981", strokeWidth: 2 }}
+                activeDot={{ r: 6, fill: "#10B981", stroke: "var(--card, #fff)", strokeWidth: 3 }} />
             </ComposedChart>
           </ResponsiveContainer>
         ) : (
