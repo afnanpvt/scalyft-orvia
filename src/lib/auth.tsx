@@ -7,6 +7,7 @@ import {
 } from "react";
 import type { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { endGuest } from "@/lib/guest/session";
 
 export interface UserProfile {
   fullName: string | null;
@@ -95,6 +96,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function fetchUserData(userId: string, email: string | null) {
+    // A real account always wins over a leftover guest session.
+    endGuest();
     const { data } = await supabase
       .from("users")
       .select("business_id, full_name, role, theme_preference, must_change_password")
@@ -126,6 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
+    endGuest();
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);

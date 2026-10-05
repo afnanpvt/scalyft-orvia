@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gemini Live voice test</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font: 14px/1.45 system-ui, sans-serif; max-width: 720px; margin: 24px auto; padding: 0 16px; color: #111; }
+  label { display: block; font-weight: 600; margin-top: 12px; }
+  input, textarea, select { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; }
+  textarea { height: 110px; }
+  button { padding: 10px 18px; font: inherit; font-weight: 600; cursor: pointer; margin: 14px 8px 0 0; }
+  #log { margin-top: 16px; background: #f4f4f5; border-radius: 8px; padding: 12px; height: 320px; overflow: auto; font-size: 13px; }
+  .u { color: #1d4ed8 } .a { color: #047857 } .t { color: #b45309 } .s { color: #6b7280 }
+  #stats { color: #6b7280; margin-top: 8px; }
+</style>
+</head>
+<body>
+<h2>Gemini Live voice test</h2>
+<p>Standalone: talks straight to Gemini from this browser with a fake plumbing receptionist and mock tools. The key stays in this browser's localStorage and is never saved in the file. Open it from <code>http://localhost</code> so the mic works.</p>
+
+<label>API key</label>
+<input id="key" type="password" placeholder="AIza...">
+<label>Model</label>
+<select id="model">
+  <option>gemini-3.8-live</option>
+  <option>gemini-3.8-live-extended-thinking</option>
+  <option>gemini-3.1-flash-live-preview</option>
+  <option>gemini-2.5-flash-native-audio-latest</option>
+</select>
+<label>Voice</label>
+<select id="voice"><option>Puck</option><option>Kore</option><option>Aoede</option><option>Charon</option><option>Fenrir</option><option>Leda</option></select>
+<label>System prompt</label>
+<textarea id="prompt">You are Sam, the front-desk receptionist for Bright Pipes Plumbing in Austin, Texas. Warm, calm, efficient. One or two short sentences per reply, one question at a time.
+Start by saying: "Thanks for calling Bright Pipes Plumbing, how can I help you today?"
+To book: ask what the problem is, ask the preferred day, call check_availability, offer two or three times, get full name and phone, call book_appointment, then read it back.
+Today is {{TODAY}}. Never quote exact prices, give a range.</textarea>
+
+<button id="start">Start call</button><button id="stop" disabled>End call</button>
+<div id="stats"></div>
+<div id="log"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const IN_RATE = 16000, OUT_RATE = 24000;
+$("key").value = localStorage.getItem("gk") || "";
+$("prompt").value = $("prompt").value.replace("{{TODAY}}", new Date().toDateString());
+
+let micLive = false, ws, stream, inCtx, outCtx, proc, nextStart = 0, playing = new Set(), t0 = 0, firstAudio = 0, lastUserEnd = 0;
+const log = (cls, text) => { const d = document.createElement("div"); d.className = cls; d.textContent = text; $("log").appendChild(d); $("log").scrollTop = 1e9; return d; };
+let openLine = { u: null, a: null };
+const append = (role, text) => {
+  if (!openLine[role]) openLine[role] = log(role, (role === "u" ? "You: " : "Sam: "));
+  openLine[role].textContent += text; $("log").scrollTop = 1e9;
+};
+
+const tools = {
+  check_availability: a => ({ day: a.date, slots_voice: ["9:00 AM", "11:30 AM", "2:00 PM", "4:30 PM"] }),
+  book_appointment: a => ({ success: true, confirmation: "BP-1042", booked: a }),
+};
+
+function b64(bytes) { let s = ""; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(s); }
+function unb64(s) { const b = atob(s), o = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) o[i] = b.charCodeAt(i); return o; }
+function pcm16(f32, rate) {
+  const r = rate / IN_RATE, n = Math.floor(f32.length / r), o = new Int16Array(n);
+  for (let i = 0; i < n; i++) { const p = i * r, i0 = Math.floor(p); const s = f32[i0] + ((f32[i0 + 1] ?? f32[i0]) - f32[i0]) * (p - i0); o[i] = Math.max(-1, Math.min(1, s)) * 0x7fff; }
+  return new Uint8Array(o.buffer);
+}
+function play(b) {
+  const pcm = new Int16Array(unb64(b).buffer.slice(0));
+  const buf = outCtx.createBuffer(1, pcm.length, OUT_RATE), ch = buf.getChannelData(0);
+  for (let i = 0; i < pcm.length; i++) ch[i] = pcm[i] / 0x8000;
+  const src = outCtx.createBufferSource(); src.buffer = buf; src.connect(outCtx.destination);
+  nextStart = Math.max(nextStart, outCtx.currentTime); src.start(nextStart); nextStart += buf.duration;
+  playing.add(src); src.onended = () => playing.delete(src);
+}
+function flush() { playing.forEach(s => { try { s.stop() } catch {} }); playing.clear(); nextStart = 0; }
+
+$("start").onclick = async () => {
+  const key = $("key").value.trim(); if (!key) return alert("Paste an API key");
+  localStorage.setItem("gk", key);
+  $("log").innerHTML = ""; openLine = { u: null, a: null };
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+  catch { return log("t", "Mic blocked. Allow it and retry (must be http://localhost or https)."); }
+  outCtx = new AudioContext({ sampleRate: OUT_RATE }); inCtx = new AudioContext();
+  ws = new WebSocket(`wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${key}`);
+  t0 = Date.now(); micLive = false; log("s", "connecting...");
+  ws.onopen = () => ws.send(JSON.stringify({ setup: {
+    model: `models/${$("model").value}`,
+    generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: $("voice").value } } } },
+    systemInstruction: { parts: [{ text: $("prompt").value }] },
+    tools: [{ functionDeclarations: [
+      { name: "check_availability", description: "Check open slots for a date. Call before offering times.", parametersJsonSchema: { type: "object", properties: { date: { type: "string", description: "YYYY-MM-DD" } }, required: ["date"] } },
+      { name: "book_appointment", description: "Book after the caller picks a slot.", parametersJsonSchema: { type: "object", properties: { customer_name: { type: "string" }, customer_phone: { type: "string" }, service_type: { type: "string" }, slot: { type: "string", description: "ISO datetime" } }, required: ["customer_name", "customer_phone", "service_type", "slot"] } },
+    ] }],
+    inputAudioTranscription: {}, outputAudioTranscription: {},
+  } }));
+  ws.onmessage = async e => {
+    const m = JSON.parse(typeof e.data === "string" ? e.data : await e.data.text());
+    if (m.setupComplete) {
+      log("s", `connected in ${Date.now() - t0} ms`);
+      const src = inCtx.createMediaStreamSource(stream); proc = inCtx.createScriptProcessor(4096, 1, 1);
+      proc.onaudioprocess = ev => { if (micLive && ws.readyState === 1) ws.send(JSON.stringify({ realtimeInput: { audio: { data: b64(pcm16(ev.inputBuffer.getChannelData(0), inCtx.sampleRate)), mimeType: `audio/pcm;rate=${IN_RATE}` } } })); };
+      src.connect(proc); proc.connect(inCtx.destination);
+      ws.send(JSON.stringify({ realtimeInput: { text: "The caller has just connected. Greet them now." } }));
+      setTimeout(() => { micLive = true; }, 8000); // fallback if the greeting never completes
+      $("start").disabled = true; $("stop").disabled = false;
+    }
+    const sc = m.serverContent;
+    if (sc?.interrupted) flush();
+    for (const p of sc?.modelTurn?.parts ?? []) if (p.inlineData) { if (!firstAudio) { firstAudio = 1; } play(p.inlineData.data); }
+    if (sc?.inputTranscription?.text) { lastUserEnd = Date.now(); firstAudio = 0; append("u", sc.inputTranscription.text); }
+    if (sc?.outputTranscription?.text) { if (!firstAudio && lastUserEnd) { $("stats").textContent = `Last reply latency after you stopped talking: ~${Date.now() - lastUserEnd} ms`; firstAudio = 1; } append("a", sc.outputTranscription.text); }
+    if (sc?.turnComplete) { openLine = { u: null, a: null }; if (!micLive) { micLive = true; log("s", "mic open, go ahead and talk"); } }
+    if (m.toolCall) {
+      const responses = m.toolCall.functionCalls.map(f => { const r = tools[f.name]?.(f.args) ?? { error: "unknown tool" }; log("t", `tool ${f.name}(${JSON.stringify(f.args)}) -> ${JSON.stringify(r)}`); return { id: f.id, name: f.name, response: { result: r } }; });
+      ws.send(JSON.stringify({ toolResponse: { functionResponses: responses } }));
+    }
+  };
+  ws.onerror = () => log("t", "socket error");
+  ws.onclose = e => { log("t", `CLOSED ${e.code} ${e.reason}`); cleanup(); };
+};
+function cleanup() { try { proc?.disconnect(); } catch {} stream?.getTracks().forEach(t => t.stop()); inCtx?.close(); outCtx?.close(); flush(); $("start").disabled = false; $("stop").disabled = true; }
+$("stop").onclick = () => { ws?.close(1000); };
+</script>
+</body>
+</html>

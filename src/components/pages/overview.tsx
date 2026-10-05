@@ -63,6 +63,9 @@ import { useTheme } from "@/lib/theme"
 import { supabase } from "@/lib/supabase"
 import { TestCallButton } from "@/components/dashboard/test-call-button"
 import { HoverTip, agentStatusCopy } from "@/components/dashboard/hover-tip"
+import { SHOW_AGENT_SETUP_STATUS } from "@/lib/dev-flags"
+import { GuestTour } from "@/components/dashboard/guest-tour"
+import { useGuestNiche } from "@/lib/guest/session"
 import { pickGreeting, type Greeting } from "@/lib/greetings"
 import type { Call, Appointment, OperationalEvent, CallQueueItem } from "@/lib/types"
 
@@ -236,7 +239,7 @@ function PrimaryStatCard({ value, label, sublabel, days }: {
   const lineTotal = isDark ? "rgba(255,255,255,0.5)" : "rgba(10,10,11,0.4)"
 
   return (
-    <div className="ios-card stat-primary" style={{
+    <div className="ios-card stat-primary" data-tour="hero" style={{
       padding: "20px 22px 16px",
       display: "grid", gridTemplateColumns: "minmax(150px, 0.8fr) 1.6fr", gap: 20,
       height: "100%",
@@ -482,7 +485,7 @@ function StatusStrip({ clinicActive, agentStatus, actionCount, nextAppointment, 
   return (
     <div style={{ display: "flex", gap: 10 }} className="status-strip">
       {/* AI Agent */}
-      <div style={{ flex: 1, minWidth: 0, display: "flex" }}>
+      <div data-tour="agent" style={{ flex: 1, minWidth: 0, display: "flex" }}>
         <HoverTip block {...agentStatusCopy({ onCall: !!liveCall, ...agentStatus })}>
           <div tabIndex={0} style={{ ...stripCard, height: "100%", cursor: "help", outline: "none" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
@@ -500,7 +503,7 @@ function StatusStrip({ clinicActive, agentStatus, actionCount, nextAppointment, 
       </div>
 
       {/* Needs Attention */}
-      <Link to="/needs-action" style={{
+      <Link to="/needs-action" data-tour="needs" style={{
         ...stripCard,
         textDecoration: "none",
         cursor: actionCount > 0 ? "pointer" : "default",
@@ -516,7 +519,7 @@ function StatusStrip({ clinicActive, agentStatus, actionCount, nextAppointment, 
       </Link>
 
       {/* Next Appointment */}
-      <Link to="/appointments" search={{ open: nextAppointment?.id }}
+      <Link to="/appointments" search={{ open: nextAppointment?.id }} data-tour="next"
         style={{ ...stripCard, textDecoration: "none", cursor: "pointer" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <span style={{
@@ -1383,6 +1386,7 @@ export default function OverviewPage() {
   const { data: callQueue = [] } = useQuery({ queryKey: ["call-queue"], queryFn: getPendingCallQueue, refetchInterval: 30_000 })
   const { data: monthStats } = useQuery({ queryKey: ["month-call-stats"], queryFn: getMonthCallStats, refetchInterval: 60_000 })
   const { data: businessSettings } = useQuery({ queryKey: ["business-settings"], queryFn: getBusinessSettings })
+  const isGuest = useGuestNiche() !== null
 
   useEffect(() => {
     const liveCall = liveCallQuery.data
@@ -1442,7 +1446,7 @@ export default function OverviewPage() {
   const leads = d?.leadsToday ?? 0
   const upcomingAppointments = d?.upcomingAppointments ?? []
   const recentCalls = d?.recentCalls ?? []
-  const clinicActive = d?.businessStatus === "active" && d?.businessHasPhone && (d?.hasCredits ?? false)
+  const clinicActive = !SHOW_AGENT_SETUP_STATUS || (d?.businessStatus === "active" && d?.businessHasPhone && (d?.hasCredits ?? false))
   const secondsRemaining = d?.secondsRemaining ?? 0
   const allowOverage = d?.allowOverage ?? false
 
@@ -1512,6 +1516,7 @@ export default function OverviewPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {isGuest && <GuestTour agentName={businessSettings?.settings.receptionist_name} />}
       <style>{`
         .overview-stat-grid {
           display: grid;
@@ -1642,7 +1647,7 @@ export default function OverviewPage() {
           sublabel={apptSublabel}
           days={weeklyDays}
         />
-        <div className="stat-compact-stack">
+        <div className="stat-compact-stack" data-tour="kpis">
           <CompactStatCard value={calls} label="Calls handled today" sublabel={callsSublabel}
             series={weeklyDays.map(d => d.calls)} seriesLabels={weekLabels}
             formatPoint={v => `${v} call${v === 1 ? "" : "s"}`} color="#6366F1" />
@@ -1660,7 +1665,7 @@ export default function OverviewPage() {
         <p style={{ fontSize: 10.5, fontWeight: 500, color: "var(--muted-foreground)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 10, opacity: 0.45 }}>
           Schedule &amp; Performance
         </p>
-        <div className="overview-bottom-grid-3">
+        <div className="overview-bottom-grid-3" data-tour="schedule">
           <ScheduleCard appointments={upcomingAppointments} />
           <CallMinutesCard
             secondsRemaining={secondsRemaining}
@@ -1676,7 +1681,7 @@ export default function OverviewPage() {
         <p style={{ fontSize: 10.5, fontWeight: 500, color: "var(--muted-foreground)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 10, opacity: 0.45 }}>
           Recent Activity
         </p>
-        <div className="ios-card animate-fade-up" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="ios-card animate-fade-up" data-tour="recent" style={{ padding: 0, overflow: "hidden" }}>
           {/* Card header */}
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",

@@ -2,11 +2,17 @@ import { createFileRoute, Outlet, redirect, useNavigate } from "@tanstack/react-
 import { useEffect } from "react";
 import { DashboardShell } from "@/components/dashboard/shell";
 import { useAuth } from "@/lib/auth";
+import { isGuest, useGuestNiche } from "@/lib/guest/session";
+
+// Guests only get the product pages, never the internal tools or account settings.
+const GUEST_BLOCKED = ["/admin", "/settings"];
 
 export const Route = createFileRoute("/_dashboard")({
-  beforeLoad: ({ context }) => {
+  beforeLoad: ({ context, location }) => {
     if (!context.auth.user) {
-      throw redirect({ to: "/login" });
+      if (!isGuest()) throw redirect({ to: "/login" });
+      if (GUEST_BLOCKED.some(p => location.pathname.startsWith(p))) throw redirect({ to: "/" });
+      return;
     }
     // Users on a temp/recovery password must finish setting a real one
     // before they can touch the dashboard.
@@ -19,14 +25,15 @@ export const Route = createFileRoute("/_dashboard")({
 
 function DashboardLayout() {
   const { user, isLoading, mustChangePassword } = useAuth();
+  const guestNiche = useGuestNiche();
   const navigate = useNavigate();
 
   // Handle logout while on dashboard (auth state changes after initial load)
   useEffect(() => {
-    if (!isLoading && !user) {
+    if (!isLoading && !user && !guestNiche) {
       navigate({ to: "/login" });
     }
-  }, [user, isLoading, navigate]);
+  }, [user, guestNiche, isLoading, navigate]);
 
   // Handle must-change-password flag set mid-session (e.g. PASSWORD_RECOVERY event).
   useEffect(() => {
@@ -35,7 +42,7 @@ function DashboardLayout() {
     }
   }, [user, isLoading, mustChangePassword, navigate]);
 
-  if (!user) return null;
+  if (!user && !guestNiche) return null;
 
   return (
     <DashboardShell>

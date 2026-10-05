@@ -1,11 +1,17 @@
 import { useState, useRef, useEffect, useCallback } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   PhoneCall, PhoneOff, Loader2, Mic, CalendarCheck2, CalendarSearch, MessageSquareText, BellRing,
-  Clock, RotateCcw, FastForward, PhoneIncoming, Volume2,
+  Clock, RotateCcw, FastForward, PhoneIncoming, Volume2, X,
 } from "lucide-react"
 
 import { getBusinessSettings, getActiveVapiPublicKey, getAppointmentByVapiCallId } from "@/lib/api"
+import { useGeminiCall } from "@/lib/gemini/use-gemini-call"
+import { DEFAULT_GEMINI_OPTIONS, loadGeminiOptions, saveGeminiOptions, type GeminiOptions } from "@/lib/gemini/options"
+import { useGuestNiche } from "@/lib/guest/session"
+import { recordGuestCall } from "@/lib/guest/data"
+import { GeminiSettings } from "@/components/dashboard/gemini-settings"
+import { SpikeCalendar } from "@/components/dashboard/spike-calendar"
 import { useAssistantCall, type CallPhase, type TranscriptEntry } from "@/lib/vapi/use-assistant-call"
 import { OrviaLogo } from "@/components/brand/orvia-logo"
 import { useTheme } from "@/lib/theme"
@@ -147,6 +153,45 @@ function TranscriptPanel({ entries }: { entries: TranscriptEntry[] }) {
 }
 
 // ─── Booking confirmation ────────────────────────────────
+
+interface BookedNotice { id: string; name: string; service: string; start: string }
+
+// Pops over the page the moment a booking lands, then clears itself.
+// `timeZone` is the clinic's, so the time matches what the caller was told.
+function BookedPopup({ booking, timeZone, onClose }: { booking: BookedNotice; timeZone?: string; onClose: () => void }) {
+  const time = new Date(booking.start).toLocaleString("en-US", {
+    timeZone, weekday: "long", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  })
+  return (
+    <div style={{ position: "fixed", top: 20, left: 0, right: 0, zIndex: 60, display: "flex", justifyContent: "center", padding: "0 16px", pointerEvents: "none" }}>
+      <div role="status" aria-live="polite" className="ios-card animate-fade-up" style={{
+        pointerEvents: "auto", width: "100%", maxWidth: 420, padding: "14px 14px 14px 16px",
+        display: "flex", alignItems: "center", gap: 12,
+        borderColor: "rgba(16,185,129,0.35)", boxShadow: "0 12px 32px rgba(0,0,0,0.12)",
+      }}>
+        <div style={{
+          width: 38, height: 38, borderRadius: 12, flexShrink: 0,
+          background: "#D1FAE5", display: "flex", alignItems: "center", justifyContent: "center",
+        }}>
+          <CalendarCheck2 style={{ width: 18, height: 18, color: "#059669" }} strokeWidth={2} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 14, fontWeight: 650, color: "var(--foreground)", letterSpacing: "-0.01em" }}>Appointment booked</p>
+          <p style={{ fontSize: 12.5, color: "var(--muted-foreground)", marginTop: 2, letterSpacing: "-0.01em" }}>
+            {booking.name} · {booking.service}
+          </p>
+          <p style={{ fontSize: 12.5, color: "var(--foreground)", marginTop: 1, letterSpacing: "-0.01em" }}>{time}</p>
+        </div>
+        <button type="button" onClick={onClose} aria-label="Dismiss" style={{
+          width: 28, height: 28, borderRadius: 8, border: "none", background: "transparent",
+          color: "var(--muted-foreground)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        }}>
+          <X size={15} />
+        </button>
+      </div>
+    </div>
+  )
+}
 
 function BookingConfirmationCard({ appointment }: { appointment: Appointment }) {
   const time = new Date(appointment.scheduled_start).toLocaleString("en-US", {
@@ -462,11 +507,22 @@ function DemoStage({ phase, speaking, elapsed, agentName }: {
   )
 }
 
-export default function DemoPage() {
+export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}) {
   const { data: business } = useQuery({ queryKey: ["business-settings"], queryFn: getBusinessSettings })
   const { data: activeVaultKey } = useQuery({ queryKey: ["active-vapi-key"], queryFn: getActiveVapiPublicKey, staleTime: 10_000 })
 
-  const call = useAssistantCall()
+  // Guests (no account) always talk to Gemini with simulated tools: free,
+  // instant, and nothing touches a database. Spike: /demo?engine=gemini runs
+  // the voice on Gemini Live instead of Vapi.
+  const isGuest = useGuestNiche() !== null
+  const useGemini = isGuest || (engine ? engine === "gemini" : typeof window !== "undefined" && new URLSearchParams(window.location.search).get("engine") === "gemini")
+  const vapiCall = useAssistantCall()
+  const geminiCall = useGeminiCall()
+  const call = useGemini ? geminiCall : vapiCall
+  const queryClient = useQueryClient()
+  const [savedGeminiOpts, setGeminiOpts] = useState<GeminiOptions>(loadGeminiOptions)
+  const geminiOpts = isGuest ? DEFAULT_GEMINI_OPTIONS : savedGeminiOpts
+  const updateGeminiOpts = (v: GeminiOptions) => { setGeminiOpts(v); saveGeminiOptions(v) }
   const [appointment, setAppointment] = useState<Appointment | null>(null)
 
   const [timeOffsetMs, setTimeOffsetMs] = useState(0)
@@ -475,7 +531,7 @@ export default function DemoPage() {
   const [speakingCaption, setSpeakingCaption] = useState("")
   const reminderTriggeredForRef = useRef<string | null>(null)
 
-  const publicKey = activeVaultKey || ENV_VAPI_PUBLIC_KEY
+  const publicKey = useGemini ? "gemini" : (activeVaultKey || ENV_VAPI_PUBLIC_KEY)
   const agentName = business?.settings.receptionist_name || "Orvia"
   const niche = business?.settings.niche ?? "dental"
   const busy = call.phase === "preparing" || call.phase === "mic" || call.phase === "connecting"
@@ -487,9 +543,28 @@ export default function DemoPage() {
     return () => clearInterval(t)
   }, [timeOffsetMs])
 
+  // Guest: when a call ends, add it to their Calls history so the dashboard
+  // reflects what they just did.
+  const recordedCallRef = useRef<string | null>(null)
+  const { phase: gPhase, vapiCallId: gCallId, transcript: gTranscript, elapsed: gElapsed, lastBooking: gBooking } = geminiCall
+  useEffect(() => {
+    if (!isGuest || gPhase !== "ended" || !gCallId || recordedCallRef.current === gCallId) return
+    recordedCallRef.current = gCallId
+    recordGuestCall({
+      transcript: gTranscript.filter(t => t.text.trim()).map(t => ({ role: t.role, content: t.text })),
+      durationSecs: gElapsed,
+      booking: gBooking,
+    })
+    void queryClient.invalidateQueries()
+  }, [isGuest, gPhase, gCallId, gTranscript, gElapsed, gBooking, queryClient])
+
+  // Gemini spike with simulated tools: bookings live in the spike calendar,
+  // not Supabase, so there's nothing to poll for.
+  const simulated = useGemini && geminiOpts.toolMode === "simulated"
+
   // ── Poll for the booked appointment once the call ends ──
   useEffect(() => {
-    if (call.phase !== "ended" || !call.vapiCallId || appointment) return
+    if (simulated || call.phase !== "ended" || !call.vapiCallId || appointment) return
     let cancelled = false
     let attempts = 0
     const vapiCallId = call.vapiCallId
@@ -502,7 +577,39 @@ export default function DemoPage() {
     }
     poll()
     return () => { cancelled = true }
-  }, [call.phase, call.vapiCallId, appointment])
+  }, [simulated, call.phase, call.vapiCallId, appointment])
+
+  // ── Gemini: show the booking the moment the tool confirms it, mid-call ──
+  const geminiBookedAt = geminiCall.bookedAt
+  const geminiCallId = geminiCall.vapiCallId
+  useEffect(() => {
+    if (!useGemini || !geminiBookedAt || !geminiCallId) return
+    let cancelled = false
+    void (async () => {
+      for (let i = 0; i < 5 && !cancelled; i++) {
+        const found = await getAppointmentByVapiCallId(geminiCallId)
+        if (found) { if (!cancelled) setAppointment(found); return }
+        await new Promise(r => setTimeout(r, 1000))
+      }
+    })()
+    return () => { cancelled = true }
+  }, [useGemini, geminiBookedAt, geminiCallId])
+
+  // ── Booking pop-up: once per booking (real or simulated), clears after 7 s ──
+  const notice: BookedNotice | null = appointment
+    ? { id: appointment.id, name: appointment.customer_name, service: appointment.service_type ?? "Service", start: appointment.scheduled_start }
+    : useGemini && geminiCall.lastBooking
+      ? { id: geminiCall.lastBooking.id, name: geminiCall.lastBooking.name, service: geminiCall.lastBooking.service, start: geminiCall.lastBooking.start }
+      : null
+  const noticeId = notice?.id ?? null
+  const [popup, setPopup] = useState<BookedNotice | null>(null)
+  // Keyed on the id so a re-fetched copy of the same booking doesn't re-pop.
+  useEffect(() => {
+    if (!notice) return
+    setPopup(notice)
+    const t = setTimeout(() => setPopup(null), 7000)
+    return () => clearTimeout(t)
+  }, [noticeId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Reminder trigger: simulated clock crosses the 30-min-before window ──
   useEffect(() => {
@@ -522,7 +629,8 @@ export default function DemoPage() {
     setTimeOffsetMs(0)
     setReminderState("idle")
     reminderTriggeredForRef.current = null
-    call.start(business, publicKey)
+    if (useGemini) geminiCall.start(business, geminiOpts)
+    else vapiCall.start(business, publicKey)
   }
 
   const speakReminder = useCallback(() => {
@@ -562,7 +670,7 @@ export default function DemoPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <span className="animate-live-pulse" style={{ width: 7, height: 7, borderRadius: "50%", background: "#10B981" }} />
           <p style={{ fontSize: 11, fontWeight: 700, color: "var(--muted-foreground)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-            Live demo · {NICHE_LABEL[niche] ?? "AI receptionist"}
+            Live demo · {NICHE_LABEL[niche] ?? "AI receptionist"}{useGemini && !isGuest ? " · Gemini spike" : ""}
           </p>
         </div>
         <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--foreground)", letterSpacing: "-0.03em", marginBottom: 6 }}>
@@ -572,6 +680,10 @@ export default function DemoPage() {
           Talk to it right here in the browser. Book something real and watch it land on the dashboard.
         </p>
       </div>
+
+      {useGemini && !isGuest && (
+        <GeminiSettings value={geminiOpts} onChange={updateGeminiOpts} locked={busy || call.phase === "active"} activeModel={geminiCall.activeModel} />
+      )}
 
       <div className="demo-grid" style={{ marginBottom: 16 }}>
         {/* Stage */}
@@ -647,6 +759,8 @@ export default function DemoPage() {
         )}
       </div>
 
+      {simulated && business && <SpikeCalendar business={business} highlightId={geminiCall.lastBooking?.id} />}
+
       {appointment && (
         <div style={{ marginBottom: 16 }}>
           <BookingConfirmationCard appointment={appointment} />
@@ -675,6 +789,8 @@ export default function DemoPage() {
           speakingCaption={speakingCaption}
         />
       )}
+
+      {popup && <BookedPopup booking={popup} timeZone={business?.timezone} onClose={() => setPopup(null)} />}
     </div>
   )
 }
