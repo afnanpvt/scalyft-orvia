@@ -59,6 +59,7 @@ import { useTheme } from "@/lib/theme"
 import { supabase } from "@/lib/supabase"
 import { TestCallButton } from "@/components/dashboard/test-call-button"
 import { HoverTip, agentStatusCopy } from "@/components/dashboard/hover-tip"
+import { SHOW_AGENT_SETUP_STATUS } from "@/lib/dev-flags"
 import { pickGreeting, type Greeting } from "@/lib/greetings"
 import type { Call, Appointment, OperationalEvent, CallQueueItem } from "@/lib/types"
 
@@ -1407,7 +1408,7 @@ export default function OverviewPage() {
   const leads = d?.leadsToday ?? 0
   const upcomingAppointments = d?.upcomingAppointments ?? []
   const recentCalls = d?.recentCalls ?? []
-  const clinicActive = d?.businessStatus === "active" && d?.businessHasPhone && (d?.hasCredits ?? false)
+  const clinicActive = !SHOW_AGENT_SETUP_STATUS || (d?.businessStatus === "active" && d?.businessHasPhone && (d?.hasCredits ?? false))
   const secondsRemaining = d?.secondsRemaining ?? 0
   const allowOverage = d?.allowOverage ?? false
 

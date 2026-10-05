@@ -53,6 +53,32 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Invalid JSON body" }, 400);
   }
 
+  // Gemini calls send no end-of-call report (that's a Vapi webhook), so the
+  // call row the booking tools created stays "in_progress" and the dashboard
+  // shows "On call" forever. The browser calls this when the call ends.
+  // The business is resolved from the signed-in user here, not from the demo
+  // token, whose signature isn't checked in this function.
+  if (body.tool === "finish") {
+    if (!body.call_id) return json({ error: "Missing call_id" }, 400);
+    const db = createClient(supabaseUrl, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
+    const { data: auth } = await db.auth.getUser((req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, ""));
+    if (!auth.user) return json({ error: "Not authenticated" }, 401);
+    const { data: userRow } = await db.from("users").select("business_id").eq("id", auth.user.id).single();
+    if (!userRow?.business_id) return json({ error: "No business associated with this account" }, 400);
+    const secs = Number((body.args as { duration_secs?: unknown } | undefined)?.duration_secs);
+    const { error } = await db
+      .from("calls")
+      .update({
+        status: "completed",
+        ended_at: new Date().toISOString(),
+        ...(Number.isFinite(secs) && secs >= 0 ? { duration_secs: Math.round(secs) } : {}),
+      })
+      .eq("vapi_call_id", body.call_id)
+      .eq("business_id", userRow.business_id)
+      .eq("status", "in_progress");
+    return json({ ok: !error });
+  }
+
   // The gateway has already verified the user's JWT (verify_jwt is on).
   const demoToken = req.headers.get("x-orvia-demo-token");
   let businessId: string | null = demoToken ? demoToken.split(".")[0] || null : null;

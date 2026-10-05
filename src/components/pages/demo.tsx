@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   PhoneCall, PhoneOff, Loader2, Mic, CalendarCheck2, CalendarSearch, MessageSquareText, BellRing,
   Clock, RotateCcw, FastForward, PhoneIncoming, Volume2, X,
@@ -7,7 +7,9 @@ import {
 
 import { getBusinessSettings, getActiveVapiPublicKey, getAppointmentByVapiCallId } from "@/lib/api"
 import { useGeminiCall } from "@/lib/gemini/use-gemini-call"
-import { loadGeminiOptions, saveGeminiOptions, type GeminiOptions } from "@/lib/gemini/options"
+import { DEFAULT_GEMINI_OPTIONS, loadGeminiOptions, saveGeminiOptions, type GeminiOptions } from "@/lib/gemini/options"
+import { useGuestNiche } from "@/lib/guest/session"
+import { recordGuestCall } from "@/lib/guest/data"
 import { GeminiSettings } from "@/components/dashboard/gemini-settings"
 import { SpikeCalendar } from "@/components/dashboard/spike-calendar"
 import { useAssistantCall, type CallPhase, type TranscriptEntry } from "@/lib/vapi/use-assistant-call"
@@ -509,12 +511,17 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
   const { data: business } = useQuery({ queryKey: ["business-settings"], queryFn: getBusinessSettings })
   const { data: activeVaultKey } = useQuery({ queryKey: ["active-vapi-key"], queryFn: getActiveVapiPublicKey, staleTime: 10_000 })
 
-  // Spike: /demo?engine=gemini runs the voice on Gemini Live instead of Vapi.
-  const useGemini = engine ? engine === "gemini" : typeof window !== "undefined" && new URLSearchParams(window.location.search).get("engine") === "gemini"
+  // Guests (no account) always talk to Gemini with simulated tools: free,
+  // instant, and nothing touches a database. Spike: /demo?engine=gemini runs
+  // the voice on Gemini Live instead of Vapi.
+  const isGuest = useGuestNiche() !== null
+  const useGemini = isGuest || (engine ? engine === "gemini" : typeof window !== "undefined" && new URLSearchParams(window.location.search).get("engine") === "gemini")
   const vapiCall = useAssistantCall()
   const geminiCall = useGeminiCall()
   const call = useGemini ? geminiCall : vapiCall
-  const [geminiOpts, setGeminiOpts] = useState<GeminiOptions>(loadGeminiOptions)
+  const queryClient = useQueryClient()
+  const [savedGeminiOpts, setGeminiOpts] = useState<GeminiOptions>(loadGeminiOptions)
+  const geminiOpts = isGuest ? DEFAULT_GEMINI_OPTIONS : savedGeminiOpts
   const updateGeminiOpts = (v: GeminiOptions) => { setGeminiOpts(v); saveGeminiOptions(v) }
   const [appointment, setAppointment] = useState<Appointment | null>(null)
 
@@ -535,6 +542,21 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
     const t = setInterval(() => setSimulatedNow(new Date(Date.now() + timeOffsetMs)), 1000)
     return () => clearInterval(t)
   }, [timeOffsetMs])
+
+  // Guest: when a call ends, add it to their Calls history so the dashboard
+  // reflects what they just did.
+  const recordedCallRef = useRef<string | null>(null)
+  const { phase: gPhase, vapiCallId: gCallId, transcript: gTranscript, elapsed: gElapsed, lastBooking: gBooking } = geminiCall
+  useEffect(() => {
+    if (!isGuest || gPhase !== "ended" || !gCallId || recordedCallRef.current === gCallId) return
+    recordedCallRef.current = gCallId
+    recordGuestCall({
+      transcript: gTranscript.filter(t => t.text.trim()).map(t => ({ role: t.role, content: t.text })),
+      durationSecs: gElapsed,
+      booking: gBooking,
+    })
+    void queryClient.invalidateQueries()
+  }, [isGuest, gPhase, gCallId, gTranscript, gElapsed, gBooking, queryClient])
 
   // Gemini spike with simulated tools: bookings live in the spike calendar,
   // not Supabase, so there's nothing to poll for.
@@ -648,7 +670,7 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <span className="animate-live-pulse" style={{ width: 7, height: 7, borderRadius: "50%", background: "#10B981" }} />
           <p style={{ fontSize: 11, fontWeight: 700, color: "var(--muted-foreground)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
-            Live demo · {NICHE_LABEL[niche] ?? "AI receptionist"}{useGemini ? " · Gemini spike" : ""}
+            Live demo · {NICHE_LABEL[niche] ?? "AI receptionist"}{useGemini && !isGuest ? " · Gemini spike" : ""}
           </p>
         </div>
         <h1 style={{ fontSize: 28, fontWeight: 700, color: "var(--foreground)", letterSpacing: "-0.03em", marginBottom: 6 }}>
@@ -659,7 +681,7 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
         </p>
       </div>
 
-      {useGemini && (
+      {useGemini && !isGuest && (
         <GeminiSettings value={geminiOpts} onChange={updateGeminiOpts} locked={busy || call.phase === "active"} activeModel={geminiCall.activeModel} />
       )}
 

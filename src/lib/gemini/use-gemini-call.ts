@@ -65,12 +65,17 @@ function phraseMatcher(phrases: string[]): RegExp | null {
   return new RegExp(`\\b(${escaped.join("|")})\\b`, "i")
 }
 
+const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+
+// Guests have no session. They may only mint Gemini tokens, which the edge
+// function allows for the public anon key; every other function needs a user.
 async function authedFetch(path: string, init?: RequestInit): Promise<Response> {
   const { data: { session } } = await supabase.auth.getSession()
-  if (!session) throw new Error("Not signed in")
+  if (!session && path !== "gemini-live-token") throw new Error("Not signed in")
+  const bearer = session?.access_token ?? ANON_KEY
   return fetch(`${SUPABASE_URL}/functions/v1/${path}`, {
     ...init,
-    headers: { ...init?.headers, Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+    headers: { ...init?.headers, apikey: ANON_KEY, Authorization: `Bearer ${bearer}`, "Content-Type": "application/json" },
   })
 }
 
@@ -228,10 +233,21 @@ export function useGeminiCall() {
     let micLive = false
     let assistantPlaying = false
     let closed = false
+    // Real tools only: the call row the booking tool creates must be closed
+    // when the call ends, or the dashboard shows "On call" indefinitely.
+    let finishInfo: { callId: string; startedAt: number; headers: Record<string, string> } | null = null
 
     const teardown = () => {
       if (closed) return
       closed = true
+      if (finishInfo) {
+        const { callId, startedAt, headers } = finishInfo
+        finishInfo = null
+        void authedFetch("gemini-tool", {
+          method: "POST", headers, keepalive: true,
+          body: JSON.stringify({ tool: "finish", call_id: callId, args: { duration_secs: (Date.now() - startedAt) / 1000 } }),
+        }).catch(() => {})
+      }
       try { sessionRef.current?.close() } catch { /* already closed */ }
       sessionRef.current = null
       try { transcriber?.close() } catch { /* already closed */ }
@@ -295,6 +311,7 @@ export function useGeminiCall() {
       setPhase("connecting")
       const callId = `gemini-${crypto.randomUUID()}`
       setVapiCallId(callId)
+      if (liveTools) finishInfo = { callId, startedAt: Date.now(), headers: toolHeaders }
 
       // Reuse the Vapi config builder so the prompt and tool schemas stay in one place.
       const cfg = buildAssistantConfig(business, SUPABASE_URL) as unknown as {

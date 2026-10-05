@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect } from "react";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { SHOW_AGENT_SETUP_STATUS } from "@/lib/dev-flags";
+import { endGuest, startGuest, useGuestNiche } from "@/lib/guest/session";
+import { NICHE_PRESETS } from "@/lib/niche-presets";
 import { getBusinessBilling } from "@/lib/api";
 import { CommandPalette } from "@/components/dashboard/command-palette";
 import { OrviaLogo } from "@/components/brand/orvia-logo";
@@ -28,6 +31,8 @@ import {
   ShieldCheck,
   ChevronRight,
   Sparkles,
+  Check,
+  Repeat,
 } from "lucide-react";
 
 // ─── Animated Hamburger (21st.dev) ────────────────────────
@@ -164,6 +169,10 @@ function BookingToastsBridge() {
 
 function UserDropdown() {
   const { profile, signOut, updateProfile } = useAuth();
+  const guestNiche = useGuestNiche();
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const guestPreset = NICHE_PRESETS.find(p => p.id === guestNiche);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(profile.fullName ?? "");
@@ -182,7 +191,8 @@ function UserDropdown() {
 
   useEffect(() => { setNameInput(profile.fullName ?? ""); }, [profile.fullName]);
 
-  const displayName = profile.fullName || profile.email?.split("@")[0] || "User";
+  const displayName = guestPreset ? "Guest" : profile.fullName || profile.email?.split("@")[0] || "User";
+  const subline = guestPreset ? guestPreset.label : profile.email;
   const initials = displayName.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
 
   async function handleSaveName() {
@@ -219,7 +229,7 @@ function UserDropdown() {
             {displayName}
           </p>
           <p style={{ fontSize: 11, color: "var(--muted-foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: 1.3 }}>
-            {profile.email}
+            {subline}
           </p>
         </div>
         {open
@@ -267,12 +277,32 @@ function UserDropdown() {
                   {displayName}
                 </p>
                 <p style={{ fontSize: 11.5, color: "var(--muted-foreground)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {profile.email}
+                  {subline}
                 </p>
               </>
             )}
           </div>
-          {!editing && (
+          {!editing && guestPreset && (
+            <div style={{ padding: 4 }}>
+              <p style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--muted-foreground)", padding: "6px 10px 4px" }}>
+                Switch domain
+              </p>
+              {NICHE_PRESETS.map(p => (
+                <MenuItem key={p.id} icon={p.id === guestNiche ? Check : Repeat} label={p.label}
+                  onClick={() => {
+                    setOpen(false);
+                    if (p.id === guestNiche) return;
+                    startGuest(p.id);
+                    // Every cached query belongs to the previous domain.
+                    queryClient.clear();
+                    navigate({ to: "/" });
+                  }} />
+              ))}
+              <div style={{ height: 1, background: "var(--border)", margin: "4px 2px" }} />
+              <MenuItem icon={LogOut} label="Sign in to an account" onClick={() => { setOpen(false); endGuest(); queryClient.clear(); navigate({ to: "/login" }); }} />
+            </div>
+          )}
+          {!editing && !guestPreset && (
             <div style={{ padding: 4 }}>
               <MenuItem icon={Pencil} label="Edit name" onClick={() => setEditing(true)} />
               <MenuItem icon={LogOut} label="Sign out" danger onClick={() => { setOpen(false); signOut(); }} />
@@ -349,11 +379,13 @@ function AgentCard() {
   });
 
   const secs = billing?.seconds_remaining ?? null;
-  const isExhausted = secs !== null && secs <= 0 && !billing?.allow_overage;
-  const isLow = secs !== null && secs > 0 && secs <= 1800;
+  // Setup and billing states are hidden while SHOW_AGENT_SETUP_STATUS is off
+  // (see dev-flags.ts), so the pill reads "Live" instead of "Offline".
+  const isExhausted = SHOW_AGENT_SETUP_STATUS && secs !== null && secs <= 0 && !billing?.allow_overage;
+  const isLow = SHOW_AGENT_SETUP_STATUS && secs !== null && secs > 0 && secs <= 1800;
   // Must match the "clinicActive" derivation on the Overview page — not just
   // credits, but also business status and whether a phone number is provisioned.
-  const notConfigured = billing?.status !== "active" || !billing?.vapi_phone_id;
+  const notConfigured = SHOW_AGENT_SETUP_STATUS && (billing?.status !== "active" || !billing?.vapi_phone_id);
 
   const statusDot = isExhausted || notConfigured ? "#E5484D" : isLow ? "#F59E0B" : "#10B981";
   const statusText = isExhausted ? "Paused" : notConfigured ? "Offline" : isLow ? "Low credit" : "Live";
@@ -401,7 +433,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = routerState.location.pathname;
   const [mobileOpen, setMobileOpen] = useState(false);
   const { signOut, profile } = useAuth();
-  const isAdmin = profile.role === "admin";
+  const isGuest = useGuestNiche() !== null;
+  const isAdmin = !isGuest && profile.role === "admin";
 
   return (
     <ToastProvider>
@@ -485,7 +518,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 );
               })}
             </div>
-            <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--sidebar-border)" }}>
+            {!isGuest && <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--sidebar-border)" }}>
               {NAV_OTHER.map(({ label, to, icon: Icon }) => {
                 const isActive = pathname.startsWith(to);
                 return (
@@ -502,7 +535,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   </Link>
                 );
               })}
-            </div>
+            </div>}
             {isAdmin && (
               <AdminNavGroup pathname={pathname} renderItem={({ label, to, icon: Icon }) => {
                 const isActive = pathname.startsWith(to);
@@ -532,7 +565,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 cursor: "pointer", width: "100%", fontFamily: "inherit",
               }}>
               <LogOut style={{ width: 16, height: 16 }} strokeWidth={1.5} />
-              Sign out
+              {isGuest ? "Exit guest mode" : "Sign out"}
             </button>
           </div>
         </div>
@@ -589,9 +622,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <div>
             {NAV_MAIN.map(item => <NavItem key={item.to} {...item} pathname={pathname} />)}
           </div>
-          <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--sidebar-border)" }}>
-            {NAV_OTHER.map(item => <NavItem key={item.to} {...item} pathname={pathname} />)}
-          </div>
+          {!isGuest && (
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--sidebar-border)" }}>
+              {NAV_OTHER.map(item => <NavItem key={item.to} {...item} pathname={pathname} />)}
+            </div>
+          )}
           {isAdmin && (
             <AdminNavGroup pathname={pathname} renderItem={item => <NavItem key={item.to} {...item} pathname={pathname} />} />
           )}

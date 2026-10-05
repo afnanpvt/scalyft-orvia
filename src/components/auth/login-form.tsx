@@ -1,8 +1,11 @@
 import { useRef, useState, type FormEvent } from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
-import { Eye, EyeOff, Loader2 } from "lucide-react"
+import { useQueryClient } from "@tanstack/react-query"
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Loader2 } from "lucide-react"
 import { useAuth } from "@/lib/auth"
 import { AuthVisual } from "@/components/auth/auth-visual"
+import { startGuest } from "@/lib/guest/session"
+import { NICHE_PRESETS } from "@/lib/niche-presets"
 import { AuthShell, ErrorBanner, fadeUpStyle, useShake, useShellSequence } from "@/components/auth/auth-shell"
 
 export function LoginForm() {
@@ -13,6 +16,14 @@ export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false)
   const { signIn } = useAuth()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [pickingGuest, setPickingGuest] = useState(false)
+
+  function enterAsGuest(niche: (typeof NICHE_PRESETS)[number]["id"]) {
+    startGuest(niche)
+    queryClient.clear()
+    navigate({ to: "/" })
+  }
 
   const formReady = useShellSequence()
   const passwordRef = useRef<HTMLDivElement>(null)
@@ -41,9 +52,43 @@ export function LoginForm() {
   return (
     <AuthShell
       visual={<AuthVisual />}
-      heading="Sign in to Orvia"
-      subheading="Your AI front desk is waiting"
+      heading={pickingGuest ? "Try Orvia as a guest" : "Sign in to Orvia"}
+      subheading={pickingGuest ? "See the dashboard and talk to your AI front desk" : "Your AI front desk is waiting"}
     >
+      {pickingGuest ? (
+        <div style={fadeUpStyle(formReady, 0)}>
+          <button
+            type="button"
+            onClick={() => setPickingGuest(false)}
+            className="mb-5 inline-flex items-center gap-1.5 text-[12px] text-muted-foreground/70 hover:text-foreground transition-colors cursor-pointer"
+          >
+            <ArrowLeft size={13} strokeWidth={1.75} /> Back to sign in
+          </button>
+          <p className="text-[10px] font-medium uppercase tracking-[0.1em] text-muted-foreground/65 mb-3">
+            Pick a business to try
+          </p>
+          <div className="flex flex-col gap-2">
+            {NICHE_PRESETS.map(p => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => enterAsGuest(p.id)}
+                className="group flex items-center gap-3 rounded-2xl border border-border px-4 py-3 text-left cursor-pointer hover:border-foreground/40 hover:bg-accent transition-colors"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13.5px] font-medium text-foreground">{p.label}</span>
+                  <span className="block text-[11.5px] text-muted-foreground leading-snug mt-0.5">{p.pitch}</span>
+                </span>
+                <ArrowRight size={14} strokeWidth={1.75} className="shrink-0 text-muted-foreground/50 group-hover:text-foreground transition-colors" />
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground/55 mt-5 text-center">
+            No account needed. Your calls and bookings stay in this browser.
+          </p>
+        </div>
+      ) : (
+      <>
       <form onSubmit={handleSubmit} className="space-y-5">
         <div style={fadeUpStyle(formReady, 0)}>
           <label
@@ -120,6 +165,21 @@ export function LoginForm() {
         </button>
       </form>
 
+      <div style={fadeUpStyle(formReady, 3)} className="mt-5">
+        <div className="flex items-center gap-3 mb-4">
+          <span className="h-px flex-1 bg-border" />
+          <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground/55">or</span>
+          <span className="h-px flex-1 bg-border" />
+        </div>
+        <button
+          type="button"
+          onClick={() => setPickingGuest(true)}
+          className="w-full h-11 rounded-2xl border border-border bg-transparent text-foreground text-[13px] font-medium cursor-pointer hover:bg-accent transition-colors"
+        >
+          Continue as guest
+        </button>
+      </div>
+
       <p
         className="text-[11px] text-muted-foreground/55 mt-10 text-center"
         style={fadeUpStyle(formReady, 3)}
@@ -132,6 +192,8 @@ export function LoginForm() {
           Contact support@scalyft.tech
         </a>
       </p>
+      </>
+      )}
     </AuthShell>
   )
 }
