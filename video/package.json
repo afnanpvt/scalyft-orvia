@@ -10,7 +10,9 @@
     "render:all": "npm run render && npm run render:vertical",
     "audio": "node audio/make-audio.mjs",
     "render:audio": "npm run audio && ffmpeg -y -i out/orvia-16x9.mp4 -i out/audio.wav -map 0:v -map 1:a -c:v copy -af loudnorm=I=-16:TP=-1.5:LRA=7 -c:a aac -b:a 192k -ar 48000 -shortest out/orvia-16x9-audio.mp4 && ffmpeg -y -i out/orvia-9x16.mp4 -i out/audio.wav -map 0:v -map 1:a -c:v copy -af loudnorm=I=-16:TP=-1.5:LRA=7 -c:a aac -b:a 192k -ar 48000 -shortest out/orvia-9x16-audio.mp4",
-    "render:narrated": "npm run audio -- --vo && remotion render src/index.ts Orvia16x9VO out/narrated-16x9.mp4 && remotion render src/index.ts Orvia9x16VO out/narrated-9x16.mp4 && node audio/make-voiceover.mjs"
+    "render:narrated": "npm run audio -- --vo && remotion render src/index.ts Orvia16x9VO out/narrated-16x9.mp4 && remotion render src/index.ts Orvia9x16VO out/narrated-9x16.mp4 && node audio/make-voiceover.mjs",
+    "render:exotic": "remotion render src/index.ts Exotic16x9 out/exotic-16x9.mp4 && remotion render src/index.ts Exotic9x16 out/exotic-9x16.mp4",
+    "narration": "node audio/make-narration.mjs"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.533",

@@ -1,0 +1,76 @@
+{
+  "fps": 30,
+  "durationInFrames": 938,
+  "units": [
+    {
+      "text": "Your phone rings.",
+      "start": 0.78,
+      "end": 1.9
+    },
+    {
+      "text": "Your hands are full.",
+      "start": 2.21,
+      "end": 3.4
+    },
+    {
+      "text": "So the customer calls someone else.",
+      "start": 3.65,
+      "end": 5.38
+    },
+    {
+      "text": "Meet Orvia.",
+      "start": 5.99,
+      "end": 7.24
+    },
+    {
+      "text": "An AI receptionist that answers every call, day and night.",
+      "start": 7.58,
+      "end": 11.52
+    },
+    {
+      "text": "She finds a time, books the job, and updates your calendar, instantly.",
+      "start": 11.95,
+      "end": 16.56
+    },
+    {
+      "text": "Every call is summarized, so you always know what happened.",
+      "start": 17.05,
+      "end": 20.11
+    },
+    {
+      "text": "Plumbing.",
+      "start": 20.59,
+      "end": 21.03
+    },
+    {
+      "text": "Dental.",
+      "start": 21.36,
+      "end": 21.82
+    },
+    {
+      "text": "H V A C.",
+      "start": 22.19,
+      "end": 22.87
+    },
+    {
+      "text": "Real estate.",
+      "start": 23.11,
+      "end": 23.81
+    },
+    {
+      "text": "Whatever you run, she fits in.",
+      "start": 24.19,
+      "end": 26
+    },
+    {
+      "text": "Hear her for yourself.",
+      "start": 26.55,
+      "end": 27.5
+    },
+    {
+      "text": "Try the live demo, no signup.",
+      "start": 27.84,
+      "end": 29.86
+    }
+  ]
+}

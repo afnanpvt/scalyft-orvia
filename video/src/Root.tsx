@@ -1,6 +1,8 @@
 import React from "react"
 import { Composition, Sequence } from "remotion"
 import { CallScene, Cta, Dashboard, Hook, Industries, Reveal } from "./scenes"
+import { ExoticAd } from "./Exotic"
+import { TOTAL as EXOTIC_TOTAL } from "./kit"
 
 // Scenes overlap by ~10-20 frames so each one fades or wipes over the last.
 const SCENES = [
@@ -41,6 +43,8 @@ const NarratedAd: React.FC = () => (
 
 export const RemotionRoot: React.FC = () => (
   <>
+    <Composition id="Exotic16x9" component={ExoticAd} durationInFrames={EXOTIC_TOTAL} fps={30} width={1920} height={1080} />
+    <Composition id="Exotic9x16" component={ExoticAd} durationInFrames={EXOTIC_TOTAL} fps={30} width={1080} height={1920} />
     <Composition id="Orvia16x9" component={Ad} durationInFrames={TOTAL} fps={30} width={1920} height={1080} />
     <Composition id="Orvia9x16" component={Ad} durationInFrames={TOTAL} fps={30} width={1080} height={1920} />
     <Composition id="Orvia16x9VO" component={NarratedAd} durationInFrames={VO_TOTAL} fps={30} width={1920} height={1080} />
