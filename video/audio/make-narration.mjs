@@ -51,6 +51,28 @@ const SCRIPTS = {
   },
 }
 
+// Light, minimal cut: gender neutral wording, shows the dashboard and calls page.
+SCRIPTS.clean = {
+  out: "vo-clean", timing: "vo-clean-timing.json", voice: "Algieba",
+  units: [
+    "Your phone rings.",
+    "Your hands are full.",
+    "So the customer calls someone else.",
+    "Meet Orvia.",
+    "An AI receptionist that answers every call, day and night.",
+    "It finds a time, books the job, and updates your calendar, instantly.",
+    "Every booking and lead lands in one dashboard.",
+    "Every call is summarized, so you always know what happened.",
+    "Plumbing.",
+    "Dental.",
+    "H V A C.",
+    "Real estate.",
+    "Whatever you run, it fits in.",
+    "Hear it for yourself.",
+    "Try the live demo, no signup.",
+  ],
+}
+
 const NAME = process.argv[2] || "exotic"
 const cfg = SCRIPTS[NAME]
 if (!cfg) { console.error(`Unknown script "${NAME}". Choose: ${Object.keys(SCRIPTS).join(", ")}`); process.exit(1) }
