@@ -1,41 +1,66 @@
-// Voice-only narration for the "Exotic" cut. One TTS request for the whole
-// script (the free tier allows only ~10 requests a day per model), then the
-// pauses in the audio are used to find where each unit starts, so the
-// animation is timed to the real voice.
+// Voice-only narration for a video. One TTS request for the whole script (the
+// free tier allows only ~10 requests a day per model), then the pauses in the
+// audio are used to find where each unit starts, so the animation is timed to
+// the real voice.
 //
-//   GEMINI_API_KEY=... node audio/make-narration.mjs
+//   GEMINI_API_KEY=... node audio/make-narration.mjs <script>     (script: exotic | day)
 //
-// Writes public/vo2/narration.wav and src/vo2-timing.json. Key is read from
-// the environment only.
+// Writes public/<out>/narration.wav and src/<timing>.json. The key is read
+// from the environment only. Add a script to SCRIPTS to make another video.
 
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs"
 import { spawnSync } from "node:child_process"
 
-const MODELS = (process.env.TTS_MODEL || "gemini-3.1-flash-tts-preview,gemini-3.8-flash-lite-tts,gemini-2.5-flash-preview-tts").split(",")
-const VOICE = process.env.TTS_VOICE || "Algieba"
+// Each unit is one visual beat. Units end in full stops so the voice pauses.
+const SCRIPTS = {
+  exotic: {
+    out: "vo2", timing: "vo2-timing.json", voice: "Algieba",
+    units: [
+      "Your phone rings.",
+      "Your hands are full.",
+      "So the customer calls someone else.",
+      "Meet Orvia.",
+      "An AI receptionist that answers every call, day and night.",
+      "She finds a time, books the job, and updates your calendar, instantly.",
+      "Every call is summarized, so you always know what happened.",
+      "Plumbing.",
+      "Dental.",
+      "H V A C.",
+      "Real estate.",
+      "Whatever you run, she fits in.",
+      "Hear her for yourself.",
+      "Try the live demo, no signup.",
+    ],
+  },
+  day: {
+    out: "vo-day", timing: "vo-day-timing.json", voice: "Sulafat",
+    units: [
+      "Six fifteen AM.",
+      "A leaking tap, booked before breakfast.",
+      "Twelve forty.",
+      "A dental cleaning, booked on a lunch break.",
+      "Six fifty-five PM.",
+      "An air conditioner that will not cool. Booked.",
+      "Two oh three AM.",
+      "A burst pipe, and everyone is asleep. Except Orvia.",
+      "Four calls. Four bookings.",
+      "No night shift. No missed calls.",
+      "Orvia. Open twenty-four hours.",
+      "Try the live demo, no signup.",
+    ],
+  },
+}
 
-// One unit = one visual beat. Units are separated by full stops so the voice
-// pauses between them.
-export const UNITS = [
-  "Your phone rings.",
-  "Your hands are full.",
-  "So the customer calls someone else.",
-  "Meet Orvia.",
-  "An AI receptionist that answers every call, day and night.",
-  "She finds a time, books the job, and updates your calendar, instantly.",
-  "Every call is summarized, so you always know what happened.",
-  "Plumbing.",
-  "Dental.",
-  "H V A C.",
-  "Real estate.",
-  "Whatever you run, she fits in.",
-  "Hear her for yourself.",
-  "Try the live demo, no signup.",
-]
+const NAME = process.argv[2] || "exotic"
+const cfg = SCRIPTS[NAME]
+if (!cfg) { console.error(`Unknown script "${NAME}". Choose: ${Object.keys(SCRIPTS).join(", ")}`); process.exit(1) }
+const UNITS = cfg.units
+const VOICE = process.env.TTS_VOICE || cfg.voice
+const MODELS = (process.env.TTS_MODEL || "gemini-3.1-flash-tts-preview,gemini-3.8-flash-lite-tts,gemini-2.5-flash-preview-tts,gemini-3.8-flash-tts").split(",")
 
-mkdirSync("public/vo2", { recursive: true })
-mkdirSync("out/vo2", { recursive: true })
-const raw = "out/vo2/raw.wav"
+mkdirSync(`public/${cfg.out}`, { recursive: true })
+mkdirSync(`out/${cfg.out}`, { recursive: true })
+const raw = `out/${cfg.out}/raw.wav`
 
 function wav(pcm, rate) {
   const h = Buffer.alloc(44)
@@ -71,7 +96,7 @@ async function synth() {
 
 await synth()
 
-// Speech segments from amplitude: runs above the threshold, merged across gaps shorter than minGap.
+// Speech runs from amplitude, merged across tiny dips (consonants).
 const b = readFileSync(raw), rate = b.readUInt32LE(24)
 const s = new Int16Array(b.buffer.slice(b.byteOffset + 44, b.byteOffset + b.length - ((b.length - 44) % 2)))
 const win = Math.round(rate * 0.01)
@@ -88,16 +113,13 @@ loud.forEach((on, i) => {
   if (!on && start >= 0) { segs.push([start * 0.01, i * 0.01]); start = -1 }
 })
 if (start >= 0) segs.push([start * 0.01, loud.length * 0.01])
-// Merge runs separated by tiny dips (consonants), keeping real pauses.
 const merged = []
 for (const g of segs) {
   const last = merged[merged.length - 1]
   if (last && g[0] - last[1] < 0.12) last[1] = g[1]
   else merged.push([...g])
 }
-const gaps = merged.slice(1).map((g, i) => ({ i, len: g[0] - merged[i][1] }))
-console.log(`${merged.length} speech runs, ${gaps.length} gaps; need ${UNITS.length} units`)
-
+console.log(`${merged.length} speech runs; need ${UNITS.length} units`)
 if (process.env.DEBUG) merged.forEach((g, i) => console.log(`run ${i}: ${g[0].toFixed(2)}-${g[1].toFixed(2)} (${(g[1] - g[0]).toFixed(2)}s)`))
 
 // Assign runs to units: contiguous groups whose lengths best match each
@@ -124,6 +146,7 @@ for (let u = 1; u <= U; u++) {
     }
   }
 }
+if (best[U][R] === Infinity) { console.error("Could not split the audio into the expected units"); process.exit(2) }
 const units = []
 for (let u = U, b = R; u >= 1; u--) { const a = from[u][b]; units.unshift([merged[a][0], merged[b - 1][1]]); b = a }
 units.forEach((u, i) => console.log(`${String(i).padStart(2)} ${u[0].toFixed(2)}-${u[1].toFixed(2)}  ${UNITS[i]}`))
@@ -133,13 +156,13 @@ const LEAD = 0.5, TAIL = 1.4
 const dur = units[units.length - 1][1] + LEAD + TAIL
 const r = spawnSync("ffmpeg", ["-v", "error", "-y", "-i", raw, "-af",
   `highpass=f=70,loudnorm=I=-16:TP=-1.5:LRA=7,adelay=${LEAD * 1000}|${LEAD * 1000},apad=whole_dur=${dur.toFixed(3)}`,
-  "-ar", "48000", "-ac", "1", "-t", dur.toFixed(3), "public/vo2/narration.wav"], { encoding: "utf8" })
+  "-ar", "48000", "-ac", "1", "-t", dur.toFixed(3), `public/${cfg.out}/narration.wav`], { encoding: "utf8" })
 if (r.status !== 0) { console.error(r.stderr); process.exit(1) }
 
 const fps = 30
-writeFileSync("src/vo2-timing.json", JSON.stringify({
+writeFileSync(`src/${cfg.timing}`, JSON.stringify({
   fps,
   durationInFrames: Math.ceil(dur * fps),
   units: units.map((u, i) => ({ text: UNITS[i], start: +(u[0] + LEAD).toFixed(3), end: +(u[1] + LEAD).toFixed(3) })),
 }, null, 2) + "\n")
-console.log(`wrote public/vo2/narration.wav (${dur.toFixed(1)}s) and src/vo2-timing.json`)
+console.log(`wrote public/${cfg.out}/narration.wav (${dur.toFixed(1)}s) and src/${cfg.timing}`)
