@@ -5,9 +5,16 @@
 
 import { writeFileSync, mkdirSync } from "node:fs"
 
+// --vo retimes the score to the narrated cut (see src/Root.tsx), which gives
+// the voice more room: scene starts move later and the video runs longer.
+const VO = process.argv.includes("--vo")
+const SCENE = VO
+  ? { call: 270, dash: 475, ind: 655, cta: 895, total: 1070, highlights: [23, 51, 77, 105, 134] }
+  : { call: 210, dash: 400, ind: 590, cta: 730, total: 870, highlights: [44, 61, 78, 95, 112] }
+
 const SR = 44100
-const SECONDS = 29
-const N = SR * SECONDS
+const SECONDS = SCENE.total / 30
+const N = Math.round(SR * SECONDS)
 const f = frame => frame / 30
 
 // Deterministic noise so every render sounds the same.
@@ -38,7 +45,7 @@ const run = (s, x) => {
 }
 const setCoef = (s, o) => { s.b0 = o.b0; s.b1 = o.b1; s.b2 = o.b2; s.a1 = o.a1; s.a2 = o.a2 }
 
-// â”€â”€â”€ Voices (each returns a mono Float32Array) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Voices (each returns a mono Float32Array) ---
 
 function dum(vel = 1, len = 0.55) {
   const n = Math.floor(SR * len), out = new Float32Array(n)
@@ -125,7 +132,7 @@ function whoosh(dur, lo, hi, dir = 1, vel = 1, q = 1.4) {
   return out
 }
 
-// â”€â”€â”€ Buses and placement â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Buses and placement ---
 
 const mk = () => ({ l: new Float32Array(N), r: new Float32Array(N) })
 const drums = mk(), fx = mk(), air = mk()
@@ -173,7 +180,7 @@ function reverb(bus, mix, decay = 0.82) {
   for (let i = 0; i < N; i++) { bus.l[i] += wl[i] * mix; bus.r[i] += wr[i] * mix }
 }
 
-// â”€â”€â”€ Score â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Score ---
 
 const BPM = 90, T0 = 4.0
 const beat = 60 / BPM, eighth = beat / 2, sixteenth = beat / 4, bar = beat * 4
@@ -200,12 +207,13 @@ put(fx, f(160), tick(0.22), 0)
 put(fx, f(176), pop(0.4, 520), 0)
 
 // The groove, a maqsum: Dum Tek . Tek | Dum . Tek .
+const lastBar = T0 + Math.floor((SECONDS - 1 - T0) / bar) * bar
 const sections = [
-  { from: T0, to: T0 + 3.0, vel: 0.5, full: false, ghost: false },
-  { from: T0 + 3.0, to: 13.33, vel: 0.72, full: true, ghost: false },
-  { from: 13.33, to: 19.67, vel: 0.84, full: true, ghost: true },
-  { from: 19.67, to: 24.33, vel: 0.92, full: true, ghost: true },
-  { from: 24.33, to: 28.0, vel: 1.0, full: true, ghost: true },
+  { from: T0, to: f(SCENE.call), vel: 0.5, full: false, ghost: false },
+  { from: f(SCENE.call), to: f(SCENE.dash), vel: 0.72, full: true, ghost: false },
+  { from: f(SCENE.dash), to: f(SCENE.ind), vel: 0.84, full: true, ghost: true },
+  { from: f(SCENE.ind), to: f(SCENE.cta), vel: 0.92, full: true, ghost: true },
+  { from: f(SCENE.cta), to: lastBar, vel: 1.0, full: true, ghost: true },
 ]
 const pattern = ["D", "", "T", "T", "D", "", "T", ""]
 for (const sec of sections) {
@@ -231,40 +239,43 @@ for (const sec of sections) {
     }
   }
 }
-// Closing hit.
-put(drums, 28.0, dum(1.05, 0.9), 0)
-put(drums, 28.0, jingle(0.4, 0.9), 0.2)
+// Closing hit, on the last bar line that leaves a second of tail.
+put(drums, lastBar, dum(1.05, 0.9), 0)
+put(drums, lastBar, jingle(0.4, 0.9), 0.2)
 
-// Call scene UI (scene starts at frame 210).
-put(fx, f(210), whoosh(0.5, 400, 3500, 1, 0.3), 0)
-;[222, 272, 322, 344].forEach((fr, i) => put(fx, f(fr), pop(0.32, 380 + (i % 2) * 90), i % 2 ? 0.2 : -0.2))
-put(fx, f(314), tick(0.4, 2200), 0)
-put(fx, f(350), pop(0.5, 420), 0.1)
-put(fx, f(352), pop(0.45, 630), 0.1)
-put(fx, f(352) + 0.05, whoosh(0.5, 2500, 9000, 1, 0.22), 0)
-put(fx, f(362), pop(0.4, 480), 0.2)
+// Scene UI sounds: offsets are frames into each scene.
+const at = (scene, local) => f(scene + local)
 
-// Dashboard (scene starts at frame 400).
-put(fx, f(400), whoosh(0.55, 300, 3200, 1, 0.3), 0)
-put(fx, f(426), whoosh(2.3, 500, 4200, 1, 0.34, 2), 0)
-for (let i = 0; i < 7; i++) put(fx, f(426 + i * 11.7), pop(0.2, 520 + i * 28, 0.1), -0.3 + i * 0.1)
-for (let i = 0; i < 14; i++) put(fx, f(414) + i * 0.1, tick(0.16, 3400 + i * 90), 0.4)
-;[456, 468, 480].forEach((fr, i) => put(fx, f(fr), tick(0.32, 2400 + i * 200), 0.3))
-put(fx, f(510), pop(0.5, 400), 0)
+// Call scene.
+put(fx, at(SCENE.call, 0), whoosh(0.5, 400, 3500, 1, 0.3), 0)
+;[12, 62, 112, 134].forEach((fr, i) => put(fx, at(SCENE.call, fr), pop(0.32, 380 + (i % 2) * 90), i % 2 ? 0.2 : -0.2))
+put(fx, at(SCENE.call, 104), tick(0.4, 2200), 0)
+put(fx, at(SCENE.call, 140), pop(0.5, 420), 0.1)
+put(fx, at(SCENE.call, 142), pop(0.45, 630), 0.1)
+put(fx, at(SCENE.call, 142) + 0.05, whoosh(0.5, 2500, 9000, 1, 0.22), 0)
+put(fx, at(SCENE.call, 152), pop(0.4, 480), 0.2)
 
-// Industries (scene starts at frame 590).
-put(fx, f(590), whoosh(0.5, 300, 3000, 1, 0.3), 0)
-put(fx, f(594), tick(0.3), 0)
-for (let i = 0; i < 5; i++) put(fx, f(610 + i * 6), pop(0.26, 340 + i * 30, 0.12), -0.5 + i * 0.25)
-for (let i = 0; i < 5; i++) put(fx, f(634 + i * 17), pop(0.34, 460), -0.5 + i * 0.25)
+// Dashboard.
+put(fx, at(SCENE.dash, 0), whoosh(0.55, 300, 3200, 1, 0.3), 0)
+put(fx, at(SCENE.dash, 26), whoosh(2.3, 500, 4200, 1, 0.34, 2), 0)
+for (let i = 0; i < 7; i++) put(fx, at(SCENE.dash, 26 + i * 11.7), pop(0.2, 520 + i * 28, 0.1), -0.3 + i * 0.1)
+for (let i = 0; i < 14; i++) put(fx, at(SCENE.dash, 14) + i * 0.1, tick(0.16, 3400 + i * 90), 0.4)
+;[56, 68, 80].forEach((fr, i) => put(fx, at(SCENE.dash, fr), tick(0.32, 2400 + i * 200), 0.3))
+put(fx, at(SCENE.dash, 110), pop(0.5, 400), 0)
 
-// Call to action (scene starts at frame 730).
-put(fx, f(732), pop(0.45, 320), 0)
-put(fx, f(738), whoosh(0.7, 300, 5000, 1, 0.34), 0)
-put(fx, f(764), pop(0.4, 440), 0)
-put(fx, f(804), tick(0.9, 1500), 0)
-put(fx, f(804), thud(0.7), 0)
-put(fx, f(806), whoosh(0.9, 1500, 8000, 1, 0.3), 0)
+// Industries.
+put(fx, at(SCENE.ind, 0), whoosh(0.5, 300, 3000, 1, 0.3), 0)
+put(fx, at(SCENE.ind, 4), tick(0.3), 0)
+for (let i = 0; i < 5; i++) put(fx, at(SCENE.ind, 20 + i * 6), pop(0.26, 340 + i * 30, 0.12), -0.5 + i * 0.25)
+SCENE.highlights.forEach((fr, i) => put(fx, at(SCENE.ind, fr), pop(0.34, 460), -0.5 + i * 0.25))
+
+// Call to action.
+put(fx, at(SCENE.cta, 2), pop(0.45, 320), 0)
+put(fx, at(SCENE.cta, 8), whoosh(0.7, 300, 5000, 1, 0.34), 0)
+put(fx, at(SCENE.cta, 34), pop(0.4, 440), 0)
+put(fx, at(SCENE.cta, 74), tick(0.9, 1500), 0)
+put(fx, at(SCENE.cta, 74), thud(0.7), 0)
+put(fx, at(SCENE.cta, 76), whoosh(0.9, 1500, 8000, 1, 0.3), 0)
 
 // The air bed: a soft breath that opens up at the reveal.
 {
@@ -283,7 +294,7 @@ put(fx, f(806), whoosh(0.9, 1500, 8000, 1, 0.3), 0)
 }
 function open01(t) { return Math.min(1, Math.max(0, (t - 3.8) / 1.2)) }
 
-// â”€â”€â”€ Mix â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// --- Mix ---
 
 reverb(drums, 0.5, 0.78)
 reverb(fx, 0.35, 0.74)
@@ -309,5 +320,6 @@ data.writeUInt32LE(SR, 24); data.writeUInt32LE(SR * 4, 28); data.writeUInt16LE(4
 data.write("data", 36); data.writeUInt32LE(out.length * 2, 40)
 for (let i = 0; i < out.length; i++) data.writeInt16LE(Math.round(Math.max(-1, Math.min(1, out[i] * gain)) * 32767), 44 + i * 2)
 mkdirSync("out", { recursive: true })
-writeFileSync("out/audio.wav", data)
-console.log(`wrote out/audio.wav (${SECONDS}s, peak before norm ${peak.toFixed(2)})`)
+const file = VO ? "out/audio-vo.wav" : "out/audio.wav"
+writeFileSync(file, data)
+console.log(`wrote ${file} (${SECONDS.toFixed(2)}s, peak before norm ${peak.toFixed(2)})`)

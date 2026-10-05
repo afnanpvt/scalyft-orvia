@@ -23,9 +23,27 @@ const Ad: React.FC = () => (
   </>
 )
 
+// Narrated cut: the same scenes, held longer so the voice has room to speak.
+// Keep these starts in sync with SCENE in audio/make-audio.mjs.
+const VO_HIGHLIGHTS = [23, 51, 77, 105, 134]
+const VO_TOTAL = 1070
+
+const NarratedAd: React.FC = () => (
+  <>
+    <Sequence from={0} durationInFrames={140}><Hook /></Sequence>
+    <Sequence from={120} durationInFrames={160}><Reveal /></Sequence>
+    <Sequence from={270} durationInFrames={215}><CallScene /></Sequence>
+    <Sequence from={475} durationInFrames={200}><Dashboard /></Sequence>
+    <Sequence from={655} durationInFrames={250}><Industries highlights={VO_HIGHLIGHTS} /></Sequence>
+    <Sequence from={895} durationInFrames={VO_TOTAL - 895}><Cta /></Sequence>
+  </>
+)
+
 export const RemotionRoot: React.FC = () => (
   <>
     <Composition id="Orvia16x9" component={Ad} durationInFrames={TOTAL} fps={30} width={1920} height={1080} />
     <Composition id="Orvia9x16" component={Ad} durationInFrames={TOTAL} fps={30} width={1080} height={1920} />
+    <Composition id="Orvia16x9VO" component={NarratedAd} durationInFrames={VO_TOTAL} fps={30} width={1920} height={1080} />
+    <Composition id="Orvia9x16VO" component={NarratedAd} durationInFrames={VO_TOTAL} fps={30} width={1080} height={1920} />
   </>
 )

@@ -376,10 +376,11 @@ const NICHES = [
   { name: "Support", note: "Ticket resolved · 2 min", hue: "#EC4899" },
 ]
 
-export const Industries: React.FC = () => {
+// highlights: the local frames at which the spotlight lands on each card.
+export const Industries: React.FC<{ highlights?: number[] }> = ({ highlights = [44, 61, 78, 95, 112] }) => {
   const frame = useCurrentFrame()
   const { V, u, fps } = useLayout()
-  const active = Math.min(NICHES.length - 1, Math.floor(Math.max(0, frame - 44) / 17))
+  const active = highlights.filter(h => frame >= h).length - 1
 
   return (
     <Shell bg={C.bg}>
@@ -391,7 +392,7 @@ export const Industries: React.FC = () => {
         <div style={{ display: "flex", flexDirection: V ? "column" : "row", gap: 26 * u }}>
           {NICHES.map((n, i) => {
             const p = sp(frame, fps, 20 + i * 6, { damping: 14, stiffness: 130 })
-            const on = i === active && frame >= 44
+            const on = i === active
             return (
               <Card u={u} key={n.name} style={{
                 flex: 1, padding: `${34 * u}px ${34 * u}px`, display: "flex", flexDirection: V ? "row" : "column", alignItems: V ? "center" : "flex-start", gap: (V ? 30 : 36) * u,
