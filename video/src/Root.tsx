@@ -5,6 +5,8 @@ import { ExoticAd } from "./Exotic"
 import { CleanAd, CLEAN_TOTAL } from "./Clean"
 import { DayAd, DAY_TOTAL } from "./Day"
 import { TOTAL as EXOTIC_TOTAL } from "./kit"
+import { SeriesVideo } from "./series/Series"
+import { TIMINGS, Concept, Lang } from "./series/kit"
 
 // Scenes overlap by ~10-20 frames so each one fades or wipes over the last.
 const SCENES = [
@@ -43,13 +45,22 @@ const NarratedAd: React.FC = () => (
   </>
 )
 
+// Series cuts: one composition per concept, language and aspect ratio.
+const SERIES = Object.keys(TIMINGS).flatMap(key => {
+  const [concept, lang] = key.split(".") as [Concept, Lang]
+  return [["16x9", 1920, 1080], ["9x16", 1080, 1920]].map(([r, w, h]) => ({ id: `${concept}-${lang}-${r}`, concept, lang, w: w as number, h: h as number, d: TIMINGS[key].durationInFrames }))
+})
+
 export const RemotionRoot: React.FC = () => (
   <>
+    {SERIES.map(s => (
+      <Composition key={s.id} id={s.id} component={SeriesVideo} defaultProps={{ concept: s.concept, lang: s.lang }} durationInFrames={s.d} fps={30} width={s.w} height={s.h} />
+    ))}
     <Composition id="Day16x9" component={DayAd} durationInFrames={DAY_TOTAL} fps={30} width={1920} height={1080} />
     <Composition id="Day9x16" component={DayAd} durationInFrames={DAY_TOTAL} fps={30} width={1080} height={1920} />
     <Composition id="Clean16x9" component={CleanAd} durationInFrames={CLEAN_TOTAL} fps={30} width={1920} height={1080} />
     <Composition id="Clean9x16" component={CleanAd} durationInFrames={CLEAN_TOTAL} fps={30} width={1080} height={1920} />
-    <Composition id="Exotic16x9"component={ExoticAd} durationInFrames={EXOTIC_TOTAL} fps={30} width={1920} height={1080} />
+    <Composition id="Exotic16x9" component={ExoticAd} durationInFrames={EXOTIC_TOTAL} fps={30} width={1920} height={1080} />
     <Composition id="Exotic9x16" component={ExoticAd} durationInFrames={EXOTIC_TOTAL} fps={30} width={1080} height={1920} />
     <Composition id="Orvia16x9" component={Ad} durationInFrames={TOTAL} fps={30} width={1920} height={1080} />
     <Composition id="Orvia9x16" component={Ad} durationInFrames={TOTAL} fps={30} width={1080} height={1920} />
