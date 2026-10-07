@@ -387,7 +387,7 @@ const DashScene: React.FC = () => {
   ]
   const gk = 18 * m, kw = (innerW - 2 * gk) / 3
   const pts = [18, 30, 24, 46, 38, 62, 56, 80, 72, 96]
-  const cwid = V ? innerW : innerW * 0.58, chh = (V ? 250 : 250) * m
+  const cwid = V ? innerW - 48 * m : innerW * 0.58, chh = (V ? 250 : 250) * m
   const path = pts.map((v, i) => [(i / (pts.length - 1)) * cwid, chh - (v / 110) * chh] as const)
   const dstr = path.reduce((acc, p, i, a) => {
     if (i === 0) return `M${p[0]},${p[1]}`
