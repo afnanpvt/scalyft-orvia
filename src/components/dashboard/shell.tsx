@@ -1,11 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { SHOW_AGENT_SETUP_STATUS } from "@/lib/dev-flags";
-import { endGuest, startGuest, useGuestNiche } from "@/lib/guest/session";
-import { startTour } from "@/lib/guest/tour";
-import { NICHE_PRESETS } from "@/lib/niche-presets";
 import { getBusinessBilling } from "@/lib/api";
 import { CommandPalette } from "@/components/dashboard/command-palette";
 import { OrviaLogo } from "@/components/brand/orvia-logo";
@@ -32,9 +29,6 @@ import {
   ShieldCheck,
   ChevronRight,
   Sparkles,
-  Check,
-  Repeat,
-  Compass,
 } from "lucide-react";
 
 // ─── Animated Hamburger (21st.dev) ────────────────────────
@@ -171,10 +165,6 @@ function BookingToastsBridge() {
 
 function UserDropdown() {
   const { profile, signOut, updateProfile } = useAuth();
-  const guestNiche = useGuestNiche();
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const guestPreset = NICHE_PRESETS.find(p => p.id === guestNiche);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(profile.fullName ?? "");
@@ -193,8 +183,8 @@ function UserDropdown() {
 
   useEffect(() => { setNameInput(profile.fullName ?? ""); }, [profile.fullName]);
 
-  const displayName = guestPreset ? "Guest" : profile.fullName || profile.email?.split("@")[0] || "User";
-  const subline = guestPreset ? guestPreset.label : profile.email;
+  const displayName = profile.fullName || profile.email?.split("@")[0] || "User";
+  const subline = profile.email;
   const initials = displayName.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2);
 
   async function handleSaveName() {
@@ -284,28 +274,7 @@ function UserDropdown() {
               </>
             )}
           </div>
-          {!editing && guestPreset && (
-            <div style={{ padding: 4 }}>
-              <p style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--muted-foreground)", padding: "6px 10px 4px" }}>
-                Switch domain
-              </p>
-              {NICHE_PRESETS.map(p => (
-                <MenuItem key={p.id} icon={p.id === guestNiche ? Check : Repeat} label={p.label}
-                  onClick={() => {
-                    setOpen(false);
-                    if (p.id === guestNiche) return;
-                    startGuest(p.id);
-                    // Every cached query belongs to the previous domain.
-                    queryClient.clear();
-                    navigate({ to: "/" });
-                  }} />
-              ))}
-              <div style={{ height: 1, background: "var(--border)", margin: "4px 2px" }} />
-              <MenuItem icon={Compass} label="Take the tour" onClick={() => { setOpen(false); navigate({ to: "/" }); startTour(); }} />
-              <MenuItem icon={LogOut} label="Sign in to an account" onClick={() => { setOpen(false); endGuest(); queryClient.clear(); navigate({ to: "/login" }); }} />
-            </div>
-          )}
-          {!editing && !guestPreset && (
+          {!editing && (
             <div style={{ padding: 4 }}>
               <MenuItem icon={Pencil} label="Edit name" onClick={() => setEditing(true)} />
               <MenuItem icon={LogOut} label="Sign out" danger onClick={() => { setOpen(false); signOut(); }} />
@@ -429,6 +398,25 @@ function AgentCard() {
   );
 }
 
+// ─── Demo access banner ───────────────────────────────
+
+// Prospect demo accounts stop working on a date; say so up front.
+function DemoAccessBanner() {
+  const { profile } = useAuth();
+  if (!profile.demoExpiresAt) return null;
+  const ends = new Date(profile.demoExpiresAt);
+  const days = Math.max(0, Math.ceil((ends.getTime() - Date.now()) / 86_400_000));
+  const when = days <= 1 ? "today" : `in ${days} days (${ends.toLocaleDateString("en-US", { month: "short", day: "numeric" })})`;
+  return (
+    <div role="status" style={{
+      padding: "8px 16px", fontSize: 12.5, textAlign: "center", flexShrink: 0,
+      background: "var(--accent)", color: "var(--foreground)", borderBottom: "1px solid var(--border)",
+    }}>
+      Demo access ends {when}. Talk to us to keep your dashboard.
+    </div>
+  );
+}
+
 // ─── Shell ────────────────────────────────────────────
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -436,8 +424,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = routerState.location.pathname;
   const [mobileOpen, setMobileOpen] = useState(false);
   const { signOut, profile } = useAuth();
-  const isGuest = useGuestNiche() !== null;
-  const isAdmin = !isGuest && profile.role === "admin";
+  const isAdmin = profile.role === "admin";
 
   return (
     <ToastProvider>
@@ -521,7 +508,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 );
               })}
             </div>
-            {!isGuest && <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--sidebar-border)" }}>
+            <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--sidebar-border)" }}>
               {NAV_OTHER.map(({ label, to, icon: Icon }) => {
                 const isActive = pathname.startsWith(to);
                 return (
@@ -538,7 +525,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   </Link>
                 );
               })}
-            </div>}
+            </div>
             {isAdmin && (
               <AdminNavGroup pathname={pathname} renderItem={({ label, to, icon: Icon }) => {
                 const isActive = pathname.startsWith(to);
@@ -568,7 +555,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 cursor: "pointer", width: "100%", fontFamily: "inherit",
               }}>
               <LogOut style={{ width: 16, height: 16 }} strokeWidth={1.5} />
-              {isGuest ? "Exit guest mode" : "Sign out"}
+              Sign out
             </button>
           </div>
         </div>
@@ -625,11 +612,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <div>
             {NAV_MAIN.map(item => <NavItem key={item.to} {...item} pathname={pathname} />)}
           </div>
-          {!isGuest && (
-            <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--sidebar-border)" }}>
-              {NAV_OTHER.map(item => <NavItem key={item.to} {...item} pathname={pathname} />)}
-            </div>
-          )}
+          <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--sidebar-border)" }}>
+            {NAV_OTHER.map(item => <NavItem key={item.to} {...item} pathname={pathname} />)}
+          </div>
           {isAdmin && (
             <AdminNavGroup pathname={pathname} renderItem={item => <NavItem key={item.to} {...item} pathname={pathname} />} />
           )}
@@ -681,6 +666,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <Search size={16} strokeWidth={1.75} />
           </button>
         </div>
+
+        <DemoAccessBanner />
 
         {/* Page content */}
         <main style={{ flex: 1, overflowY: "auto", background: "var(--background)" }}>

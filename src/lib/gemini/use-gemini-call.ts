@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { EndSensitivity, GoogleGenAI, Modality, ThinkingLevel, type AudioTranscriptionConfig, type LiveConnectConfig, type LiveServerMessage, type Session } from "@google/genai"
 import { supabase } from "@/lib/supabase"
 import { getDemoCallToken } from "@/lib/api"
+import { takeTurnstileToken } from "@/lib/turnstile"
 import { buildAssistantConfig } from "@/lib/vapi/build-assistant-config"
 import type { CallPhase, TranscriptEntry } from "@/lib/vapi/use-assistant-call"
 import { DEFAULT_GEMINI_OPTIONS, GEMINI_MODELS, type GeminiOptions } from "@/lib/gemini/options"
@@ -74,9 +75,17 @@ async function authedFetch(path: string, init?: RequestInit): Promise<Response> 
   const { data: { session } } = await supabase.auth.getSession()
   if (!session && path !== "gemini-live-token") throw new Error("Not signed in")
   const bearer = session?.access_token ?? ANON_KEY
+  // Visitors of the public demo prove they are human with a Turnstile token.
+  const captcha = session ? null : await takeTurnstileToken()
   return fetch(`${SUPABASE_URL}/functions/v1/${path}`, {
     ...init,
-    headers: { ...init?.headers, apikey: ANON_KEY, Authorization: `Bearer ${bearer}`, "Content-Type": "application/json" },
+    headers: {
+      ...init?.headers,
+      apikey: ANON_KEY,
+      Authorization: `Bearer ${bearer}`,
+      "Content-Type": "application/json",
+      ...(captcha ? { "x-turnstile-token": captcha } : {}),
+    },
   })
 }
 
@@ -283,7 +292,12 @@ export function useGeminiCall() {
         opts.liveTranscript ? fetchLiveToken().catch(() => null) : Promise.resolve(null),
       ])
       if (cancelledRef.current) return
-      if (!tokenResp.ok) { fail("Gemini isn't available right now."); return }
+      if (!tokenResp.ok) {
+        // The server words its refusals for the visitor (captcha, rate limit, daily cap).
+        const refusal = await tokenResp.json().then((b: { error?: string }) => b.error).catch(() => undefined)
+        fail(refusal || "Gemini isn't available right now.")
+        return
+      }
       const { token, model: defaultModel } = await tokenResp.json() as { token: string; model: string }
       const model = opts.model || defaultModel
 

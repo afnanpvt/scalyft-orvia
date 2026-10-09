@@ -8,7 +8,6 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 // ─── Overview ────────────────────────────────────────────
 
 export async function getOverviewStats() {
-  if (isGuest()) return guestApi.getOverviewStats();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayISO = today.toISOString();
@@ -38,7 +37,6 @@ export async function getOverviewStats() {
 // ─── Calls ───────────────────────────────────────────────
 
 export async function getRecentCalls(limit = 5): Promise<Call[]> {
-  if (isGuest()) return guestApi.getRecentCalls(limit);
   const { data } = await supabase
     .from("calls")
     .select("*")
@@ -51,7 +49,6 @@ export async function getCalls(
   page = 1,
   pageSize = 20,
 ): Promise<{ calls: Call[]; total: number }> {
-  if (isGuest()) return guestApi.getCalls(page, pageSize);
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
@@ -79,7 +76,6 @@ export async function getCallsByRange(rangeStart: Date, rangeEnd: Date): Promise
 }
 
 export async function getCallById(id: string): Promise<Call | null> {
-  if (isGuest()) return guestApi.getCallById(id);
   const { data } = await supabase
     .from("calls")
     .select("*")
@@ -95,7 +91,6 @@ export async function getLeads(
   pageSize = 20,
   status?: string,
 ): Promise<{ leads: Lead[]; total: number }> {
-  if (isGuest()) return guestApi.getLeads(page, pageSize, status);
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
@@ -114,7 +109,6 @@ export async function getLeads(
 }
 
 export async function getLeadByCallId(callId: string): Promise<Lead | null> {
-  if (isGuest()) return guestApi.getLeadByCallId(callId);
   const { data } = await supabase
     .from("leads")
     .select("*")
@@ -131,7 +125,6 @@ export async function getLeadByCallId(callId: string): Promise<Lead | null> {
 export async function getAppointmentByVapiCallId(
   vapiCallId: string,
 ): Promise<Appointment | null> {
-  if (isGuest()) return null;
   const { data: callRow } = await supabase
     .from("calls")
     .select("id")
@@ -149,7 +142,6 @@ export async function getAppointmentByVapiCallId(
 export async function getAppointmentByCallId(
   callId: string,
 ): Promise<Appointment | null> {
-  if (isGuest()) return guestApi.getAppointmentByCallId(callId);
   const { data } = await supabase
     .from("appointments")
     .select("*")
@@ -162,7 +154,6 @@ export async function getAppointments(opts?: {
   range?: "upcoming" | "past" | "all";
   status?: Appointment["status"];
 }): Promise<Appointment[]> {
-  if (isGuest()) return guestApi.getAppointments(opts);
   let query = supabase.from("appointments").select("*");
 
   const range = opts?.range ?? "all";
@@ -201,7 +192,6 @@ export async function updateAppointmentStatus(
   id: string,
   status: Appointment["status"],
 ) {
-  if (isGuest()) return guestApi.updateAppointmentStatus(id, status);
   const { error } = await supabase
     .from("appointments")
     .update({ status, updated_at: new Date().toISOString() })
@@ -212,7 +202,6 @@ export async function updateAppointmentStatus(
 // ─── Charts ──────────────────────────────────────────────
 
 export async function getWeeklyCallStats() {
-  if (isGuest()) return guestApi.getWeeklyCallStats();
   const days: {
     date: string;
     calls: number;
@@ -261,7 +250,6 @@ export async function getWeeklyCallStats() {
 }
 
 export async function getOutcomeBreakdown() {
-  if (isGuest()) return guestApi.getOutcomeBreakdown();
   const { data } = await supabase.from("calls").select("outcome");
   if (!data) return [];
 
@@ -315,7 +303,6 @@ export async function getBusinessBilling(): Promise<{
   status: string | null;
   vapi_phone_id: string | null;
 } | null> {
-  if (isGuest()) return guestApi.getBilling();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -341,7 +328,6 @@ export async function getBusinessBilling(): Promise<{
 // ─── Follow-up Queue ─────────────────────────────────────
 
 export async function getFollowUpQueue(): Promise<Lead[]> {
-  if (isGuest()) return guestApi.getFollowUpQueue();
   const cutoff = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
   const { data } = await supabase
     .from("leads")
@@ -359,7 +345,6 @@ export async function getFollowUpQueue(): Promise<Lead[]> {
 // ─── Missed Call Queue ───────────────────────────────────
 
 export async function getMissedCallQueue(): Promise<Call[]> {
-  if (isGuest()) return guestApi.getMissedCallQueue();
   const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
   const { data } = await supabase
     .from("calls")
@@ -373,7 +358,6 @@ export async function getMissedCallQueue(): Promise<Call[]> {
 // ─── Missed Call Heatmap ─────────────────────────────────
 
 export async function getMissedCallHeatmap(): Promise<{ hour: number; count: number }[]> {
-  if (isGuest()) return guestApi.getMissedCallHeatmap();
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const { data } = await supabase
     .from("calls")
@@ -398,7 +382,6 @@ export async function getMissedCallHeatmap(): Promise<{ hour: number; count: num
 // ─── Live Call Status ─────────────────────────────────────
 
 export async function getLiveCallStatus(): Promise<Call | null> {
-  if (isGuest()) return null;
   // A call that never reported its end (dropped connection, browser closed)
   // stays in_progress forever. No call runs this long, so older rows aren't live.
   const freshSince = new Date(Date.now() - 30 * 60_000).toISOString();
@@ -416,7 +399,6 @@ export async function getLiveCallStatus(): Promise<Call | null> {
 // ─── Briefing (Home Page) ────────────────────────────────
 
 export async function getBriefing() {
-  if (isGuest()) return guestApi.getBriefing();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayISO = today.toISOString();
@@ -515,7 +497,6 @@ export async function getBriefing() {
 // ─── Operational Events ───────────────────────────────────
 
 export async function getUnresolvedOperationalEvents(): Promise<OperationalEvent[]> {
-  if (isGuest()) return guestApi.getUnresolvedOperationalEvents();
   const { data } = await supabase
     .from("operational_events")
     .select("*")
@@ -526,7 +507,6 @@ export async function getUnresolvedOperationalEvents(): Promise<OperationalEvent
 }
 
 export async function resolveOperationalEvent(id: string): Promise<{ error: string | null }> {
-  if (isGuest()) return guestApi.noop();
   const { error } = await supabase
     .from("operational_events")
     .update({ resolved: true })
@@ -537,7 +517,6 @@ export async function resolveOperationalEvent(id: string): Promise<{ error: stri
 // ─── Call Queue ───────────────────────────────────────────
 
 export async function getPendingCallQueue(): Promise<CallQueueItem[]> {
-  if (isGuest()) return guestApi.getPendingCallQueue();
   const { data } = await supabase
     .from("call_queue")
     .select("*")
@@ -549,7 +528,6 @@ export async function getPendingCallQueue(): Promise<CallQueueItem[]> {
 }
 
 export async function markQueueItemHandled(id: string): Promise<{ error: string | null }> {
-  if (isGuest()) return guestApi.noop();
   const { error } = await supabase
     .from("call_queue")
     .update({ status: "handled", handled_at: new Date().toISOString() })
@@ -560,7 +538,6 @@ export async function markQueueItemHandled(id: string): Promise<{ error: string 
 // ─── Actions ─────────────────────────────────────────────
 
 export async function markCallHandled(callId: string) {
-  if (isGuest()) return guestApi.noop();
   const { error } = await supabase
     .from("calls")
     .update({ status: "completed" })
@@ -569,7 +546,6 @@ export async function markCallHandled(callId: string) {
 }
 
 export async function markLeadContacted(leadId: string) {
-  if (isGuest()) return guestApi.noop();
   const { error } = await supabase
     .from("leads")
     .update({ status: "contacted", updated_at: new Date().toISOString() })
@@ -578,7 +554,6 @@ export async function markLeadContacted(leadId: string) {
 }
 
 export async function markLeadBooked(leadId: string) {
-  if (isGuest()) return guestApi.noop();
   const { error } = await supabase
     .from("leads")
     .update({ status: "booked", updated_at: new Date().toISOString() })
@@ -592,7 +567,6 @@ export async function updateBusinessSettings(
   businessId: string,
   settings: Record<string, unknown>,
 ) {
-  if (isGuest()) return guestApi.noop();
   const { error } = await supabase
     .from("businesses")
     .update({ settings, updated_at: new Date().toISOString() })
@@ -604,7 +578,6 @@ export async function updateBusinessTopLevel(
   businessId: string,
   fields: Record<string, unknown>,
 ) {
-  if (isGuest()) return guestApi.noop();
   const { error } = await supabase
     .from("businesses")
     .update({ ...fields, updated_at: new Date().toISOString() })
@@ -659,7 +632,6 @@ export async function setActiveVapiAccount(id: string) {
 // Calls and talk time since the 1st of this month (RLS scopes to the
 // signed-in business).
 export async function getMonthCallStats(): Promise<{ calls: number; secs: number }> {
-  if (isGuest()) return guestApi.getMonthCallStats();
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
   const { data } = await supabase
@@ -686,12 +658,37 @@ export interface AdminUserRow {
   created_at: string;
   last_sign_in_at: string | null;
   email_confirmed_at: string | null;
+  // Set on prospect demo accounts: when the login stops working.
+  demo_expires_at: string | null;
 }
 
 export async function getAdminUsers(): Promise<AdminUserRow[]> {
   const { data, error } = await supabase.rpc("admin_list_users");
   if (error) throw new Error(error.message);
   return (data as AdminUserRow[]) ?? [];
+}
+
+export interface DemoLimits {
+  daily_cap: number | null; // null = no cap, 0 = demo paused
+  per_visitor: number;
+  used_24h: number;
+}
+
+export async function getDemoLimits(): Promise<DemoLimits | null> {
+  const { data, error } = await supabase.rpc("admin_get_demo_limits");
+  if (error) return null;
+  return ((data as DemoLimits[]) ?? [])[0] ?? null;
+}
+
+export async function setDemoLimits(dailyCap: number | null, perVisitor: number): Promise<{ error: string | null }> {
+  const { error } = await supabase.rpc("admin_set_demo_limits", { p_daily_cap: dailyCap, p_per_visitor: perVisitor });
+  return { error: error?.message ?? null };
+}
+
+// Makes a login a demo that ends in `days` days (1 to 90), or full access (null).
+export async function setDemoExpiry(userId: string, days: number | null): Promise<{ error: string | null }> {
+  const { error } = await supabase.rpc("admin_set_demo_expiry", { p_user: userId, p_days: days });
+  return { error: error?.message ?? null };
 }
 
 // ─── Demo data (admin-only; enforced by the SQL functions) ─
@@ -805,7 +802,6 @@ export type SearchResult =
   | { kind: "lead"; id: string; title: string; subtitle: string; href: string };
 
 export async function globalSearch(q: string): Promise<SearchResult[]> {
-  if (isGuest()) return guestApi.search(q);
   const term = q.trim();
   if (term.length < 2) return [];
   const like = `%${term}%`;

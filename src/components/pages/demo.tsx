@@ -9,7 +9,7 @@ import { getBusinessSettings, getActiveVapiPublicKey, getAppointmentByVapiCallId
 import { useGeminiCall } from "@/lib/gemini/use-gemini-call"
 import { DEFAULT_GEMINI_OPTIONS, loadGeminiOptions, saveGeminiOptions, type GeminiOptions } from "@/lib/gemini/options"
 import { useGuestNiche } from "@/lib/guest/session"
-import { recordGuestCall } from "@/lib/guest/data"
+import { useTurnstileWidget } from "@/lib/turnstile"
 import { GeminiSettings } from "@/components/dashboard/gemini-settings"
 import { SpikeCalendar } from "@/components/dashboard/spike-calendar"
 import { useAssistantCall, type CallPhase, type TranscriptEntry } from "@/lib/vapi/use-assistant-call"
@@ -459,6 +459,9 @@ const TRY_SAYING: Record<string, string[]> = {
   customer_support: ["My internet is down", "I was charged twice this month", "Can a technician come out tomorrow?", "How do I change my Wi-Fi password?"],
 }
 
+// How long a visitor without an account can stay on one demo call.
+const VISITOR_CALL_LIMIT_SECS = 180
+
 const NICHE_LABEL: Record<string, string> = {
   dental: "Dental clinic", plumbing: "Plumbing", hvac: "HVAC", real_estate: "Real estate", customer_support: "Customer support",
 }
@@ -511,10 +514,11 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
   const { data: business } = useQuery({ queryKey: ["business-settings"], queryFn: getBusinessSettings })
   const { data: activeVaultKey } = useQuery({ queryKey: ["active-vapi-key"], queryFn: getActiveVapiPublicKey, staleTime: 10_000 })
 
-  // Guests (no account) always talk to Gemini with simulated tools: free,
-  // instant, and nothing touches a database. Spike: /demo?engine=gemini runs
+  // Visitors of the public demo (no account) always talk to Gemini with
+  // simulated tools: instant, and nothing touches a database. Spike: /demo?engine=gemini runs
   // the voice on Gemini Live instead of Vapi.
   const isGuest = useGuestNiche() !== null
+  const captchaBox = useTurnstileWidget(isGuest)
   const useGemini = isGuest || (engine ? engine === "gemini" : typeof window !== "undefined" && new URLSearchParams(window.location.search).get("engine") === "gemini")
   const vapiCall = useAssistantCall()
   const geminiCall = useGeminiCall()
@@ -543,20 +547,16 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
     return () => clearInterval(t)
   }, [timeOffsetMs])
 
-  // Guest: when a call ends, add it to their Calls history so the dashboard
-  // reflects what they just did.
-  const recordedCallRef = useRef<string | null>(null)
-  const { phase: gPhase, vapiCallId: gCallId, transcript: gTranscript, elapsed: gElapsed, lastBooking: gBooking } = geminiCall
+  // The public demo is a taster: it ends the call after a few minutes (the
+  // server's token expires just after this).
+  const [hitLimit, setHitLimit] = useState(false)
+  const { stop: stopCall, phase: callPhase, elapsed: callElapsed } = call
   useEffect(() => {
-    if (!isGuest || gPhase !== "ended" || !gCallId || recordedCallRef.current === gCallId) return
-    recordedCallRef.current = gCallId
-    recordGuestCall({
-      transcript: gTranscript.filter(t => t.text.trim()).map(t => ({ role: t.role, content: t.text })),
-      durationSecs: gElapsed,
-      booking: gBooking,
-    })
-    void queryClient.invalidateQueries()
-  }, [isGuest, gPhase, gCallId, gTranscript, gElapsed, gBooking, queryClient])
+    if (isGuest && callPhase === "active" && callElapsed >= VISITOR_CALL_LIMIT_SECS) {
+      setHitLimit(true)
+      stopCall()
+    }
+  }, [isGuest, callPhase, callElapsed, stopCall])
 
   // Gemini spike with simulated tools: bookings live in the spike calendar,
   // not Supabase, so there's nothing to poll for.
@@ -626,6 +626,7 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
   function startCall() {
     if (!business || !publicKey) return
     setAppointment(null)
+    setHitLimit(false)
     setTimeOffsetMs(0)
     setReminderState("idle")
     reminderTriggeredForRef.current = null
@@ -677,7 +678,9 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
           Meet {agentName}, the front desk for {business?.name ?? "your business"}
         </h1>
         <p style={{ fontSize: 14, color: "var(--muted-foreground)", letterSpacing: "-0.01em", maxWidth: 560 }}>
-          Talk to it right here in the browser. Book something real and watch it land on the dashboard.
+          {isGuest
+            ? "Talk to it right here in the browser, the way a customer would on the phone. Ask for a booking and watch it appear below."
+            : "Talk to it right here in the browser. Book something real and watch it land on the dashboard."}
         </p>
       </div>
 
@@ -713,8 +716,13 @@ export default function DemoPage({ engine }: { engine?: "vapi" | "gemini" } = {}
               </button>
             )}
             <p style={{ fontSize: 11.5, color: call.phase === "error" ? "#DC2626" : "var(--muted-foreground)", textAlign: "center", minHeight: 16 }}>
-              {call.phase === "error" ? call.error : !publicKey ? "Add a Vapi key in Admin · Vapi Accounts" : "Uses your microphone. Nothing is recorded to your device."}
+              {call.phase === "error" ? call.error
+                : hitLimit ? "That's the 3 minute demo limit. Call again to keep going."
+                : !publicKey ? "Add a Vapi key in Admin · Vapi Accounts"
+                : isGuest ? "Uses your microphone. Calls last up to 3 minutes and are not saved."
+                : "Uses your microphone. Nothing is recorded to your device."}
             </p>
+            {isGuest && <div ref={captchaBox} />}
           </div>
         </div>
 

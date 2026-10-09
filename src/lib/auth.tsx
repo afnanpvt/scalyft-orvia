@@ -13,6 +13,8 @@ export interface UserProfile {
   fullName: string | null;
   email: string | null;
   role: string | null;
+  // Set on prospect demo accounts: when the login stops working.
+  demoExpiresAt: string | null;
 }
 
 export interface AuthContext {
@@ -41,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [businessId, setBusinessId] = useState<string | null>(null);
-  const [profile, setProfile] = useState<UserProfile>({ fullName: null, email: null, role: null });
+  const [profile, setProfile] = useState<UserProfile>({ fullName: null, email: null, role: null, demoExpiresAt: null });
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -78,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (event === "SIGNED_OUT" || !s?.user) {
         setBusinessId(null);
-        setProfile({ fullName: null, email: null, role: null });
+        setProfile({ fullName: null, email: null, role: null, demoExpiresAt: null });
         setMustChangePassword(false);
         setIsLoading(false);
         return;
@@ -100,14 +102,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     endGuest();
     const { data } = await supabase
       .from("users")
-      .select("business_id, full_name, role, theme_preference, must_change_password")
+      .select("business_id, full_name, role, theme_preference, must_change_password, demo_expires_at")
       .eq("id", userId)
       .single();
+    // A demo account past its date is signed out here at once; the database
+    // also bans the login, so it cannot come back.
+    if (data?.demo_expires_at && new Date(data.demo_expires_at).getTime() <= Date.now()) {
+      await supabase.auth.signOut();
+      setIsLoading(false);
+      return;
+    }
     setBusinessId(data?.business_id ?? null);
     setProfile({
       fullName: data?.full_name ?? null,
       email,
       role: data?.role ?? null,
+      demoExpiresAt: data?.demo_expires_at ?? null,
     });
     setMustChangePassword(!!data?.must_change_password);
     if (data?.theme_preference) {
@@ -134,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setSession(null);
     setBusinessId(null);
-    setProfile({ fullName: null, email: null, role: null });
+    setProfile({ fullName: null, email: null, role: null, demoExpiresAt: null });
     setMustChangePassword(false);
   }
 

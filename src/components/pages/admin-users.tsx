@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { ShieldAlert, Search } from "lucide-react"
-import { getAdminUsers, type AdminUserRow } from "@/lib/api"
+import { getAdminUsers, setDemoExpiry, type AdminUserRow } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
 
 function relative(iso: string | null): string {
@@ -30,6 +30,22 @@ function Badge({ text, bg, fg }: { text: string; bg: string; fg: string }) {
   )
 }
 
+// Shown beside the status: how long a demo login has left.
+function demoLabel(iso: string | null): { text: string; ended: boolean } | null {
+  if (!iso) return null
+  const ms = new Date(iso).getTime() - Date.now()
+  if (ms <= 0) return { text: "Demo ended", ended: true }
+  const days = Math.ceil(ms / 86_400_000)
+  return { text: days <= 1 ? "Demo ends today" : `Demo ends in ${days}d`, ended: false }
+}
+
+const ACCESS_CHOICES: Array<{ value: string; label: string }> = [
+  { value: "7", label: "Demo, 7 days" },
+  { value: "14", label: "Demo, 14 days" },
+  { value: "30", label: "Demo, 30 days" },
+  { value: "full", label: "Full access" },
+]
+
 function statusOf(u: AdminUserRow): { text: string; bg: string; fg: string } {
   if (!u.role) return { text: "No profile", bg: "rgba(229,72,77,0.1)", fg: "#DC2626" }
   if (!u.last_sign_in_at) return { text: "Never signed in", bg: "rgba(245,158,11,0.12)", fg: "#B45309" }
@@ -40,6 +56,15 @@ function statusOf(u: AdminUserRow): { text: string; bg: string; fg: string } {
 export default function AdminUsersPage() {
   const { profile } = useAuth()
   const [query, setQuery] = useState("")
+  const queryClient = useQueryClient()
+  const [accessError, setAccessError] = useState<string | null>(null)
+
+  async function changeAccess(userId: string, choice: string) {
+    setAccessError(null)
+    const { error } = await setDemoExpiry(userId, choice === "full" ? null : Number(choice))
+    if (error) setAccessError(error)
+    await queryClient.invalidateQueries({ queryKey: ["admin-users"] })
+  }
 
   const { data: users = [], isLoading, error } = useQuery({
     queryKey: ["admin-users"],
@@ -90,13 +115,14 @@ export default function AdminUsersPage() {
       </p>
 
       {error && <p style={{ fontSize: 13, color: "#DC2626" }}>Couldn't load users: {(error as Error).message}</p>}
+      {accessError && <p style={{ fontSize: 13, color: "#DC2626" }}>Couldn't change access: {accessError}</p>}
 
       <div className="ios-card" style={{ padding: 0, overflow: "hidden" }}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 760 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, minWidth: 900 }}>
             <thead>
               <tr style={{ textAlign: "left", color: "var(--muted-foreground)", fontSize: 11.5 }}>
-                {["User", "Business", "Role", "Status", "Last sign-in", "Created"].map(h => (
+                {["User", "Business", "Role", "Status", "Access", "Last sign-in", "Created"].map(h => (
                   <th key={h} style={{ padding: "11px 16px", fontWeight: 500, borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -122,6 +148,28 @@ export default function AdminUsersPage() {
                       {role && u.role ? <Badge text={u.role} bg={role.bg} fg={role.fg} /> : "—"}
                     </td>
                     <td style={{ padding: "12px 16px" }}><Badge {...status} /></td>
+                    <td style={{ padding: "12px 16px", whiteSpace: "nowrap" }}>
+                      {u.role === "admin" || isMe ? (
+                        <span style={{ color: "var(--muted-foreground)" }}>Full access</span>
+                      ) : (
+                        <>
+                          {(() => {
+                            const demo = demoLabel(u.demo_expires_at)
+                            return demo
+                              ? <Badge text={demo.text} bg={demo.ended ? "rgba(229,72,77,0.1)" : "rgba(245,158,11,0.12)"} fg={demo.ended ? "#DC2626" : "#B45309"} />
+                              : <span style={{ color: "var(--muted-foreground)" }}>Full access</span>
+                          })()}
+                          <select aria-label={`Change access for ${u.email}`} value="" onChange={e => { if (e.target.value) void changeAccess(u.id, e.target.value) }}
+                            style={{
+                              marginLeft: 8, fontSize: 12, padding: "3px 6px", borderRadius: 8, fontFamily: "inherit",
+                              border: "1px solid var(--border)", background: "var(--card)", color: "var(--foreground)",
+                            }}>
+                            <option value="">Change…</option>
+                            {ACCESS_CHOICES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                          </select>
+                        </>
+                      )}
+                    </td>
                     <td style={{ padding: "12px 16px", color: "var(--muted-foreground)", whiteSpace: "nowrap" }}
                       title={u.last_sign_in_at ? new Date(u.last_sign_in_at).toLocaleString() : undefined}>
                       {relative(u.last_sign_in_at)}
@@ -134,7 +182,7 @@ export default function AdminUsersPage() {
                 )
               })}
               {!isLoading && filtered.length === 0 && (
-                <tr><td colSpan={6} style={{ padding: "28px 16px", textAlign: "center", color: "var(--muted-foreground)" }}>No users match "{query}"</td></tr>
+                <tr><td colSpan={7} style={{ padding: "28px 16px", textAlign: "center", color: "var(--muted-foreground)" }}>No users match "{query}"</td></tr>
               )}
             </tbody>
           </table>

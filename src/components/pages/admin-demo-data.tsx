@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { ShieldAlert, Sparkles, Trash2, RefreshCw, BellRing } from "lucide-react"
 import { getDemoDataStats, setDemoAutofill, generateDemoDataNow, clearDemoData, syncDemoAlerts } from "@/lib/api"
 import { useAuth } from "@/lib/auth"
+import { DemoLimitsCard } from "@/components/dashboard/demo-limits-card"
 
 // Every dashboard query that generated rows feed into — refreshed after any
 // change here so Overview/Calls/etc. reflect it without a reload.
@@ -203,6 +204,8 @@ export default function AdminDemoDataPage() {
           Refresh alerts
         </button>
       </div>
+
+      <DemoLimitsCard />
     </div>
   )
 }

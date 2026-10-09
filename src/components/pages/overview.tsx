@@ -65,8 +65,6 @@ import { supabase } from "@/lib/supabase"
 import { TestCallButton } from "@/components/dashboard/test-call-button"
 import { HoverTip, agentStatusCopy } from "@/components/dashboard/hover-tip"
 import { SHOW_AGENT_SETUP_STATUS } from "@/lib/dev-flags"
-import { GuestTour } from "@/components/dashboard/guest-tour"
-import { useGuestNiche } from "@/lib/guest/session"
 import { pickGreeting, type Greeting } from "@/lib/greetings"
 import type { Call, Appointment, OperationalEvent, CallQueueItem } from "@/lib/types"
 
@@ -1410,7 +1408,6 @@ export default function OverviewPage() {
   const { data: callQueue = [] } = useQuery({ queryKey: ["call-queue"], queryFn: getPendingCallQueue, refetchInterval: 30_000 })
   const { data: monthStats } = useQuery({ queryKey: ["month-call-stats"], queryFn: getMonthCallStats, refetchInterval: 60_000 })
   const { data: businessSettings } = useQuery({ queryKey: ["business-settings"], queryFn: getBusinessSettings })
-  const isGuest = useGuestNiche() !== null
 
   useEffect(() => {
     const liveCall = liveCallQuery.data
@@ -1540,7 +1537,6 @@ export default function OverviewPage() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {isGuest && <GuestTour agentName={businessSettings?.settings.receptionist_name} />}
       <style>{`
         .overview-stat-grid {
           display: grid;
