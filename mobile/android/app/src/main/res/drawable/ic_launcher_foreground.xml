@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher icon foreground. The mark stays inside the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- The Orvia mark from public/orvia-logo.svg: one half, then its mirror,
+         clipped to a circle. Path units are the logo's 100 x 100 box. -->
+    <group android:pivotX="50" android:pivotY="50" android:scaleX="0.66" android:scaleY="0.66"
+        android:translateX="4" android:translateY="4">
+        <clip-path android:pathData="M5,50 A45,45 0 1,0 95,50 A45,45 0 1,0 5,50 Z" />
+        <group>
+            <path android:fillColor="@color/ic_launcher_mark" android:pathData="M15,0 H44 C47,30 48.6,42 48.6,50 C48.6,58 47,70 44,100 H15 C29,75 39.6,62 39.6,50 C39.6,38 29,25 15,0 Z" />
+            <path android:fillColor="@color/ic_launcher_mark" android:fillType="evenOdd" android:pathData="M0,17 L33,42 C36,44.5 37.2,47 37.2,50 C37.2,53 36,55.5 33,58 L0,83 Z M0,45 L29,49 Q31,50 29,51 L0,55 Z" />
+        </group>
+        <group android:pivotX="50" android:scaleX="-1">
+            <path android:fillColor="@color/ic_launcher_mark" android:pathData="M15,0 H44 C47,30 48.6,42 48.6,50 C48.6,58 47,70 44,100 H15 C29,75 39.6,62 39.6,50 C39.6,38 29,25 15,0 Z" />
+            <path android:fillColor="@color/ic_launcher_mark" android:fillType="evenOdd" android:pathData="M0,17 L33,42 C36,44.5 37.2,47 37.2,50 C37.2,53 36,55.5 33,58 L0,83 Z M0,45 L29,49 Q31,50 29,51 L0,55 Z" />
+        </group>
+    </group>
+</vector>

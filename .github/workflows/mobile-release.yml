@@ -1,0 +1,88 @@
+name: Mobile release
+
+# Tag a commit "mobile-v0.2.0" to build a signed Android release. The version
+# in mobile/pubspec.yaml must match the tag.
+on:
+  push:
+    tags:
+      - "mobile-v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.47.x"
+          cache: true
+
+      - name: Check the tag matches pubspec.yaml
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#mobile-v}"
+          PUB_VERSION=$(grep -E '^version:' pubspec.yaml | sed -E 's/version: *([^+]+).*/\1/')
+          if [ "$TAG_VERSION" != "$PUB_VERSION" ]; then
+            echo "Tag $TAG_VERSION does not match pubspec version $PUB_VERSION" >&2
+            exit 1
+          fi
+
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+      - name: Decode the upload keystore
+        run: echo "${{ secrets.ORVIA_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/orvia-release.jks"
+
+      - name: Write the app config
+        # Only the public URL and the publishable key. The build refuses a
+        # service-role key (see lib/core/env.dart).
+        env:
+          SUPABASE_URL: ${{ secrets.ORVIA_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.ORVIA_SUPABASE_ANON_KEY }}
+        run: |
+          jq -n --arg url "$SUPABASE_URL" --arg key "$SUPABASE_ANON_KEY" \
+            '{SUPABASE_URL: $url, SUPABASE_ANON_KEY: $key}' > env.json
+
+      - name: Build signed APK and app bundle
+        env:
+          ORVIA_KEYSTORE_PATH: ${{ runner.temp }}/orvia-release.jks
+          ORVIA_KEYSTORE_PASSWORD: ${{ secrets.ORVIA_KEYSTORE_PASSWORD }}
+          ORVIA_KEY_ALIAS: ${{ secrets.ORVIA_KEY_ALIAS }}
+          ORVIA_KEY_PASSWORD: ${{ secrets.ORVIA_KEY_PASSWORD }}
+        run: |
+          flutter build apk --release --flavor prod --obfuscate --split-debug-info=build/symbols --dart-define-from-file=env.json
+          flutter build appbundle --release --flavor prod --obfuscate --split-debug-info=build/symbols --dart-define-from-file=env.json
+
+      - name: Name the files
+        run: |
+          VERSION="${GITHUB_REF_NAME#mobile-v}"
+          cp build/app/outputs/flutter-apk/app-prod-release.apk "build/orvia-${VERSION}.apk"
+          cp build/app/outputs/bundle/prodRelease/app-prod-release.aab "build/orvia-${VERSION}.aab"
+          rm -f env.json "$RUNNER_TEMP/orvia-release.jks"
+
+      # Needed to read stack traces from the obfuscated build. Kept private.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debug-symbols-${{ github.ref_name }}
+          path: mobile/build/symbols
+          retention-days: 90
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            mobile/build/orvia-*.apk
+            mobile/build/orvia-*.aab
+          generate_release_notes: true

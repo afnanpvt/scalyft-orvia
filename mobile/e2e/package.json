@@ -1,0 +1,14 @@
+{
+  "name": "orvia-mobile-e2e-harness",
+  "private": true,
+  "type": "module",
+  "description": "Runs the real Orvia migrations on real Postgres behind PostgREST, with the real vapi-events function, so the Android app can be tested end to end without Docker or a Supabase project.",
+  "scripts": {
+    "start": "node harness.mjs",
+    "test": "node --test gateway.test.mjs"
+  },
+  "dependencies": {
+    "pg": "^8.13.0",
+    "ws": "^8.18.0"
+  }
+}

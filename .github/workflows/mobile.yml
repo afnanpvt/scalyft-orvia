@@ -1,0 +1,80 @@
+name: Mobile
+
+# Checks for the Android app and the database rules it depends on.
+on:
+  pull_request:
+    paths:
+      - "mobile/**"
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
+      - ".github/workflows/mobile.yml"
+  push:
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
+
+permissions:
+  contents: read
+
+jobs:
+  database-rules:
+    name: Row level security
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: supabase/tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: supabase/tests/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  app:
+    name: Flutter analyze and test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.47.x"
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  android:
+    name: Kotlin unit tests and debug build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: "3.47.x"
+          cache: true
+      - name: Placeholder config
+        # A syntactically valid config so the build compiles. It points at no
+        # real project and the APK is not kept.
+        run: cp env.example.json env.json && sed -i 's#<project-ref>#ci-placeholder#; s#<anon (publishable) key, never the service-role key>#ci-placeholder#' env.json
+      - run: flutter pub get
+      - run: flutter build apk --flavor dev --debug --dart-define-from-file=env.json
+      - name: Kotlin unit tests
+        working-directory: mobile/android
+        run: ./gradlew :app:testDevDebugUnitTest

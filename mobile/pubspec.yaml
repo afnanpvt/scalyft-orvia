@@ -1,0 +1,45 @@
+name: orvia
+description: "Orvia for Android. Connects your phone to your AI receptionist and shows every call it handled."
+publish_to: 'none'
+
+# versionName+versionCode. Bump both for every release build.
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_local_notifications: ^22.3.1
+  flutter_secure_storage: ^11.2.0
+  intl: ^0.20.3
+  local_auth: ^3.0.2
+  package_info_plus: ^10.2.2
+  permission_handler: ^13.0.2
+  provider: ^6.1.5+1
+  shared_preferences: ^2.5.6
+  supabase_flutter: ^2.18.0
+  url_launcher: ^6.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  fonts:
+    - family: Geist
+      fonts:
+        - asset: assets/fonts/Geist-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Geist-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Geist-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Geist-Bold.ttf
+          weight: 700
