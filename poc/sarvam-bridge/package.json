@@ -1,0 +1,19 @@
+{
+  "name": "orvia-sarvam-bridge",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Proof of concept: Sarvam STT + TTS as Vapi custom providers for Kannada, Telugu, Hindi and English calls.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test",
+    "create-assistant": "node create-assistant.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "sarvamai": "^1.1.11",
+    "ws": "^8.18.0"
+  },
+  "engines": { "node": ">=20" }
+}

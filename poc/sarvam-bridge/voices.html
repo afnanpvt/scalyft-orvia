@@ -1,0 +1,80 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pick a voice</title>
+<style>
+  body { font: 15px system-ui; max-width: 720px; margin: 32px auto; padding: 0 16px; }
+  select, button { font: inherit; padding: 6px 10px; cursor: pointer; }
+  .row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #eee; }
+  .row b { width: 90px; }
+  .live { background: #dff5e1; }
+  #status { margin: 10px 0; color: #555; }
+</style>
+<h2>Pick a voice</h2>
+<p>Choose a language, press Play on a few voices, then <b>Use</b> the one that sounds most natural. The next call uses it.</p>
+<select id="lang">
+  <option value="ta-IN">Tamil</option>
+  <option value="kn-IN">Kannada</option>
+  <option value="te-IN">Telugu</option>
+  <option value="hi-IN">Hindi</option>
+  <option value="en-IN">English</option>
+</select>
+<div id="status"></div>
+<div id="list"></div>
+<script>
+  const token = new URLSearchParams(location.search).get("token");
+  const SAMPLES = {
+    "ta-IN": "சரி, நாளைக்கு சாயங்காலம் அஞ்சு மணிக்கு டாக்டர் ஃப்ரீயா இருக்காங்க. அந்த டைம் ஓகேவா?",
+    "kn-IN": "ಸರಿ, ನಾಳೆ ಸಂಜೆ ಐದು ಗಂಟೆಗೆ ಡಾಕ್ಟರ್ ಫ್ರೀ ಇದ್ದಾರೆ. ಆ ಟೈಮ್ ಓಕೆನಾ?",
+    "te-IN": "సరే, రేపు సాయంత్రం ఐదు గంటలకి డాక్టర్ ఫ్రీగా ఉన్నారు. ఆ టైమ్ ఓకేనా?",
+    "hi-IN": "ठीक है, कल शाम पाँच बजे डॉक्टर फ्री हैं. वो टाइम चलेगा?",
+    "en-IN": "Sure, the doctor is free tomorrow at five in the evening. Does that time work?",
+  };
+  const FEMALE = ["ishita", "kavitha", "priya", "ritu", "roopa", "shreya", "kavya", "simran", "suhani", "shruti", "pooja", "neha", "tanya", "rupali"];
+  const MALE = ["shubh", "rahul", "aditya", "rohan", "amit", "dev", "varun", "manan", "kabir", "anand", "tarun", "mani", "gokul", "vijay"];
+  const $ = (id) => document.getElementById(id);
+  let live = {};
+  let audio;
+
+  async function load() {
+    live = await fetch(`/api/voices?token=${token}`).then((r) => r.json());
+    render();
+  }
+  function render() {
+    const lang = $("lang").value;
+    $("status").textContent = `Live voice for this language: ${live[lang]}`;
+    $("list").innerHTML = "";
+    for (const [group, names] of [["Female", FEMALE], ["Male", MALE]]) {
+      const h = document.createElement("h4");
+      h.textContent = group;
+      $("list").appendChild(h);
+      for (const name of names) {
+        const row = document.createElement("div");
+        row.className = "row" + (live[lang] === name ? " live" : "");
+        row.innerHTML = `<b>${name}</b><button data-a="play">Play</button><button data-a="use">Use</button>`;
+        row.querySelector('[data-a="play"]').onclick = (e) => play(name, lang, e.target);
+        row.querySelector('[data-a="use"]').onclick = () => use(name, lang);
+        $("list").appendChild(row);
+      }
+    }
+  }
+  async function play(speaker, lang, btn) {
+    audio?.pause();
+    btn.textContent = "...";
+    const url = `/api/sample?token=${token}&speaker=${speaker}&text=${encodeURIComponent(SAMPLES[lang])}`;
+    audio = new Audio(url);
+    audio.oncanplay = () => (btn.textContent = "Play");
+    audio.onerror = () => (btn.textContent = "Error");
+    audio.play();
+  }
+  async function use(speaker, lang) {
+    live = await fetch(`/api/voices?token=${token}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ language: lang, speaker }),
+    }).then((r) => r.json());
+    render();
+  }
+  $("lang").onchange = render;
+  load();
+</script>

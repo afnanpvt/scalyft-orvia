@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Orvia voice line</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=DM+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+Devanagari:wght@400;600&family=Noto+Sans+Kannada:wght@400;600&family=Noto+Sans+Tamil:wght@400;600&family=Noto+Sans+Telugu:wght@400;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --fog: #eceef5;
+    --paper: #ffffff;
+    --ink: #171a3d;
+    --ink-2: #4a4e73;
+    --line: #d5d8e6;
+    --marigold: #f5a524;
+    --marigold-soft: #fff3da;
+    --teal: #12806a;
+    --teal-soft: #e0f3ee;
+    --brick: #d6453d;
+    --display: "Bricolage Grotesque", "DM Sans", system-ui, sans-serif;
+    --body: "DM Sans", "Noto Sans Tamil", "Noto Sans Kannada", "Noto Sans Telugu", "Noto Sans Devanagari", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--fog); color: var(--ink); font: 400 16px/1.5 var(--body); }
+  button, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 3px solid var(--marigold); outline-offset: 2px; }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  h1 { font: 700 28px/1.1 var(--display); letter-spacing: -0.02em; margin: 0; }
+  header p { margin: 0; color: var(--ink-2); font-size: 14px; }
+
+  .grid { display: grid; grid-template-columns: 340px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel { background: var(--paper); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+  .panel + .panel { margin-top: 16px; }
+  h2 { font: 700 12px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); margin: 0 0 12px; }
+
+  /* Segmented controls: real radios, so they work with keyboard and screen readers */
+  fieldset { border: 0; margin: 0 0 18px; padding: 0; }
+  legend { font: 700 12px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 8px; padding: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip input { position: absolute; opacity: 0; pointer-events: none; }
+  .chip span { display: inline-block; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; background: var(--paper); font-size: 15px; min-height: 36px; }
+  .chip input:checked + span { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .chip input:focus-visible + span { outline: 3px solid var(--marigold); outline-offset: 2px; }
+  .chip input:disabled + span { opacity: .55; cursor: not-allowed; }
+  .hint { color: var(--ink-2); font-size: 13px; margin: 8px 0 0; }
+
+  /* Call button + line */
+  .call { margin-top: 4px; }
+  #go { width: 100%; padding: 16px; border: 0; border-radius: 14px; font: 700 18px var(--display); background: var(--teal); color: #fff; cursor: pointer; transition: transform .08s; }
+  #go:active { transform: scale(.98); }
+  #go[data-live="true"] { background: var(--brick); }
+  #go:disabled { opacity: .6; cursor: progress; }
+
+  .line { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+  #bars { flex: 1; height: 44px; display: flex; align-items: center; gap: 3px; }
+  #bars i { flex: 1; min-width: 2px; height: 4px; border-radius: 2px; background: var(--line); transition: height .08s, background .2s; }
+  #bars[data-who="ai"] i { background: var(--marigold); }
+  #bars[data-who="you"] i { background: var(--teal); }
+  #timer { font: 500 15px var(--mono); color: var(--ink-2); min-width: 44px; text-align: right; }
+  #status { margin: 10px 0 0; font-weight: 700; min-height: 1.5em; }
+  #status[data-who="ai"] { color: #9a6200; }
+  #status[data-who="you"] { color: var(--teal); }
+
+  #err { display: none; margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: #fdecea; color: #8e231d; font-size: 14px; }
+  #err[data-show="true"] { display: block; }
+
+  /* Conversation */
+  #chat { display: flex; flex-direction: column; gap: 10px; min-height: 260px; max-height: 52vh; overflow-y: auto; padding-right: 4px; }
+  .empty { margin: auto; text-align: center; color: var(--ink-2); max-width: 36ch; padding: 24px 8px; }
+  .empty b { display: block; color: var(--ink); font: 700 17px var(--display); margin-bottom: 6px; }
+  .say { display: inline-block; margin-top: 10px; padding: 8px 12px; background: var(--marigold-soft); border-radius: 10px; color: var(--ink); font-size: 17px; }
+  .msg { max-width: 86%; padding: 10px 14px; border-radius: 14px; font-size: 17px; line-height: 1.55; overflow-wrap: anywhere; }
+  .msg small { display: block; font: 700 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 2px; opacity: .7; }
+  .msg.ai { align-self: flex-start; background: var(--marigold-soft); border-left: 4px solid var(--marigold); border-top-left-radius: 4px; }
+  .msg.you { align-self: flex-end; background: var(--ink); color: #fff; border-bottom-right-radius: 4px; }
+
+  /* Behind the call */
+  #feed { font: 400 13px/1.6 var(--mono); color: var(--ink-2); min-height: 48px; max-height: 150px; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+  #feed li { padding: 3px 0; border-bottom: 1px dashed var(--line); }
+  #feed li.booked { color: var(--teal); font-weight: 500; }
+
+  /* Appointment slips: the one signature element */
+  #slips { display: grid; gap: 10px; }
+  .slip { display: grid; grid-template-columns: 84px 1fr; background: var(--teal-soft); border: 1px solid #a9dccf; border-radius: 12px; overflow: hidden; animation: stamp .35s ease-out; }
+  .slip .when { background: var(--teal); color: #fff; padding: 12px 8px; text-align: center; border-right: 2px dashed #b8e4d9; }
+  .slip .when b { display: block; font: 700 22px/1.1 var(--display); }
+  .slip .when span { font-size: 12px; opacity: .9; }
+  .slip .who { padding: 10px 14px; }
+  .slip .who b { font: 700 17px var(--display); display: block; }
+  .slip .who span { font-size: 14px; color: var(--ink-2); }
+  .none { color: var(--ink-2); font-size: 14px; margin: 0; }
+  @keyframes stamp { from { transform: scale(1.04) rotate(-1deg); opacity: 0; } to { transform: none; opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .slip { animation: none; } #bars i { transition: none; } #go { transition: none; } }
+
+  /* Services and cost */
+  #cost { display: grid; gap: 0; }
+  .crow { display: grid; grid-template-columns: 96px 1.2fr 1.4fr 78px; gap: 4px 12px; padding: 10px 0; border-bottom: 1px solid var(--line); align-items: baseline; }
+  .crow .role { font: 700 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+  .crow .svc b { display: block; font: 700 15px var(--display); }
+  .crow .svc span, .crow .use { font-size: 13px; color: var(--ink-2); }
+  .crow .amt { text-align: right; font: 500 15px var(--mono); }
+  .crow .basis { grid-column: 2 / 5; font-size: 12px; color: var(--ink-2); margin-top: -2px; }
+  .crow .basis i { font-style: normal; padding: 1px 7px; border-radius: 99px; background: var(--fog); }
+  .crow.total { border-top: 2px solid var(--ink); border-bottom: 0; margin-top: 4px; padding-top: 12px; }
+  .crow.total .svc b { font-size: 17px; }
+  .crow.total .amt { font-size: 20px; }
+  .crow.head { color: var(--ink-2); font: 700 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; padding: 0 0 6px; }
+  .crow.head .amt { font: inherit; }
+  .report { margin-top: 12px; padding: 12px; border-radius: 10px; background: var(--fog); font-size: 13px; }
+  .report b { font-family: var(--display); font-size: 14px; }
+  .foot { margin: 12px 0 0; font-size: 12px; color: var(--ink-2); }
+  @media (max-width: 560px) {
+    .crow { grid-template-columns: 1fr auto; }
+    .crow .role { grid-column: 1 / 3; }
+    .crow .basis { grid-column: 1 / 3; }
+    .crow.head { display: none; }
+  }
+
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .link { background: none; border: 0; padding: 4px 0; color: var(--ink-2); text-decoration: underline; cursor: pointer; font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Orvia voice line</h1>
+    <p>Smile Dental Clinic, India. Speak in any language and book an appointment.</p>
+  </header>
+
+  <div class="grid">
+    <div>
+      <section class="panel" aria-label="Call settings">
+        <fieldset id="lang">
+          <legend>Language</legend>
+          <div class="chips">
+            <label class="chip"><input type="radio" name="lang" value="auto" checked /><span>Auto-detect</span></label>
+            <label class="chip"><input type="radio" name="lang" value="ta" /><span lang="ta">தமிழ்</span></label>
+            <label class="chip"><input type="radio" name="lang" value="kn" /><span lang="kn">ಕನ್ನಡ</span></label>
+            <label class="chip"><input type="radio" name="lang" value="te" /><span lang="te">తెలుగు</span></label>
+            <label class="chip"><input type="radio" name="lang" value="hi" /><span lang="hi">हिन्दी</span></label>
+            <label class="chip"><input type="radio" name="lang" value="en" /><span>English</span></label>
+          </div>
+          <p class="hint" id="langHint">Priya greets in English, then follows the language you speak.</p>
+        </fieldset>
+
+        <fieldset id="brain">
+          <legend>Brain</legend>
+          <div class="chips">
+            <label class="chip"><input type="radio" name="llm" value="sarvam-conv" checked /><span>Sarvam Conversations</span></label>
+            <label class="chip"><input type="radio" name="llm" value="sarvam" /><span>Sarvam 105B</span></label>
+            <label class="chip"><input type="radio" name="llm" value="openai" /><span>GPT-4o</span></label>
+          </div>
+          <p class="hint" id="brainHint"></p>
+        </fieldset>
+
+        <fieldset id="linepick">
+          <legend>Line</legend>
+          <div class="chips">
+            <label class="chip"><input type="radio" name="line" value="direct" checked /><span>Direct test</span></label>
+            <label class="chip"><input type="radio" name="line" value="vapi" /><span>Via Vapi</span></label>
+          </div>
+          <p class="hint" id="lineHint"></p>
+        </fieldset>
+
+        <div class="call">
+          <button id="go" type="button" data-live="false">Start call</button>
+          <div class="line" aria-hidden="true">
+            <div id="bars" data-who="idle"></div>
+            <span id="timer">0:00</span>
+          </div>
+          <p id="status" role="status" aria-live="polite">Ready. Allow the microphone when asked.</p>
+          <p class="hint" id="delay" style="margin-top:4px"></p>
+          <div id="err" role="alert"></div>
+        </div>
+      </section>
+    </div>
+
+    <div>
+      <section class="panel" aria-label="Conversation">
+        <h2>Conversation</h2>
+        <div id="chat" aria-live="polite"></div>
+      </section>
+
+      <section class="panel" aria-label="Services and cost">
+        <div class="row"><h2>Services and cost</h2><span class="hint" id="costState" style="margin:0"></span></div>
+        <div id="cost"></div>
+        <div id="report"></div>
+        <p class="foot" id="costFoot"></p>
+      </section>
+
+      <section class="panel" aria-label="Appointments">
+        <div class="row"><h2>Appointments booked</h2><button class="link" id="reset" type="button">Clear</button></div>
+        <div id="slips"></div>
+      </section>
+
+      <section class="panel" aria-label="Behind the call">
+        <h2>Behind the call</h2>
+        <ul id="feed"></ul>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  // The Vapi SDK is only loaded when a call goes through Vapi, so the direct test
+  // never depends on it.
+  const $ =(s) => document.querySelector(s);
+  const token = new URLSearchParams(location.search).get("token") || "";
+  const SAMPLES = {
+    auto: ["எனக்கு பல்லு வலிக்குது, நாளைக்கு டைம் இருக்கா?", "ನಾಳೆ ಕ್ಲೀನಿಂಗ್‌ಗೆ ಟೈಮ್ ಸಿಗುತ್ತಾ?", "రేపు అపాయింట్‌మెంట్ దొరుకుతుందా?"],
+    ta: ["எனக்கு பல்லு வலிக்குது, நாளைக்கு டைம் இருக்கா?"],
+    kn: ["ನಾಳೆ ಕ್ಲೀನಿಂಗ್‌ಗೆ ಟೈಮ್ ಸಿಗುತ್ತಾ?"],
+    te: ["రేపు అపాయింట్‌మెంట్ దొరుకుతుందా?"],
+    hi: ["मुझे कल दाँत की सफाई के लिए टाइम चाहिए।"],
+    en: ["I need a cleaning appointment tomorrow evening."],
+  };
+  const LANG_HINT = {
+    auto: "Priya greets in English, then follows the language you speak.",
+    ta: "Priya speaks Tamil from the first word.",
+    kn: "Priya speaks Kannada from the first word.",
+    te: "Priya speaks Telugu from the first word.",
+    hi: "Priya speaks Hindi from the first word.",
+    en: "Priya speaks English.",
+  };
+
+  // Remember the last choices; storage can be blocked, so it is optional.
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch { /* ignore */ } },
+  };
+  for (const name of ["lang", "llm", "line"]) {
+    const saved = store.get("orvia-" + name);
+    const el = saved && document.querySelector(`input[name=${name}][value="${saved}"]`);
+    if (el) el.checked = true;
+  }
+  const pick = (name) => document.querySelector(`input[name=${name}]:checked`).value;
+
+  // Level bars
+  const BARS = 28;
+  const barsEl = $("#bars");
+  barsEl.innerHTML = "<i></i>".repeat(BARS);
+  const bars = [...barsEl.children];
+  let levels = new Array(BARS).fill(0);
+  function drawBars(level) {
+    levels.shift();
+    levels.push(level);
+    bars.forEach((b, i) => { b.style.height = 4 + Math.round(levels[i] * 40) + "px"; });
+  }
+  function flatBars() { levels = new Array(BARS).fill(0); drawBars(0); }
+
+  // State
+  let mode = "direct";
+  let vapi = null, live = false, timerId = null, startedAt = 0, since = 0, pollId = null;
+  const setWho = (who) => { barsEl.dataset.who = who; $("#status").dataset.who = who; };
+  const setStatus = (text, who = "idle") => { $("#status").textContent = text; setWho(who); };
+  const showErr = (text) => { const e = $("#err"); e.textContent = text || ""; e.dataset.show = text ? "true" : "false"; };
+
+  function renderEmpty() {
+    const lang = pick("lang");
+    const lines = SAMPLES[lang].map((s) => `<div class="say">${s}</div>`).join(" ");
+    $("#chat").innerHTML = `<div class="empty"><b>Say something after the greeting</b>Try:<br>${lines}</div>`;
+  }
+  function renderChat(conversation) {
+    const items = (conversation || []).filter((c) => (c.role === "user" || c.role === "assistant") && c.content);
+    if (!items.length) return renderEmpty();
+    const chat = $("#chat");
+    const stick = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 40;
+    chat.innerHTML = "";
+    for (const c of items) {
+      const d = document.createElement("div");
+      d.className = "msg " + (c.role === "user" ? "you" : "ai");
+      const label = document.createElement("small");
+      label.textContent = c.role === "user" ? "You" : "Priya";
+      const text = document.createElement("div");
+      text.textContent = c.content;
+      d.append(label, text);
+      chat.append(d);
+    }
+    if (stick) chat.scrollTop = chat.scrollHeight;
+  }
+
+  function fmtSlot(b) {
+    const [date, rest] = b.when.split(" ");
+    const d = new Date(date + "T12:00:00");
+    return { day: d.toLocaleDateString("en-IN", { day: "numeric" }), mon: d.toLocaleDateString("en-IN", { month: "short", weekday: "short" }), time: rest + (b.when.split(" ")[2] ? " " + b.when.split(" ")[2] : "") };
+  }
+  function renderSlips(bookings) {
+    const el = $("#slips");
+    if (!bookings.length) { el.innerHTML = '<p class="none">None yet. Ask for an appointment and give your name and number.</p>'; return; }
+    el.innerHTML = "";
+    for (const b of bookings) {
+      const f = fmtSlot(b);
+      const s = document.createElement("div");
+      s.className = "slip";
+      s.innerHTML = '<div class="when"><b></b><span></span></div><div class="who"><b></b><span></span></div>';
+      s.querySelector(".when b").textContent = f.day;
+      s.querySelector(".when span").textContent = f.mon + " " + f.time;
+      s.querySelector(".who b").textContent = b.name;
+      s.querySelector(".who span").textContent = `${b.service} · ${b.phone}`;
+      el.append(s);
+    }
+  }
+  let lastBookingCount = -1;
+  async function poll() {
+    try {
+      const r = await fetch(`/api/bookings?since=${since}&token=${encodeURIComponent(token)}`);
+      if (!r.ok) return;
+      const j = await r.json();
+      if (j.bookings.length !== lastBookingCount) { lastBookingCount = j.bookings.length; renderSlips(j.bookings); }
+      const feed = $("#feed");
+      for (const a of j.activity) {
+        since = Math.max(since, a.t);
+        const li = document.createElement("li");
+        li.className = a.kind;
+        li.textContent = new Date(a.t).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }) + "  " + a.text;
+        feed.append(li);
+        feed.scrollTop = feed.scrollHeight;
+        if (live && mode === "vapi") setStatus(a.kind === "booked" ? "Appointment booked." : "Priya is checking the calendar.", "ai");
+      }
+    } catch { /* offline blip, next poll retries */ }
+  }
+  const startPolling = (ms) => { clearInterval(pollId); pollId = setInterval(() => { poll(); pollMeter(); }, ms); };
+
+  // ---- Services and cost ------------------------------------------------------
+  const rupees = (n) => "₹" + (n < 10 ? n.toFixed(2) : n.toFixed(1));
+  const STACK_USAGE = {
+    line: "$0.05 per minute",
+    stt: "₹30 per hour of audio",
+    llm: { openai: "$2.50 in, $10 out per 1M tokens", sarvam: "₹29.28 in, ₹73.20 out per 1M tokens", "sarvam-conv": "₹29.28 in, ₹73.20 out per 1M tokens" },
+    tts: "₹3 per 1,000 characters",
+  };
+  const BRAIN_NAME = { openai: ["OpenAI", "gpt-4o"], sarvam: ["Sarvam", "Sarvam 105B"], "sarvam-conv": ["Sarvam", "Sarvam 105B Conversations"] };
+  let meterVoices = {};
+  function plannedLines() {
+    const llm = pick("llm");
+    const code = { ta: "ta-IN", kn: "kn-IN", te: "te-IN", hi: "hi-IN", en: "en-IN" }[pick("lang")];
+    const voice = meterVoices[code || "en-IN"];
+    return [
+      pick("line") === "direct"
+        ? { role: "Phone line", provider: "None", model: "direct browser test", usage: "No fee. A real phone line adds Vapi's $0.05 per minute" }
+        : { role: "Phone line", provider: "Vapi", model: "web call", usage: STACK_USAGE.line },
+      { role: "Listening", provider: "Sarvam", model: "Saaras v4", usage: STACK_USAGE.stt },
+      { role: "Brain", provider: BRAIN_NAME[llm][0], model: BRAIN_NAME[llm][1], usage: STACK_USAGE.llm[llm] },
+      { role: "Voice", provider: "Sarvam", model: "Bulbul v3" + (voice ? " · " + voice : ""), usage: STACK_USAGE.tts },
+    ];
+  }
+  function rowEl(l, withAmt) {
+    const d = document.createElement("div");
+    d.className = "crow";
+    d.innerHTML = '<div class="role"></div><div class="svc"><b></b><span></span></div><div class="use"></div><div class="amt"></div>';
+    d.querySelector(".role").textContent = l.role;
+    d.querySelector(".svc b").textContent = l.provider;
+    d.querySelector(".svc span").textContent = l.model;
+    d.querySelector(".use").textContent = l.usage;
+    d.querySelector(".amt").textContent = withAmt ? rupees(l.inr) : "";
+    if (l.basis) {
+      const b = document.createElement("div");
+      b.className = "basis";
+      const tag = document.createElement("i");
+      tag.textContent = l.basis;
+      b.append(tag);
+      d.append(b);
+    }
+    return d;
+  }
+  function headRow() {
+    const h = document.createElement("div");
+    h.className = "crow head";
+    for (const [t, cls] of [["Part", ""], ["Service", ""], ["Usage", ""], ["Cost", "amt"]]) {
+      const c = document.createElement("div");
+      c.textContent = t;
+      if (cls) c.className = cls;
+      h.append(c);
+    }
+    return h;
+  }
+  function renderCost(data) {
+    const el = $("#cost");
+    el.innerHTML = "";
+    el.append(headRow());
+    const s = data && data.session;
+    $("#report").innerHTML = "";
+    if (!s) {
+      plannedLines().forEach((l) => el.append(rowEl(l, false)));
+      $("#costState").textContent = "Start a call to see real usage";
+      $("#costFoot").textContent = "Prices shown are list prices. Usage and cost fill in live during the call.";
+      return;
+    }
+    $("#costState").textContent = s.live ? "Live" : "Last call";
+    s.lines.forEach((l) => el.append(rowEl(l, true)));
+    const t = document.createElement("div");
+    t.className = "crow total";
+    t.innerHTML = '<div class="role">Total</div><div class="svc"><b></b><span></span></div><div class="use"></div><div class="amt"></div>';
+    t.querySelector(".svc b").textContent = "This call";
+    t.querySelector(".svc span").textContent = s.perMinInr ? "about " + rupees(s.perMinInr) + " per minute" : "needs a few seconds of talking";
+    t.querySelector(".use").textContent = Math.floor(s.seconds / 60) + "m " + (s.seconds % 60) + "s · about $" + s.totalUsd.toFixed(3);
+    t.querySelector(".amt").textContent = rupees(s.totalInr);
+    el.append(t);
+    const rep = $("#report");
+    if (s.direct) {
+      const box = document.createElement("div");
+      box.className = "report";
+      const title = document.createElement("b");
+      title.textContent = "Direct test, no Vapi";
+      const body = document.createElement("div");
+      body.textContent = "The same call over a real phone line would cost about " + rupees(s.withVapiInr) + " here, because Vapi adds $0.05 per minute. The phone number itself is extra.";
+      box.append(title, body);
+      rep.append(box);
+    } else if (s.vapiReport && s.vapiReport.breakdown) {
+      const b = s.vapiReport.breakdown;
+      const parts = ["vapi", "llm", "stt", "tts", "transport"].filter((k) => typeof b[k] === "number").map((k) => k + " $" + b[k].toFixed(4)).join(", ");
+      const box = document.createElement("div");
+      box.className = "report";
+      const title = document.createElement("b");
+      title.textContent = "Vapi's own bill for this call";
+      const body = document.createElement("div");
+      body.textContent = (typeof s.vapiReport.totalUsd === "number" ? "$" + s.vapiReport.totalUsd.toFixed(4) + " total. " : "") + parts + ". Sarvam bills listening and voice itself, so Vapi shows $0 for them.";
+      box.append(title, body);
+      rep.append(box);
+    } else if (!s.live) {
+      const box = document.createElement("div");
+      box.className = "report";
+      box.textContent = "Waiting for Vapi's own cost report. It usually lands a few seconds after the call ends.";
+      rep.append(box);
+    }
+    $("#costFoot").textContent = "List prices at ₹" + s.usdInr + " per US dollar. Usage is counted by the bridge" + (s.direct ? " from each provider's own numbers." : ". On a Vapi call, GPT-4o tokens are estimated live and replaced by Vapi's numbers after it.");
+  }
+  async function pollMeter() {
+    try {
+      const r = await fetch("/api/meter?token=" + encodeURIComponent(token));
+      if (!r.ok) return;
+      const j = await r.json();
+      meterVoices = j.voices || meterVoices;
+      renderCost(j);
+    } catch { /* next poll retries */ }
+  }
+
+  function tick() {
+    const s = Math.floor((Date.now() - startedAt) / 1000);
+    $("#timer").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+  }
+  function endUi() {
+    live = false;
+    clearInterval(timerId);
+    teardownDirect();
+    $("#go").textContent = "Start call";
+    $("#go").dataset.live = "false";
+    $("#go").disabled = false;
+    document.querySelectorAll("fieldset input").forEach((i) => (i.disabled = false));
+    flatBars();
+    setStatus("Call ended. Start another to try a different language.");
+    startPolling(5000);
+    poll();
+  }
+
+  async function startVapi() {
+    mode = "vapi";
+    showErr("");
+    $("#go").disabled = true;
+    setStatus("Connecting…");
+    try {
+      const cfg = await fetch(`/api/assistant-config?lang=${pick("lang")}&llm=${pick("llm")}&token=${encodeURIComponent(token)}`).then((r) => {
+        if (!r.ok) throw new Error(r.status === 401 ? "This link is missing its token. Open the full link you were given." : "Could not load the call settings (" + r.status + ").");
+        return r.json();
+      });
+      const { default: Vapi } = await import("https://esm.sh/@vapi-ai/web");
+      vapi = new Vapi(cfg.publicKey);
+      vapi.on("call-start", () => {
+        live = true;
+        startedAt = Date.now();
+        timerId = setInterval(tick, 500);
+        $("#go").textContent = "End call";
+        $("#go").dataset.live = "true";
+        $("#go").disabled = false;
+        setStatus("Listening. Go ahead and speak.", "you");
+        startPolling(1500);
+      });
+      vapi.on("call-end", endUi);
+      vapi.on("speech-start", () => setStatus("Priya is speaking", "ai"));
+      vapi.on("speech-end", () => setStatus("Listening. Go ahead and speak.", "you"));
+      vapi.on("volume-level", (v) => drawBars(Math.min(1, v * 1.4)));
+      vapi.on("message", (m) => { if (m.type === "conversation-update") renderChat(m.conversation); });
+      vapi.on("error", (e) => {
+        const msg = e?.error?.message || e?.message || (typeof e === "string" ? e : "");
+        showErr(msg ? "Call problem: " + msg : "The call hit a problem. If the browser asked for the microphone, allow it and try again.");
+        if (!live) endUi();
+      });
+      document.querySelectorAll("fieldset input").forEach((i) => (i.disabled = true));
+      $("#chat").innerHTML = "";
+      renderEmpty();
+      await vapi.start(cfg.assistant);
+    } catch (e) {
+      showErr(e.message || "Could not start the call.");
+      endUi();
+    }
+  }
+
+  // ---- Direct mode: browser <-> bridge, no Vapi -----------------------------------
+  // Mic: AudioContext at 16 kHz -> worklet -> PCM16 frames over the WebSocket.
+  // Voice: PCM16 24 kHz frames from the bridge, scheduled back to back on a second context.
+  const WORKLET = 'class P extends AudioWorkletProcessor{process(i){const c=i[0][0];if(c)this.port.postMessage(c.slice(0));return true}}registerProcessor("pcm",P)';
+  let d = null; // everything owned by the current direct call
+
+  function teardownDirect() {
+    if (!d) return;
+    const x = d;
+    d = null;
+    clearInterval(x.barTimer);
+    try { x.ws.close(); } catch { /* closed */ }
+    x.stream.getTracks().forEach((t) => t.stop());
+    x.micCtx.close().catch(() => {});
+    x.playCtx.close().catch(() => {});
+  }
+
+  function playChunk(buf) {
+    const n = Math.floor(buf.byteLength / 2);
+    if (!n) return;
+    const pcm = new Int16Array(buf, 0, n);
+    const audio = d.playCtx.createBuffer(1, n, 24000);
+    const ch = audio.getChannelData(0);
+    for (let i = 0; i < n; i++) ch[i] = pcm[i] / 32768;
+    const src = d.playCtx.createBufferSource();
+    src.buffer = audio;
+    src.connect(d.analyser);
+    d.playHead = Math.max(d.playCtx.currentTime + 0.05, d.playHead);
+    src.start(d.playHead);
+    d.playHead += audio.duration;
+    d.sources.add(src);
+    src.onended = () => d && d.sources.delete(src);
+    d.thinking = false;
+  }
+  function clearPlayback() {
+    if (!d) return;
+    for (const s of d.sources) { try { s.stop(); } catch { /* already stopped */ } }
+    d.sources.clear();
+    d.playHead = 0;
+  }
+
+  function addTurn(role, text) {
+    const last = d.convo[d.convo.length - 1];
+    if (role === "assistant" && last && last.role === "assistant") last.content += " " + text;
+    else d.convo.push({ role, content: text });
+    renderChat(d.convo);
+  }
+
+  async function startDirect() {
+    mode = "direct";
+    showErr("");
+    $("#go").disabled = true;
+    $("#delay").textContent = "";
+    setStatus("Connecting…");
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
+    } catch {
+      showErr("The microphone is blocked. Allow it from the address bar, then press Start call again.");
+      return endUi();
+    }
+    try {
+      const micCtx = new AudioContext({ sampleRate: 16000 });
+      const playCtx = new AudioContext({ sampleRate: 24000 });
+      await micCtx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: "text/javascript" })));
+      const analyser = playCtx.createAnalyser();
+      analyser.fftSize = 512;
+      analyser.connect(playCtx.destination);
+      const proto = location.protocol === "https:" ? "wss" : "ws";
+      const ws = new WebSocket(`${proto}://${location.host}/api/live?token=${encodeURIComponent(token)}&lang=${pick("lang")}&llm=${pick("llm")}`);
+      ws.binaryType = "arraybuffer";
+      d = { ws, stream, micCtx, playCtx, analyser, playHead: 0, sources: new Set(), convo: [], thinking: false, micLevel: 0, barTimer: null };
+      const mine = d;
+
+      // Mic -> PCM16 frames of about 100 ms
+      const node = new AudioWorkletNode(micCtx, "pcm");
+      micCtx.createMediaStreamSource(stream).connect(node);
+      let acc = new Float32Array(0);
+      node.port.onmessage = (e) => {
+        if (d !== mine) return;
+        const f = e.data;
+        let sum = 0;
+        for (let i = 0; i < f.length; i++) sum += f[i] * f[i];
+        mine.micLevel = Math.sqrt(sum / f.length);
+        const merged = new Float32Array(acc.length + f.length);
+        merged.set(acc);
+        merged.set(f, acc.length);
+        acc = merged;
+        if (acc.length >= 1600 && ws.readyState === WebSocket.OPEN) {
+          const out = new Int16Array(acc.length);
+          for (let i = 0; i < acc.length; i++) out[i] = Math.max(-1, Math.min(1, acc[i])) * 32767;
+          ws.send(out.buffer);
+          acc = new Float32Array(0);
+        }
+      };
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "start" }));
+        live = true;
+        startedAt = Date.now();
+        timerId = setInterval(tick, 500);
+        $("#go").textContent = "End call";
+        $("#go").dataset.live = "true";
+        $("#go").disabled = false;
+        setStatus("Listening. Go ahead and speak.", "you");
+        startPolling(1000);
+        document.querySelectorAll("fieldset input").forEach((i) => (i.disabled = true));
+        $("#chat").innerHTML = "";
+        renderEmpty();
+      };
+      ws.onmessage = (e) => {
+        if (d !== mine) return;
+        if (e.data instanceof ArrayBuffer) return playChunk(e.data);
+        const m = JSON.parse(e.data);
+        if (m.type === "transcript") addTurn(m.role, m.text);
+        else if (m.type === "state" && m.state === "thinking") mine.thinking = true;
+        else if (m.type === "clear") clearPlayback();
+        else if (m.type === "latency") $("#delay").textContent = `Reply delay ${(m.ms / 1000).toFixed(1)}s (waiting for you to finish ${(m.waitMs / 1000).toFixed(1)}s, brain ${(m.brainMs / 1000).toFixed(1)}s, voice ${(m.voiceMs / 1000).toFixed(1)}s)`;
+        else if (m.type === "error") showErr(m.message);
+        else if (m.type === "ended") endUi();
+      };
+      ws.onclose = () => { if (d === mine) endUi(); };
+      ws.onerror = () => { if (d === mine) showErr("Lost the connection to the bridge. Check that it is running, then try again."); };
+
+      // Status and level bars, about 20 times a second
+      const buf = new Uint8Array(analyser.fftSize);
+      mine.barTimer = setInterval(() => {
+        if (d !== mine) return;
+        const speaking = mine.playHead > playCtx.currentTime + 0.01;
+        if (speaking) {
+          analyser.getByteTimeDomainData(buf);
+          let sum = 0;
+          for (const v of buf) { const x = (v - 128) / 128; sum += x * x; }
+          drawBars(Math.min(1, Math.sqrt(sum / buf.length) * 3));
+          setStatus("Priya is speaking", "ai");
+        } else {
+          drawBars(Math.min(1, mine.micLevel * 6));
+          if (mine.thinking) setStatus("Priya is thinking…", "ai");
+          else setStatus("Listening. Go ahead and speak.", "you");
+        }
+      }, 50);
+    } catch (e) {
+      stream.getTracks().forEach((t) => t.stop());
+      showErr("Could not start the direct call: " + (e.message || e));
+      endUi();
+    }
+  }
+
+  function stopCall() {
+    if (mode === "vapi") vapi && vapi.stop();
+    else endUi();
+  }
+  $("#go").onclick = () => {
+    if (live) stopCall();
+    else if (pick("line") === "vapi") startVapi();
+    else startDirect();
+  };
+  $("#reset").onclick = async () => {
+    await fetch(`/api/bookings?token=${encodeURIComponent(token)}`, { method: "DELETE" }).catch(() => {});
+    $("#feed").innerHTML = ""; since = 0; lastBookingCount = -1; poll();
+  };
+  document.querySelectorAll("fieldset input").forEach((i) =>
+    i.addEventListener("change", () => {
+      store.set("orvia-" + i.name, i.value);
+      if (i.name === "lang") { $("#langHint").textContent = LANG_HINT[i.value]; if (!live) renderEmpty(); }
+    }),
+  );
+  const BRAIN_HINT = {
+    "sarvam-conv": "Sarvam's conversation model. Fast, and booked correctly in every test.",
+    sarvam: "Sarvam's general model. Skips the booking tool about a quarter of the time.",
+    openai: "Reliable with tools. Over Vapi it uses Vapi's OpenAI. Direct needs OPENAI_API_KEY on the bridge.",
+  };
+  const LINE_HINT = {
+    direct: "Your browser talks straight to the bridge. No Vapi fee. Wear headphones so Priya does not hear herself.",
+    vapi: "Goes through Vapi the way a phone line would. Adds $0.05 per minute.",
+  };
+  const refreshHints = () => {
+    $("#langHint").textContent = LANG_HINT[pick("lang")];
+    $("#brainHint").textContent = BRAIN_HINT[pick("llm")];
+    $("#lineHint").textContent = LINE_HINT[pick("line")];
+  };
+  document.querySelectorAll("fieldset input").forEach((i) => i.addEventListener("change", refreshHints));
+  refreshHints();
+  flatBars();
+  renderEmpty();
+  renderSlips([]);
+  startPolling(5000);
+  poll();
+  pollMeter();
+  document.querySelectorAll("fieldset input").forEach((i) => i.addEventListener("change", pollMeter));
+</script>
+</body>
+</html>
