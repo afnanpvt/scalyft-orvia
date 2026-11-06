@@ -125,6 +125,12 @@ Flavors: `prod` (`com.scalyft.orvia`, "Orvia") and `dev`
 (`com.scalyft.orvia.dev`, "Orvia Dev", yellow icon), so a test build installs
 beside the real one.
 
+`assistant` (`com.scalyft.orvia.assistant`, "Orvia Assistant") is the owner's
+personal build: the same app plus an on-phone call agent that answers the
+owner's own calls with Gemini through Shizuku and saves them to the dashboard
+(`device-agent` function). Never published; prod and dev do not contain it.
+See `TELEPHONY_SHIZUKU_HANDOFF.md`.
+
 Release:
 
 ```bash

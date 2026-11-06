@@ -34,6 +34,8 @@ const LANGUAGE_OPTIONS = [
   { value: "spanish",      label: "Spanish" },
   { value: "hindi",        label: "Hindi" },
   { value: "kannada",      label: "Kannada" },
+  { value: "telugu",       label: "Telugu" },
+  { value: "tamil",        label: "Tamil" },
   { value: "multilingual", label: "Multilingual (Hindi + Kannada + English)" },
 ] as const
 
@@ -559,8 +561,8 @@ function AIAssistantTab({ settings, onSettingsChange }: {
               className={`${S.input} cursor-pointer`}>
               {LANGUAGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
-            {(settings.language_preference === "kannada" || settings.language_preference === "multilingual") && (
-              <p className={S.hint}>Kannada voice and transcription quality is unverified. Test a real call before relying on it.</p>
+            {(settings.language_preference === "kannada" || settings.language_preference === "telugu" || settings.language_preference === "tamil" || settings.language_preference === "multilingual") && (
+              <p className={S.hint}>Kannada, Telugu and Tamil voice and transcription quality is unverified. Test a real call before relying on it.</p>
             )}
           </FieldGroup>
         </div>

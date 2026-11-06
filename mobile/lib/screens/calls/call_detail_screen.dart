@@ -132,10 +132,15 @@ class _CallDetailScreenState extends State<CallDetailScreen> {
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Pill(v.label, tone: v.tone),
+                          if (call.answeredOnPhone) const Pill('On your phone', icon: Icons.smartphone_rounded),
                           if (call.durationSecs != null)
                             Text(Fmt.duration(call.durationSecs), style: context.text.labelSmall),
                         ],
                       ),
+                      if (call.callerName?.trim().isNotEmpty == true) ...[
+                        const SizedBox(height: 4),
+                        Text(Phone.display(call.callerPhone), style: context.text.bodySmall),
+                      ],
                     ],
                   ),
                 ),

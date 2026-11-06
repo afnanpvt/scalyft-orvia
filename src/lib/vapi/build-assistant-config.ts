@@ -1,25 +1,36 @@
 import type { Business, BusinessService, BusinessFAQ } from "@/lib/types";
 import { NICHE_PROFILES, nicheOf } from "@/lib/vapi/niche-profiles";
 
-// ElevenLabs multilingual v2 officially supports Hindi. Kannada is NOT on their
-// supported-language list — this is a best-effort mapping, unverified quality.
-// Requires an ElevenLabs key configured on the Vapi account.
+// Hindi: ElevenLabs multilingual v2. Kannada, Telugu and Tamil: Eleven v3 covers
+// them, and only Deepgram nova-3 transcribes them (nova-2 is Hindi-only).
+// Requires an ElevenLabs key configured on the Vapi account. Quality unverified;
+// poc/sarvam-bridge has a Sarvam alternative to compare against.
 function voiceAndTranscriberFor(language: string | undefined) {
   switch (language) {
     case "hindi":
       return {
         voice: { provider: "11labs" as const, voiceId: "pFZP5JQG7iQjIQuC4Bku", model: "eleven_multilingual_v2" as const },
-        transcriber: { provider: "deepgram" as const, model: "nova-2", language: "hi" as const, smartFormat: true, endpointing: 200 },
+        transcriber: { provider: "deepgram" as const, model: "nova-3", language: "hi" as const, smartFormat: true, endpointing: 200 },
       };
     case "kannada":
       return {
-        voice: { provider: "11labs" as const, voiceId: "pFZP5JQG7iQjIQuC4Bku", model: "eleven_multilingual_v2" as const },
-        transcriber: { provider: "deepgram" as const, model: "nova-2", language: "kn" as const, smartFormat: true, endpointing: 200 },
+        voice: { provider: "11labs" as const, voiceId: "pFZP5JQG7iQjIQuC4Bku", model: "eleven_v3" as const },
+        transcriber: { provider: "deepgram" as const, model: "nova-3", language: "kn" as const, smartFormat: true, endpointing: 200 },
+      };
+    case "telugu":
+      return {
+        voice: { provider: "11labs" as const, voiceId: "pFZP5JQG7iQjIQuC4Bku", model: "eleven_v3" as const },
+        transcriber: { provider: "deepgram" as const, model: "nova-3", language: "te" as const, smartFormat: true, endpointing: 200 },
+      };
+    case "tamil":
+      return {
+        voice: { provider: "11labs" as const, voiceId: "pFZP5JQG7iQjIQuC4Bku", model: "eleven_v3" as const },
+        transcriber: { provider: "deepgram" as const, model: "nova-3", language: "ta" as const, smartFormat: true, endpointing: 200 },
       };
     case "multilingual":
       return {
         voice: { provider: "11labs" as const, voiceId: "pFZP5JQG7iQjIQuC4Bku", model: "eleven_multilingual_v2" as const },
-        transcriber: { provider: "deepgram" as const, model: "nova-2", language: "multi" as const, smartFormat: true, endpointing: 200 },
+        transcriber: { provider: "deepgram" as const, model: "nova-3", language: "multi" as const, smartFormat: true, endpointing: 200 },
       };
     case "spanish":
       return {
@@ -130,6 +141,10 @@ function buildSystemPrompt(business: Business): string {
         ? "Respond in Hindi by default. If the caller speaks English, mirror them in English."
         : langPref === "kannada"
           ? "Respond in Kannada by default. If the caller speaks English or Hindi, mirror them."
+          : langPref === "telugu"
+            ? "Respond in Telugu by default. If the caller speaks English or Hindi, mirror them."
+          : langPref === "tamil"
+            ? "Respond in Tamil by default. If the caller speaks English or Hindi, mirror them."
           : langPref === "multilingual"
             ? "Detect the caller's language on their first turn and respond in that language — Hindi, Kannada, or English — for the rest of the call. Mirror code-switching naturally."
             : "Respond in English. If the caller speaks another language, briefly apologize and offer to transfer or take a callback.";

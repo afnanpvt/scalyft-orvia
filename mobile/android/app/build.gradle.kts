@@ -29,6 +29,7 @@ android {
     buildFeatures {
         // The dev flavor sets its launcher label with resValue.
         resValues = true
+        aidl = true
     }
 
     compileOptions {
@@ -88,6 +89,19 @@ android {
             applicationIdSuffix = ".dev"
             resValue("string", "app_name", "Orvia Dev")
         }
+        // The owner's personal build: the full app plus the on-phone call agent
+        // (Shizuku + Gemini Live). Separate id and installer, never published.
+        create("assistant") {
+            dimension = "env"
+            applicationIdSuffix = ".assistant"
+            resValue("string", "app_name", "Orvia Assistant")
+        }
+    }
+
+    // prod and dev share a no-op hook; assistant registers the agent channel.
+    sourceSets {
+        getByName("prod").java.srcDir("src/standard/kotlin")
+        getByName("dev").java.srcDir("src/standard/kotlin")
     }
 
     testOptions {
@@ -113,6 +127,9 @@ kotlin {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+    "assistantImplementation"("dev.rikka.shizuku:api:13.1.5")
+    "assistantImplementation"("dev.rikka.shizuku:provider:13.1.5")
+    "assistantImplementation"("com.squareup.okhttp3:okhttp:4.12.0")
     testImplementation("junit:junit:4.13.2")
 }
 

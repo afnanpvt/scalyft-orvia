@@ -46,6 +46,8 @@ const TRANSCRIPTION_LANGUAGES: Partial<Record<NonNullable<Business["settings"]["
   spanish: ["es-US", "en-US"],
   hindi: ["hi-IN", "en-IN"],
   kannada: ["kn-IN", "en-IN"],
+  telugu: ["te-IN", "en-IN"],
+  tamil: ["ta-IN", "en-IN"],
 }
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 

@@ -10,3 +10,8 @@ export function callerPhoneLabel(call: Pick<Call, "caller_phone" | "extracted_da
   if (call.caller_phone) return call.caller_phone;
   return isWebTestCall(call) ? "Test call" : "Unknown caller";
 }
+
+// Calls the owner's phone agent answered (Orvia Assistant app, device-agent function).
+export function isPhoneAgentCall(call: Pick<Call, "extracted_data">): boolean {
+  return (call.extracted_data as Record<string, unknown> | null)?.source === "phone_agent";
+}

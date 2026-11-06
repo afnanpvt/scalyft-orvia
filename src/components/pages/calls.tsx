@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react"
-import { callerPhoneLabel } from "@/lib/caller-label"
+import { callerPhoneLabel, isPhoneAgentCall } from "@/lib/caller-label"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "@tanstack/react-router"
 import { Phone, ChevronLeft, ChevronRight, PhoneIncoming, PhoneOff, PhoneMissed, PhoneForwarded, Clock, ArrowRight, Calendar as CalendarIcon, List } from "lucide-react"
@@ -176,6 +176,11 @@ function CallRow({ call }: { call: Call }) {
           {hasName && call.caller_phone && (
             <span style={{ fontSize: 11, color: "var(--muted-foreground)", opacity: 0.5, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
               {call.caller_phone}
+            </span>
+          )}
+          {isPhoneAgentCall(call) && (
+            <span style={{ fontSize: 10.5, color: "var(--muted-foreground)", border: "1px solid var(--border)", borderRadius: 99, padding: "0 6px", flexShrink: 0 }}>
+              On your phone
             </span>
           )}
         </div>

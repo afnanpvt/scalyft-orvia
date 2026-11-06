@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'agent/call_agent.dart';
+import 'agent/agent_home.dart';
 import 'app_dependencies.dart';
 import 'data/auth_repository.dart';
 import 'data/orvia_api.dart';
@@ -169,7 +171,7 @@ class _RootState extends State<_Root> {
 
     return switch (stage) {
       SessionStage.starting => const SplashScreen(),
-      SessionStage.signedOut => const LoginScreen(),
+      SessionStage.signedOut => CallAgent.available ? const _SignedOutAgent() : const LoginScreen(),
       SessionStage.mustChangePassword => const ChangePasswordScreen(),
       SessionStage.noBusiness => const NoBusinessScreen(),
       SessionStage.ready => const ShellScreen(),
@@ -240,6 +242,8 @@ class SignedInScopeState extends State<SignedInScope> {
     super.initState();
     home.addListener(_onHome);
     unawaited(_boot());
+    // Assistant build: signing in is what connects the call agent to the dashboard.
+    if (CallAgent.available) unawaited(CallAgent.linkIfNeeded());
   }
 
   Future<void> _boot() async {
@@ -354,6 +358,44 @@ class SignedInScopeState extends State<SignedInScope> {
         Provider<Profile>.value(value: widget.profile),
       ],
       child: widget.child,
+    );
+  }
+}
+
+/// Assistant build, signed out: the call agent works on its own, so it opens
+/// first. Signing in is optional and adds dashboard sync.
+class _SignedOutAgent extends StatefulWidget {
+  const _SignedOutAgent();
+
+  @override
+  State<_SignedOutAgent> createState() => _SignedOutAgentState();
+}
+
+class _SignedOutAgentState extends State<_SignedOutAgent> {
+  bool _signingIn = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_signingIn) {
+      return AgentHome(canLink: false, onSignIn: () => setState(() => _signingIn = true));
+    }
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) setState(() => _signingIn = false);
+      },
+      child: Stack(
+        children: [
+          const LoginScreen(),
+          SafeArea(
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              tooltip: 'Back to the call agent',
+              onPressed: () => setState(() => _signingIn = false),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

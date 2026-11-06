@@ -1,0 +1,55 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The "assistant" flavor only: the owner's personal call agent. Unlike the
+         public app it does touch call audio. Shizuku runs the privileged part
+         as the shell user on the owner's own phone:
+         RECORD_AUDIO                    "Tap to talk" mic mode.
+         FOREGROUND_SERVICE_MICROPHONE   the mic mode service.
+         FOREGROUND_SERVICE_SPECIAL_USE  the always-on call agent, which waits
+                                         for calls and owns the Gemini session.
+         REQUEST_IGNORE_BATTERY_OPTIMIZATIONS  keeps the agent alive on vivo.
+         WAKE_LOCK                       keeps the CPU up during an answered call. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application>
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:enabled="true"
+            android:exported="true"
+            android:multiprocess="false"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+
+        <service
+            android:name=".gemini.GeminiAssistantService"
+            android:foregroundServiceType="microphone|specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Owner brings the AI assistant into a phone call they are on" />
+        </service>
+
+        <service
+            android:name=".gemini.CallAgentService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Personal call assistant that answers the owner's own calls" />
+        </service>
+
+        <service
+            android:name=".gemini.OutboundCallService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Owner-started test call where an AI assistant talks to the person called" />
+        </service>
+    </application>
+</manifest>

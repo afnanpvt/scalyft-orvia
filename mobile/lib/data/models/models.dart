@@ -66,6 +66,8 @@ class CallRecord {
     this.transcriptReady = false,
     this.aiFailureReason,
     this.isTestCall = false,
+    this.answeredOnPhone = false,
+    this.callerName,
   });
 
   factory CallRecord.fromJson(Json j) {
@@ -90,6 +92,9 @@ class CallRecord {
       // vapi-events / migration 015: browser test calls carry no number and
       // are tagged source=web. Demo rows are tagged demo_seed.
       isTestCall: extracted['source'] == 'web' || extracted['demo_seed'] == 'true',
+      // Calls the assistant build's on-phone agent answered (device-agent function).
+      answeredOnPhone: extracted['source'] == 'phone_agent',
+      callerName: str(extracted['caller_name']),
     );
   }
 
@@ -107,6 +112,8 @@ class CallRecord {
   final bool transcriptReady;
   final String? aiFailureReason;
   final bool isTestCall;
+  final bool answeredOnPhone;
+  final String? callerName;
 
   bool get wasMissed => status == CallStatus.missed || status == CallStatus.failed;
 }

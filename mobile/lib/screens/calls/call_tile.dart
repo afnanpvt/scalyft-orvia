@@ -35,7 +35,11 @@ class CallVisual {
   }
 }
 
-String callTitle(CallRecord call) => call.isTestCall ? 'Test call' : Phone.display(call.callerPhone);
+String callTitle(CallRecord call) {
+  if (call.isTestCall) return 'Test call';
+  final name = call.callerName?.trim();
+  return name != null && name.isNotEmpty ? name : Phone.display(call.callerPhone);
+}
 
 class CallTile extends StatelessWidget {
   const CallTile({super.key, required this.call, required this.now, required this.onTap});
@@ -82,6 +86,10 @@ class CallTile extends StatelessWidget {
           Row(
             children: [
               Pill(v.label, tone: v.tone),
+              if (call.answeredOnPhone) ...[
+                const SizedBox(width: 6),
+                const Pill('On your phone', icon: Icons.smartphone_rounded),
+              ],
               if (call.durationSecs != null) ...[
                 const SizedBox(width: 8),
                 Text(Fmt.duration(call.durationSecs), style: text.labelSmall),

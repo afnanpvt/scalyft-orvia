@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../agent/call_agent.dart';
+import '../../agent/call_agent_row.dart';
 import '../../app.dart';
 import '../../app_dependencies.dart';
 import '../../data/auth_repository.dart';
@@ -153,6 +155,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                 subtitle: Text('What Orvia says, and where it transfers calls', style: context.text.bodySmall),
                 trailing: const Icon(Icons.chevron_right_rounded),
               ),
+              if (CallAgent.available) CallAgentRow(ownerName: profile.fullName),
             ],
           ),
           const SectionTitle('Appearance'),

@@ -17,7 +17,9 @@ class MainActivity : FlutterFragmentActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, TelephonyChannel.NAME)
+        val messenger = flutterEngine.dartExecutor.binaryMessenger
+        MethodChannel(messenger, TelephonyChannel.NAME)
             .setMethodCallHandler(TelephonyChannel(this))
+        FlavorChannels.register(this, messenger)
     }
 }
