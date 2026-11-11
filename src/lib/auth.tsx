@@ -7,14 +7,11 @@ import {
 } from "react";
 import type { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
-import { endGuest } from "@/lib/guest/session";
 
 export interface UserProfile {
   fullName: string | null;
   email: string | null;
   role: string | null;
-  // Set on prospect demo accounts: when the login stops working.
-  demoExpiresAt: string | null;
 }
 
 export interface AuthContext {
@@ -27,10 +24,12 @@ export interface AuthContext {
   // Driven by the `users.must_change_password` flag (set by the invite flow).
   // Also true when the user is in a password-recovery session.
   mustChangePassword: boolean;
+  // True once profile loading finished and the login has no business (not invited / not onboarded).
+  hasNoAccess: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   updateProfile: (fullName: string) => Promise<{ error: string | null }>;
-  signInWithOAuth: (provider: "apple" | "github") => Promise<{ error: string | null }>;
+  signInWithOAuth: (provider: "google" | "apple" | "github") => Promise<{ error: string | null }>;
   requestPasswordReset: (email: string) => Promise<{ error: string | null }>;
   updatePassword: (newPassword: string) => Promise<{ error: string | null }>;
   // Clear the must_change_password flag after a successful change.
@@ -43,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [businessId, setBusinessId] = useState<string | null>(null);
-  const [profile, setProfile] = useState<UserProfile>({ fullName: null, email: null, role: null, demoExpiresAt: null });
+  const [profile, setProfile] = useState<UserProfile>({ fullName: null, email: null, role: null });
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -80,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (event === "SIGNED_OUT" || !s?.user) {
         setBusinessId(null);
-        setProfile({ fullName: null, email: null, role: null, demoExpiresAt: null });
+        setProfile({ fullName: null, email: null, role: null });
         setMustChangePassword(false);
         setIsLoading(false);
         return;
@@ -98,26 +97,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function fetchUserData(userId: string, email: string | null) {
-    // A real account always wins over a leftover guest session.
-    endGuest();
+    // Let a freshly signed-in (e.g. Google) user in if their verified email has a pending invite.
+    await supabase.rpc("accept_pending_invites");
     const { data } = await supabase
       .from("users")
-      .select("business_id, full_name, role, theme_preference, must_change_password, demo_expires_at")
+      .select("business_id, full_name, role, theme_preference, must_change_password")
       .eq("id", userId)
       .single();
-    // A demo account past its date is signed out here at once; the database
-    // also bans the login, so it cannot come back.
-    if (data?.demo_expires_at && new Date(data.demo_expires_at).getTime() <= Date.now()) {
-      await supabase.auth.signOut();
-      setIsLoading(false);
-      return;
-    }
     setBusinessId(data?.business_id ?? null);
     setProfile({
       fullName: data?.full_name ?? null,
       email,
       role: data?.role ?? null,
-      demoExpiresAt: data?.demo_expires_at ?? null,
     });
     setMustChangePassword(!!data?.must_change_password);
     if (data?.theme_preference) {
@@ -139,12 +130,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
-    endGuest();
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
     setBusinessId(null);
-    setProfile({ fullName: null, email: null, role: null, demoExpiresAt: null });
+    setProfile({ fullName: null, email: null, role: null });
     setMustChangePassword(false);
   }
 
@@ -160,7 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null };
   }
 
-  async function signInWithOAuth(provider: "apple" | "github") {
+  async function signInWithOAuth(provider: "google" | "apple" | "github") {
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: { redirectTo: `${window.location.origin}/` },
@@ -193,6 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthCtx.Provider
       value={{
         user, session, isLoading, businessId, profile, mustChangePassword,
+        hasNoAccess: !isLoading && !!user && !businessId,
         signIn, signOut, updateProfile,
         signInWithOAuth, requestPasswordReset, updatePassword,
         clearMustChangePassword,

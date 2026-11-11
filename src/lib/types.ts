@@ -11,6 +11,14 @@ export interface Business {
   seconds_remaining: number;
   allow_overage: boolean;
   owner_phone: string | null;
+  plan: "trial" | "solo" | "pro" | "scale" | null;
+  calls_included: number | null;
+  overage_cap_calls: number;
+  period_start: string | null;
+  period_end: string | null;
+  trade: "hvac" | "plumbing" | "electrical" | "other" | null;
+  notification_email: string | null;
+  billing_status: "trialing" | "active" | "past_due" | "canceled" | null;
   created_at: string;
   updated_at: string;
 }
@@ -53,17 +61,16 @@ export interface BusinessSettings {
   // FAQ the AI can answer
   faq?: BusinessFAQ[];
 
-  // Industry playbook the AI follows (see src/lib/vapi/niche-profiles.ts).
-  // Set from /admin/niche; unset = the original generic playbook.
-  niche?: "dental" | "plumbing" | "hvac" | "real_estate" | "customer_support";
-  // Region for generated demo data (names, phone formats). Admin demo only.
-  demo_region?: "in" | "us";
-  demo_autofill?: boolean;
-
   // AI personality
   receptionist_name?: string;
   tone?: string;
-  language_preference?: "english" | "spanish" | "hindi" | "kannada" | "telugu" | "tamil" | "multilingual";
+  language_preference?: "english" | "spanish" | "multilingual";
+  trade?: string;
+  after_hours_policy?: "transfer_then_capture" | "capture_only" | "book_next_day";
+  transfer_during_hours?: boolean;
+  emergency_keywords?: string[];
+  intake_questions?: string[];
+  recording_disclosure?: boolean;
   special_instructions?: string[];
 
   // Emergency
@@ -82,31 +89,11 @@ export interface BusinessSettings {
   service_area_zips?: string[];
 
   // Calendar
-  // "live": the AI checks real availability (hours, existing bookings, the
-  // connected Google Calendar) and writes bookings to that calendar.
-  // "simulated": demo mode — the AI always finds plausible openings and
-  // bookings only land in the dashboard. Defaults to "live".
-  scheduling_mode?: "live" | "simulated";
   calendar_id?: string;
   calendar_provider?: "google";
   slot_duration_default?: number;
   buffer_between_appointments?: number;
   max_appointments_per_day?: number;
-
-  // Admin-only override of the exact model/voice/transcriber stack.
-  // When present, buildAssistantConfig uses these instead of the
-  // language-preference defaults. Set from /admin/model-config.
-  model_config?: {
-    llmProvider?: string;
-    llmModel?: string;
-    temperature?: number;
-    voiceProvider?: string;
-    voiceId?: string;
-    voiceModel?: string;
-    transcriberProvider?: string;
-    transcriberModel?: string;
-    transcriberLanguage?: string;
-  };
 }
 
 export interface User {
@@ -114,7 +101,7 @@ export interface User {
   business_id: string;
   email: string;
   full_name: string | null;
-  role: "owner" | "admin" | "staff";
+  role: "owner" | "admin" | "staff" | "viewer";
   created_at: string;
 }
 
@@ -140,6 +127,9 @@ export interface Call {
     | "missed"
     | null;
   cost_cents: number;
+  cost_usd: number | null;
+  owner_notified_at: string | null;
+  transfer_attempted: boolean;
   transcript_status: "pending" | "complete" | "failed";
   ai_failure_reason: string | null;
   was_concurrent: boolean;
@@ -188,32 +178,12 @@ export interface Lead {
   phone: string;
   email: string | null;
   service_needed: string | null;
+  address: string | null;
+  zip: string | null;
   urgency: "emergency" | "urgent" | "routine" | "inquiry";
   notes: string | null;
   status: "new" | "contacted" | "booked" | "closed" | "lost";
   created_at: string;
-  updated_at: string;
-}
-
-export interface VapiAccount {
-  id: string;
-  label: string;
-  public_key: string;
-  private_key: string | null;
-  balance_usd: number | null;
-  status: "active" | "exhausted" | "disabled";
-  is_active: boolean;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface GoogleCalendarConnection {
-  id: string;
-  business_id: string;
-  google_email: string | null;
-  calendar_id: string;
-  connected_at: string;
   updated_at: string;
 }
 
@@ -225,6 +195,9 @@ export interface Appointment {
   customer_name: string;
   customer_phone: string;
   service_type: string | null;
+  address: string | null;
+  zip: string | null;
+  urgency: string | null;
   scheduled_start: string;
   scheduled_end: string | null;
   notes: string | null;
@@ -238,3 +211,18 @@ export interface Appointment {
   created_at: string;
   updated_at: string;
 }
+
+export interface UsageMonth {
+  business_id: string;
+  month: string;
+  calls: number;
+  seconds: number;
+  minutes: number;
+  cost_usd: number;
+  cost_per_minute_usd: number | null;
+}
+
+export type Role = "owner" | "admin" | "staff" | "viewer";
+export interface TeamMember { id: string; email: string; full_name: string | null; role: Role }
+export interface PendingInvite { id: string; email: string; role: Exclude<Role, "owner">; expires_at: string }
+export interface MyMembership { business_id: string; name: string; role: Role; is_active: boolean }
