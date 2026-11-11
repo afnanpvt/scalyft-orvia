@@ -640,16 +640,24 @@ export async function getCallsUsedThisPeriod(businessId: string): Promise<number
   return (data as number) ?? 0;
 }
 
-export async function startCheckout(plan: "solo" | "pro" | "scale"): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return null;
-  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-checkout`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-    body: JSON.stringify({ plan }),
-  });
-  if (!res.ok) return null;
-  return ((await res.json()) as { url?: string }).url ?? null;
+export async function startCheckout(plan: "solo" | "pro" | "scale"): Promise<{ url: string | null; error: string | null }> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return { url: null, error: "Your session has expired. Sign in again to choose a plan." };
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-checkout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ plan }),
+    });
+    const body = await res.json().catch(() => ({})) as { url?: string; error?: string };
+    if (!res.ok) {
+      return { url: null, error: body.error ?? `Checkout is unavailable right now (HTTP ${res.status}).` };
+    }
+    if (!body.url) return { url: null, error: "Checkout did not return a link. Check the Stripe setup and try again." };
+    return { url: body.url, error: null };
+  } catch {
+    return { url: null, error: "Could not reach checkout. Check your connection and try again." };
+  }
 }
 
 // ─── Team, roles, businesses ─────────────────────────────
