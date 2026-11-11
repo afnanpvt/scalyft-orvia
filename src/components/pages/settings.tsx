@@ -693,13 +693,22 @@ function PlanTab({ clinic }: { clinic: Business }) {
   const { data: months } = useQuery({ queryKey: ["usage"], queryFn: () => getUsageMonths(6) })
   const { data: used } = useQuery({ queryKey: ["calls-used", clinic.id], queryFn: () => getCallsUsedThisPeriod(clinic.id) })
   const [busy, setBusy] = useState(false)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const included = clinic.calls_included
   const pct = included ? Math.min(100, Math.round(((used ?? 0) / included) * 100)) : null
   async function upgrade(plan: "solo" | "pro" | "scale") {
+    setCheckoutError(null)
     setBusy(true)
-    const url = await startCheckout(plan)
-    setBusy(false)
-    if (url) window.location.href = url
+    try {
+      const result = await startCheckout(plan)
+      if (result.url) {
+        window.location.href = result.url
+        return
+      }
+      setCheckoutError(result.error ?? "Could not start checkout. Please try again.")
+    } finally {
+      setBusy(false)
+    }
   }
   const card = { border: "1px solid var(--border)", borderRadius: 12, padding: 20, marginBottom: 16 } as const
   const th = { textAlign: "left", fontSize: 12, color: "var(--muted-foreground)", padding: "6px 8px" } as const
@@ -728,6 +737,10 @@ function PlanTab({ clinic }: { clinic: Business }) {
             </button>
           ))}
         </div>
+        <p style={{ fontSize: 12, color: "var(--muted-foreground)", marginTop: 10 }}>
+          Choosing a plan opens Stripe Checkout.
+        </p>
+        {checkoutError && <p role="alert" style={{ fontSize: 12, color: "var(--destructive)", marginTop: 8 }}>{checkoutError}</p>}
       </div>
       <div style={card}>
         <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Usage by month</p>
