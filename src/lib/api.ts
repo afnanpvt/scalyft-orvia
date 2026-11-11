@@ -1,9 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { Call, Lead, Appointment, Business, OperationalEvent, CallQueueItem, VapiAccount, GoogleCalendarConnection } from "@/lib/types";
-import { isGuest } from "@/lib/guest/session";
-import { guestApi } from "@/lib/guest/data";
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+import type { Call, Lead, Appointment, Business, OperationalEvent, CallQueueItem, UsageMonth, TeamMember, PendingInvite, MyMembership, Role } from "@/lib/types";
 
 // ─── Overview ────────────────────────────────────────────
 
@@ -61,20 +57,6 @@ export async function getCalls(
   return { calls: (data as Call[]) ?? [], total: count ?? 0 };
 }
 
-// All calls that started within [monthStart, monthEnd) — powers the Calls
-// page's calendar view (month grid + per-day list). Capped well above any
-// realistic single-business monthly volume.
-export async function getCallsByRange(rangeStart: Date, rangeEnd: Date): Promise<Call[]> {
-  const { data } = await supabase
-    .from("calls")
-    .select("*")
-    .gte("created_at", rangeStart.toISOString())
-    .lt("created_at", rangeEnd.toISOString())
-    .order("created_at", { ascending: false })
-    .limit(2000);
-  return (data as Call[]) ?? [];
-}
-
 export async function getCallById(id: string): Promise<Call | null> {
   const { data } = await supabase
     .from("calls")
@@ -119,26 +101,6 @@ export async function getLeadByCallId(callId: string): Promise<Lead | null> {
 
 // ─── Appointments ────────────────────────────────────────
 
-// Browser test calls (and real phone calls) only carry Vapi's call id —
-// the internal `calls.id` row is created asynchronously by the vapi-events
-// webhook, so this resolves through that indirection in one round trip.
-export async function getAppointmentByVapiCallId(
-  vapiCallId: string,
-): Promise<Appointment | null> {
-  const { data: callRow } = await supabase
-    .from("calls")
-    .select("id")
-    .eq("vapi_call_id", vapiCallId)
-    .maybeSingle();
-  if (!callRow) return null;
-  const { data } = await supabase
-    .from("appointments")
-    .select("*")
-    .eq("call_id", callRow.id)
-    .maybeSingle();
-  return (data as Appointment) ?? null;
-}
-
 export async function getAppointmentByCallId(
   callId: string,
 ): Promise<Appointment | null> {
@@ -172,19 +134,6 @@ export async function getAppointments(opts?: {
   if (opts?.status) query = query.eq("status", opts.status);
 
   const { data } = await query.limit(100);
-  return (data as Appointment[]) ?? [];
-}
-
-// All appointments scheduled within [rangeStart, rangeEnd) — powers the
-// Appointments page's calendar view.
-export async function getAppointmentsByRange(rangeStart: Date, rangeEnd: Date): Promise<Appointment[]> {
-  const { data } = await supabase
-    .from("appointments")
-    .select("*")
-    .gte("scheduled_start", rangeStart.toISOString())
-    .lt("scheduled_start", rangeEnd.toISOString())
-    .order("scheduled_start", { ascending: true })
-    .limit(2000);
   return (data as Appointment[]) ?? [];
 }
 
@@ -268,7 +217,6 @@ export async function getOutcomeBreakdown() {
 // ─── Business Settings ───────────────────────────────────
 
 export async function getBusinessSettings(): Promise<Business | null> {
-  if (isGuest()) return guestApi.getBusiness();
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -382,14 +330,10 @@ export async function getMissedCallHeatmap(): Promise<{ hour: number; count: num
 // ─── Live Call Status ─────────────────────────────────────
 
 export async function getLiveCallStatus(): Promise<Call | null> {
-  // A call that never reported its end (dropped connection, browser closed)
-  // stays in_progress forever. No call runs this long, so older rows aren't live.
-  const freshSince = new Date(Date.now() - 30 * 60_000).toISOString();
   const { data } = await supabase
     .from("calls")
     .select("*")
     .eq("status", "in_progress")
-    .gte("created_at", freshSince)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -589,211 +533,6 @@ export async function updateBusinessTopLevel(
 export const updateClinicSettings = updateBusinessSettings;
 export const updateClinicTopLevel = updateBusinessTopLevel;
 
-// ─── Vapi Accounts (admin-only key vault) ─────────────────
-
-export async function getVapiAccounts(): Promise<VapiAccount[]> {
-  const { data } = await supabase
-    .from("vapi_accounts")
-    .select("*")
-    .order("balance_usd", { ascending: false, nullsFirst: false });
-  return (data as VapiAccount[]) ?? [];
-}
-
-export async function createVapiAccount(account: {
-  label: string;
-  public_key: string;
-  private_key?: string;
-  balance_usd?: number;
-  notes?: string;
-}) {
-  const { error } = await supabase.from("vapi_accounts").insert(account);
-  return { error: error?.message ?? null };
-}
-
-export async function updateVapiAccount(id: string, patch: Partial<VapiAccount>) {
-  const { error } = await supabase.from("vapi_accounts").update(patch).eq("id", id);
-  return { error: error?.message ?? null };
-}
-
-export async function deleteVapiAccount(id: string) {
-  const { error } = await supabase.from("vapi_accounts").delete().eq("id", id);
-  return { error: error?.message ?? null };
-}
-
-// Marks one account active and clears the flag on all others (DB has a
-// partial unique index enforcing only one is_active=true row at a time).
-export async function setActiveVapiAccount(id: string) {
-  const { error: e1 } = await supabase.from("vapi_accounts").update({ is_active: false }).eq("is_active", true);
-  if (e1) return { error: e1.message };
-  const { error: e2 } = await supabase.from("vapi_accounts").update({ is_active: true, status: "active" }).eq("id", id);
-  return { error: e2?.message ?? null };
-}
-
-// Calls and talk time since the 1st of this month (RLS scopes to the
-// signed-in business).
-export async function getMonthCallStats(): Promise<{ calls: number; secs: number }> {
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-  const { data } = await supabase
-    .from("calls")
-    .select("duration_secs")
-    .gte("created_at", monthStart);
-  const rows = (data as { duration_secs: number | null }[]) ?? [];
-  return {
-    calls: rows.length,
-    secs: rows.reduce((sum, r) => sum + (r.duration_secs ?? 0), 0),
-  };
-}
-
-// ─── Users directory (admin-only; enforced by admin_list_users) ─
-
-export interface AdminUserRow {
-  id: string;
-  email: string;
-  full_name: string | null;
-  role: "owner" | "admin" | "staff" | null;
-  business_id: string | null;
-  business_name: string | null;
-  must_change_password: boolean;
-  created_at: string;
-  last_sign_in_at: string | null;
-  email_confirmed_at: string | null;
-  // Set on prospect demo accounts: when the login stops working.
-  demo_expires_at: string | null;
-}
-
-export async function getAdminUsers(): Promise<AdminUserRow[]> {
-  const { data, error } = await supabase.rpc("admin_list_users");
-  if (error) throw new Error(error.message);
-  return (data as AdminUserRow[]) ?? [];
-}
-
-export interface DemoLimits {
-  daily_cap: number | null; // null = no cap, 0 = demo paused
-  per_visitor: number;
-  used_24h: number;
-}
-
-export async function getDemoLimits(): Promise<DemoLimits | null> {
-  const { data, error } = await supabase.rpc("admin_get_demo_limits");
-  if (error) return null;
-  return ((data as DemoLimits[]) ?? [])[0] ?? null;
-}
-
-export async function setDemoLimits(dailyCap: number | null, perVisitor: number): Promise<{ error: string | null }> {
-  const { error } = await supabase.rpc("admin_set_demo_limits", { p_daily_cap: dailyCap, p_per_visitor: perVisitor });
-  return { error: error?.message ?? null };
-}
-
-// Makes a login a demo that ends in `days` days (1 to 90), or full access (null).
-export async function setDemoExpiry(userId: string, days: number | null): Promise<{ error: string | null }> {
-  const { error } = await supabase.rpc("admin_set_demo_expiry", { p_user: userId, p_days: days });
-  return { error: error?.message ?? null };
-}
-
-// ─── Demo data (admin-only; enforced by the SQL functions) ─
-
-export interface DemoDataStats {
-  autofill: boolean;
-  calls: number;
-  appointments: number;
-  leads: number;
-  latest: string | null;
-}
-
-export async function getDemoDataStats(): Promise<DemoDataStats | null> {
-  const { data, error } = await supabase.rpc("admin_demo_stats");
-  if (error) return null;
-  return data as DemoDataStats;
-}
-
-export async function setDemoAutofill(enabled: boolean) {
-  const { error } = await supabase.rpc("admin_set_demo_autofill", { p_enabled: enabled });
-  return { error: error?.message ?? null };
-}
-
-export async function generateDemoDataNow(count = 6) {
-  const { data, error } = await supabase.rpc("admin_generate_demo_now", { p_count: count });
-  return { created: (data as number | null) ?? 0, error: error?.message ?? null };
-}
-
-// Admin-only: raises fresh Needs Attention items from existing demo calls
-// that haven't been turned into an alert yet — a lighter touch than
-// regenerating the whole week, for when everything's been dismissed and
-// there's nothing left to demo with.
-export async function syncDemoAlerts() {
-  const { data, error } = await supabase.rpc("admin_sync_demo_alerts");
-  return { pending: (data as number | null) ?? 0, error: error?.message ?? null };
-}
-
-export async function regenerateDemoWeek() {
-  const { data, error } = await supabase.rpc("admin_regenerate_demo_week");
-  return { created: (data as number | null) ?? 0, error: error?.message ?? null };
-}
-
-export async function clearDemoData() {
-  const { data, error } = await supabase.rpc("admin_clear_demo_data");
-  return { removed: (data as number | null) ?? 0, error: error?.message ?? null };
-}
-
-// ─── Google Calendar ───────────────────────────────────────
-
-export async function getGoogleCalendarConnection(): Promise<GoogleCalendarConnection | null> {
-  const { data } = await supabase
-    .from("google_calendar_connections")
-    .select("id, business_id, google_email, calendar_id, connected_at, updated_at")
-    .maybeSingle();
-  return (data as GoogleCalendarConnection) ?? null;
-}
-
-// Fetches the Google consent URL from the google-oauth-start edge function
-// (requires an authed request so it can resolve the caller's business_id)
-// and lets the caller navigate the browser there.
-export async function startGoogleCalendarConnect(): Promise<{ url?: string; error?: string }> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return { error: "Not signed in" };
-  const origin = window.location.origin;
-  const resp = await fetch(
-    `${SUPABASE_URL}/functions/v1/google-oauth-start?origin=${encodeURIComponent(origin)}`,
-    { headers: { Authorization: `Bearer ${session.access_token}` } }
-  );
-  const body = await resp.json().catch(() => ({}));
-  if (!resp.ok) return { error: body.error ?? "Could not start Google connection" };
-  return { url: body.url };
-}
-
-// Short-lived token that lets a browser test call's tool requests (booking,
-// availability, leads) through our webhook auth. Null means auth isn't
-// enforced server-side, which is fine — the call just goes without it.
-export async function getDemoCallToken(): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return null;
-  try {
-    const resp = await fetch(`${SUPABASE_URL}/functions/v1/demo-call-token`, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    if (!resp.ok) return null;
-    const body = await resp.json() as { token: string | null };
-    return body.token;
-  } catch {
-    return null;
-  }
-}
-
-export async function disconnectGoogleCalendar(): Promise<{ error: string | null }> {
-  const { error } = await supabase.from("google_calendar_connections").delete().not("id", "is", null);
-  return { error: error?.message ?? null };
-}
-
-export async function getActiveVapiPublicKey(): Promise<string | null> {
-  const { data } = await supabase
-    .from("vapi_accounts")
-    .select("public_key")
-    .eq("is_active", true)
-    .maybeSingle();
-  return (data as { public_key: string } | null)?.public_key ?? null;
-}
-
 // ─── Global Search ───────────────────────────────────────
 
 export type SearchResult =
@@ -882,4 +621,70 @@ export async function globalSearch(q: string): Promise<SearchResult[]> {
   }
 
   return results;
+}
+
+// ─── Usage & billing ─────────────────────────────────────
+
+export async function getUsageMonths(limit = 6): Promise<UsageMonth[]> {
+  const { data } = await supabase
+    .from("business_usage_monthly")
+    .select("*")
+    .order("month", { ascending: false })
+    .limit(limit);
+  return (data ?? []) as UsageMonth[];
+}
+
+/** Calls counted against the plan in the current billing period. */
+export async function getCallsUsedThisPeriod(businessId: string): Promise<number> {
+  const { data } = await supabase.rpc("calls_used_in_period", { p_business_id: businessId });
+  return (data as number) ?? 0;
+}
+
+export async function startCheckout(plan: "solo" | "pro" | "scale"): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return null;
+  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-checkout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ plan }),
+  });
+  if (!res.ok) return null;
+  return ((await res.json()) as { url?: string }).url ?? null;
+}
+
+// ─── Team, roles, businesses ─────────────────────────────
+
+export async function getMyMemberships(): Promise<MyMembership[]> {
+  const { data } = await supabase.rpc("my_memberships");
+  return (data ?? []) as MyMembership[];
+}
+
+export async function switchBusiness(businessId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.rpc("switch_business", { p_business_id: businessId });
+  return { error: error?.message ?? null };
+}
+
+export async function getTeam(): Promise<{ members: TeamMember[]; invites: PendingInvite[] }> {
+  const [m, i] = await Promise.all([
+    supabase.from("users").select("id, email, full_name, role").order("created_at", { ascending: true }),
+    supabase.from("invites").select("id, email, role, expires_at").is("accepted_at", null).order("created_at", { ascending: false }),
+  ]);
+  return { members: (m.data ?? []) as TeamMember[], invites: (i.data ?? []) as PendingInvite[] };
+}
+
+export async function inviteMember(email: string, role: Exclude<Role, "owner">) {
+  const { error } = await supabase.rpc("invite_member", { p_email: email, p_role: role });
+  return { error: error?.message ?? null };
+}
+export async function revokeInvite(id: string) {
+  const { error } = await supabase.rpc("revoke_invite", { p_id: id });
+  return { error: error?.message ?? null };
+}
+export async function setMemberRole(userId: string, role: Role) {
+  const { error } = await supabase.rpc("set_member_role", { p_user_id: userId, p_role: role });
+  return { error: error?.message ?? null };
+}
+export async function removeMember(userId: string) {
+  const { error } = await supabase.rpc("remove_member", { p_user_id: userId });
+  return { error: error?.message ?? null };
 }

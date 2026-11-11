@@ -1,4 +1,4 @@
-# Orvia Dashboard: UX / Product Architecture Report
+# Orvia Dashboard: UX / Product Architecture Comprehensive Report
 
 **Scope:** Full structural audit of the Orvia AI receptionist dashboard.  
 **Perspective:** Information architecture, operational UX, scalability, cognitive load, trust mechanics, and actionability - not visual styling.
