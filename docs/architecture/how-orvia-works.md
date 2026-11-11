@@ -1,5 +1,7 @@
 # How Orvia Works
 
+> **OUTDATED (dental/India, Next.js + n8n).** Current architecture and runbook: [`docs/LAUNCH.md`](../LAUNCH.md).
+
 A complete guide to the Orvia system -- from a phone ringing to data appearing on a dashboard. Read this to understand the entire architecture in about 15 minutes.
 
 ---

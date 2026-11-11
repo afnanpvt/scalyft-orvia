@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { Call, Lead, Appointment, Business, OperationalEvent, CallQueueItem } from "@/lib/types";
+import type { Call, Lead, Appointment, Business, OperationalEvent, CallQueueItem, UsageMonth, TeamMember, PendingInvite, MyMembership, Role } from "@/lib/types";
 
 // ─── Overview ────────────────────────────────────────────
 
@@ -621,4 +621,70 @@ export async function globalSearch(q: string): Promise<SearchResult[]> {
   }
 
   return results;
+}
+
+// ─── Usage & billing ─────────────────────────────────────
+
+export async function getUsageMonths(limit = 6): Promise<UsageMonth[]> {
+  const { data } = await supabase
+    .from("business_usage_monthly")
+    .select("*")
+    .order("month", { ascending: false })
+    .limit(limit);
+  return (data ?? []) as UsageMonth[];
+}
+
+/** Calls counted against the plan in the current billing period. */
+export async function getCallsUsedThisPeriod(businessId: string): Promise<number> {
+  const { data } = await supabase.rpc("calls_used_in_period", { p_business_id: businessId });
+  return (data as number) ?? 0;
+}
+
+export async function startCheckout(plan: "solo" | "pro" | "scale"): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return null;
+  const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-checkout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ plan }),
+  });
+  if (!res.ok) return null;
+  return ((await res.json()) as { url?: string }).url ?? null;
+}
+
+// ─── Team, roles, businesses ─────────────────────────────
+
+export async function getMyMemberships(): Promise<MyMembership[]> {
+  const { data } = await supabase.rpc("my_memberships");
+  return (data ?? []) as MyMembership[];
+}
+
+export async function switchBusiness(businessId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.rpc("switch_business", { p_business_id: businessId });
+  return { error: error?.message ?? null };
+}
+
+export async function getTeam(): Promise<{ members: TeamMember[]; invites: PendingInvite[] }> {
+  const [m, i] = await Promise.all([
+    supabase.from("users").select("id, email, full_name, role").order("created_at", { ascending: true }),
+    supabase.from("invites").select("id, email, role, expires_at").is("accepted_at", null).order("created_at", { ascending: false }),
+  ]);
+  return { members: (m.data ?? []) as TeamMember[], invites: (i.data ?? []) as PendingInvite[] };
+}
+
+export async function inviteMember(email: string, role: Exclude<Role, "owner">) {
+  const { error } = await supabase.rpc("invite_member", { p_email: email, p_role: role });
+  return { error: error?.message ?? null };
+}
+export async function revokeInvite(id: string) {
+  const { error } = await supabase.rpc("revoke_invite", { p_id: id });
+  return { error: error?.message ?? null };
+}
+export async function setMemberRole(userId: string, role: Role) {
+  const { error } = await supabase.rpc("set_member_role", { p_user_id: userId, p_role: role });
+  return { error: error?.message ?? null };
+}
+export async function removeMember(userId: string) {
+  const { error } = await supabase.rpc("remove_member", { p_user_id: userId });
+  return { error: error?.message ?? null };
 }

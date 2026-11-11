@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useMemo, Fragment } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { Plus, Sun, Moon, Monitor, Check, Building2, Wrench, Bot, ShieldCheck, Sliders } from "lucide-react"
+import { Plus, Sun, Moon, Monitor, Check, Building2, Wrench, Bot, ShieldCheck, Sliders, CreditCard, Users } from "lucide-react"
 
-import { getBusinessSettings, updateBusinessSettings, updateBusinessTopLevel } from "@/lib/api"
+import { getBusinessSettings, updateBusinessSettings, updateBusinessTopLevel, getUsageMonths, getCallsUsedThisPeriod, startCheckout, getTeam, inviteMember, revokeInvite, setMemberRole, removeMember, getMyMemberships, switchBusiness } from "@/lib/api"
+import type { Role } from "@/lib/types"
 import { useAuth } from "@/lib/auth"
 import { useTheme, type Theme } from "@/lib/theme"
 import type { Business, BusinessSettings as BusinessSettingsType, BusinessService, BusinessFAQ } from "@/lib/types"
@@ -13,6 +14,8 @@ const TABS = [
   { id: "Business Info",  label: "Business",   icon: Building2,   group: "business" },
   { id: "Services",       label: "Services",   icon: Wrench,      group: "business" },
   { id: "AI Assistant",   label: "AI",         icon: Bot,         group: "business" },
+  { id: "Team",           label: "Team",       icon: Users,       group: "account" },
+  { id: "Plan",           label: "Plan & usage", icon: CreditCard, group: "account" },
   { id: "Profile",        label: "Profile",    icon: ShieldCheck, group: "account" },
   { id: "Preferences",    label: "Appearance", icon: Sliders,     group: "account" },
 ] as const
@@ -32,9 +35,7 @@ const DAY_LABELS: Record<string, string> = {
 const LANGUAGE_OPTIONS = [
   { value: "english",      label: "English" },
   { value: "spanish",      label: "Spanish" },
-  { value: "hindi",        label: "Hindi" },
-  { value: "kannada",      label: "Kannada" },
-  { value: "multilingual", label: "Multilingual (Hindi + Kannada + English)" },
+  { value: "multilingual", label: "English + Spanish (auto-detect)" },
 ] as const
 
 // ─── Style tokens ──────────────────────────────────────
@@ -377,9 +378,6 @@ function AIAssistantTab({ settings, onSettingsChange }: {
               className={`${S.input} cursor-pointer`}>
               {LANGUAGE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
-            {(settings.language_preference === "kannada" || settings.language_preference === "multilingual") && (
-              <p className={S.hint}>Kannada voice/transcription quality is unverified — test a real call before relying on it live.</p>
-            )}
           </FieldGroup>
         </div>
       </div>
@@ -612,6 +610,146 @@ function PreferencesTab() {
 
 // ─── Dirty detection ───────────────────────────────────
 
+function TeamTab() {
+  const { profile, user } = useAuth()
+  const qc = useQueryClient()
+  const { data: team } = useQuery({ queryKey: ["team"], queryFn: getTeam })
+  const { data: mine } = useQuery({ queryKey: ["memberships"], queryFn: getMyMemberships })
+  const [email, setEmail] = useState("")
+  const [role, setRole] = useState<Exclude<Role, "owner">>("staff")
+  const [msg, setMsg] = useState<string | null>(null)
+  const canManage = profile.role === "owner" || profile.role === "admin"
+  const refresh = () => qc.invalidateQueries({ queryKey: ["team"] })
+  async function run(p: Promise<{ error: string | null }>, ok?: string) {
+    const r = await p
+    setMsg(r.error ?? ok ?? null)
+    refresh()
+  }
+  const card = { border: "1px solid var(--border)", borderRadius: 12, padding: 20, marginBottom: 16 } as const
+  const btn = { padding: "6px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", fontSize: 12 } as const
+  const input = { padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", fontSize: 13 } as const
+  return (
+    <div>
+      {(mine?.length ?? 0) > 1 && (
+        <div style={card}>
+          <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Your businesses</p>
+          {mine!.map((m) => (
+            <div key={m.business_id} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", fontSize: 13 }}>
+              <span>{m.name} <span style={{ color: "var(--muted-foreground)" }}>({m.role})</span></span>
+              {m.is_active ? <span style={{ color: "var(--muted-foreground)" }}>active</span>
+                : <button style={btn} onClick={async () => { await switchBusiness(m.business_id); window.location.reload() }}>Switch</button>}
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={card}>
+        <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Team</p>
+        <p style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 12 }}>
+          Owner and admin: manage everything. Staff: work calls, leads and appointments. Viewer: read only.
+        </p>
+        {(team?.members ?? []).map((m) => (
+          <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 0", fontSize: 13, borderTop: "1px solid var(--border)" }}>
+            <span>{m.full_name ?? m.email}<span style={{ color: "var(--muted-foreground)" }}> {m.full_name ? m.email : ""}</span></span>
+            <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              {canManage && m.id !== user?.id ? (
+                <>
+                  <select value={m.role} style={input} onChange={(e) => run(setMemberRole(m.id, e.target.value as Role))}>
+                    {(profile.role === "owner" ? ["owner", "admin", "staff", "viewer"] : ["staff", "viewer"]).map((r) => <option key={r} value={r}>{r}</option>)}
+                    {!(profile.role === "owner" ? ["owner", "admin", "staff", "viewer"] : ["staff", "viewer"]).includes(m.role) && <option value={m.role}>{m.role}</option>}
+                  </select>
+                  <button style={btn} onClick={() => confirm(`Remove ${m.email}?`) && run(removeMember(m.id))}>Remove</button>
+                </>
+              ) : <span style={{ color: "var(--muted-foreground)" }}>{m.role}{m.id === user?.id ? " (you)" : ""}</span>}
+            </span>
+          </div>
+        ))}
+        {(team?.invites ?? []).map((i) => (
+          <div key={i.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", fontSize: 13, borderTop: "1px solid var(--border)", color: "var(--muted-foreground)" }}>
+            <span>{i.email} (invited as {i.role})</span>
+            {canManage && <button style={btn} onClick={() => run(revokeInvite(i.id))}>Revoke</button>}
+          </div>
+        ))}
+      </div>
+      {canManage && (
+        <div style={card}>
+          <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Invite someone</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input style={{ ...input, flex: 1, minWidth: 200 }} type="email" placeholder="their Google email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <select style={input} value={role} onChange={(e) => setRole(e.target.value as Exclude<Role, "owner">)}>
+              {(profile.role === "owner" ? ["admin", "staff", "viewer"] : ["staff", "viewer"]).map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+            <button style={btn} disabled={!email} onClick={async () => { await run(inviteMember(email, role), "Invited. Tell them to sign in with Google using that email."); setEmail("") }}>Invite</button>
+          </div>
+          {msg && <p style={{ fontSize: 12, marginTop: 8 }}>{msg}</p>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const PLAN_LABEL: Record<string, string> = { trial: "Free trial", solo: "Solo", pro: "Pro", scale: "Scale" }
+
+function PlanTab({ clinic }: { clinic: Business }) {
+  const { data: months } = useQuery({ queryKey: ["usage"], queryFn: () => getUsageMonths(6) })
+  const { data: used } = useQuery({ queryKey: ["calls-used", clinic.id], queryFn: () => getCallsUsedThisPeriod(clinic.id) })
+  const [busy, setBusy] = useState(false)
+  const included = clinic.calls_included
+  const pct = included ? Math.min(100, Math.round(((used ?? 0) / included) * 100)) : null
+  async function upgrade(plan: "solo" | "pro" | "scale") {
+    setBusy(true)
+    const url = await startCheckout(plan)
+    setBusy(false)
+    if (url) window.location.href = url
+  }
+  const card = { border: "1px solid var(--border)", borderRadius: 12, padding: 20, marginBottom: 16 } as const
+  const th = { textAlign: "left", fontSize: 12, color: "var(--muted-foreground)", padding: "6px 8px" } as const
+  const td = { fontSize: 13, padding: "8px" } as const
+  return (
+    <div>
+      <div style={card}>
+        <p style={{ fontSize: 13, color: "var(--muted-foreground)" }}>Current plan</p>
+        <p style={{ fontSize: 20, fontWeight: 600 }}>{clinic.plan ? PLAN_LABEL[clinic.plan] : "Minutes balance"}
+          {clinic.billing_status && <span style={{ fontSize: 12, fontWeight: 500, marginLeft: 8, color: "var(--muted-foreground)" }}>{clinic.billing_status}</span>}
+        </p>
+        {included != null && (
+          <>
+            <p style={{ fontSize: 13, marginTop: 8 }}>{used ?? 0} of {included} calls used this period
+              {clinic.period_end && <> · renews {new Date(clinic.period_end).toLocaleDateString()}</>}</p>
+            <div style={{ height: 8, borderRadius: 4, background: "var(--muted)", marginTop: 8 }}>
+              <div style={{ height: 8, borderRadius: 4, width: `${pct}%`, background: (pct ?? 0) >= 100 ? "var(--destructive)" : "var(--foreground)" }} />
+            </div>
+          </>
+        )}
+        <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+          {(["solo", "pro", "scale"] as const).map((p) => (
+            <button key={p} disabled={busy || clinic.plan === p} onClick={() => upgrade(p)}
+              style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", fontSize: 13 }}>
+              {clinic.plan === p ? `${PLAN_LABEL[p]} (current)` : `Choose ${PLAN_LABEL[p]}`}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div style={card}>
+        <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Usage by month</p>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead><tr><th style={th}>Month</th><th style={th}>Calls</th><th style={th}>Minutes</th><th style={th}>Cost</th><th style={th}>$/min</th></tr></thead>
+          <tbody>
+            {(months ?? []).map((m) => (
+              <tr key={m.month}>
+                <td style={td}>{new Date(m.month).toLocaleDateString(undefined, { month: "short", year: "numeric" })}</td>
+                <td style={td}>{m.calls}</td><td style={td}>{m.minutes}</td>
+                <td style={td}>${Number(m.cost_usd).toFixed(2)}</td>
+                <td style={td}>{m.cost_per_minute_usd != null ? `$${Number(m.cost_per_minute_usd).toFixed(3)}` : "-"}</td>
+              </tr>
+            ))}
+            {!months?.length && <tr><td style={td} colSpan={5}>No calls yet.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function tabIsDirty(tab: Tab, editSettings: BusinessSettingsType | null, originalSettings: string,
   editPhoneDisplay: string, originalPhoneDisplay: string): boolean {
   if (!editSettings) return false
@@ -798,6 +936,8 @@ export default function SettingsPage() {
             <AIAssistantTab settings={editSettings} onSettingsChange={patchSettings}
               dirty={isDirty} saving={saving} success={successMsg} error={errorMsg} onSave={handleSave} />
           )}
+          {activeTab === "Team" && <TeamTab />}
+          {activeTab === "Plan" && <PlanTab clinic={clinic} />}
           {activeTab === "Profile" && <ProfileTab clinic={clinic} />}
           {activeTab === "Preferences" && <PreferencesTab />}
         </>

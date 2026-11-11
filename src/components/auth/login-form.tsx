@@ -11,7 +11,7 @@ export function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const { signIn } = useAuth()
+  const { signIn, signInWithOAuth } = useAuth()
   const navigate = useNavigate()
 
   const formReady = useShellSequence()
@@ -44,6 +44,26 @@ export function LoginForm() {
       heading="Sign in to Orvia"
       subheading="Your AI front desk is waiting"
     >
+      <button
+        type="button"
+        onClick={async () => {
+          setError(null)
+          const r = await signInWithOAuth("google")
+          if (r.error) setError(r.error)
+        }}
+        style={fadeUpStyle(formReady, 0)}
+        className="w-full h-11 mb-6 rounded-2xl border border-border bg-transparent text-[13px] font-medium cursor-pointer hover:bg-muted/50 transition-colors inline-flex items-center justify-center gap-2"
+      >
+        <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.3l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17.1z"/>
+          <path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.8-2.9-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C.9 16.6 0 20.2 0 24s.9 7.4 2.6 10.7l7.9-6.1z"/>
+          <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.3 0-11.6-4.1-13.5-9.9l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/>
+        </svg>
+        Continue with Google
+      </button>
+      <p className="text-[11px] text-muted-foreground/55 -mt-3 mb-6 text-center">Use the Google email your team admin invited.</p>
+
       <form onSubmit={handleSubmit} className="space-y-5">
         <div style={fadeUpStyle(formReady, 0)}>
           <label

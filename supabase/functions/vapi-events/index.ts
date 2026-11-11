@@ -1,4 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { unauthorized, verifyVapiRequest } from "../_shared/auth.ts";
+import { callLink, notifyOwner, ownerTarget, sendSms } from "../_shared/notify.ts";
+import { crossedThreshold } from "../_shared/quota.ts";
 
 declare const EdgeRuntime: { waitUntil: (p: Promise<unknown>) => void };
 
@@ -17,26 +20,6 @@ function log(fields: {
   [key: string]: unknown;
 }) {
   console.log(JSON.stringify({ fn: "vapi-events", ...fields }));
-}
-
-// ── Twilio SMS ────────────────────────────────────────────────────────────
-
-async function sendTwilioSms(to: string, body: string): Promise<void> {
-  const twilioSid  = Deno.env.get("TWILIO_ACCOUNT_SID");
-  const twilioAuth = Deno.env.get("TWILIO_AUTH_TOKEN");
-  const twilioFrom = Deno.env.get("TWILIO_FROM_NUMBER");
-  if (!twilioSid || !twilioAuth || !twilioFrom) return;
-  await fetch(
-    `https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: "Basic " + btoa(`${twilioSid}:${twilioAuth}`),
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({ From: twilioFrom, To: to, Body: body }),
-    }
-  );
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -154,36 +137,6 @@ function hasBookingIntent(transcript: { role: string; content: string }[]): bool
   return BOOKING_KEYWORDS.some((kw) => userLines.includes(kw));
 }
 
-// ── Webhook signature verification ────────────────────────────────────────
-// VAPI signs requests with HMAC-SHA256 when a webhook secret is configured.
-// If VAPI_WEBHOOK_SECRET is not set we skip verification (dev mode).
-
-async function verifyVapiSignature(req: Request, rawBody: string): Promise<boolean> {
-  const secret = Deno.env.get("VAPI_WEBHOOK_SECRET");
-  if (!secret) return true; // no secret configured - skip
-
-  const signature = req.headers.get("x-vapi-signature") ?? req.headers.get("vapi-signature");
-  if (!signature) {
-    log({ event_type: "signature_missing", status: "error" });
-    return false;
-  }
-
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const mac = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
-  const expected = Array.from(new Uint8Array(mac))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-
-  return signature === expected || signature === `sha256=${expected}`;
-}
-
 // ── Handler ───────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
@@ -207,13 +160,9 @@ Deno.serve(async (req: Request) => {
   // Read body once so we can verify signature and then parse JSON
   const rawBody = await req.text();
 
-  const signatureOk = await verifyVapiSignature(req, rawBody);
-  if (!signatureOk) {
-    log({ event_type: "signature_invalid", status: "error" });
-    return new Response(JSON.stringify({ error: "Invalid signature" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
+  if (!(await verifyVapiRequest(req, rawBody))) {
+    log({ event_type: "auth_invalid", status: "error" });
+    return unauthorized();
   }
 
   let body: VapiBody;
@@ -317,6 +266,15 @@ Deno.serve(async (req: Request) => {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
+  }
+
+  // ── 1b. transfer-update (emergency transfer attempted) ───────────────────
+  if (msg.type === "transfer-update") {
+    if (vapiCallId) {
+      await supabase.from("calls").update({ transfer_attempted: true }).eq("vapi_call_id", vapiCallId);
+    }
+    log({ event_type: "transfer-update", status: "ok", vapi_call_id: vapiCallId });
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } });
   }
 
   // ── 2. status-update ──────────────────────────────────────────────────────
@@ -459,6 +417,7 @@ Deno.serve(async (req: Request) => {
     const transcriptTurns = parseTranscript(msg.transcript);
     const costRaw = msg.cost ?? msg.call?.cost ?? 0;
     const costCents = costRaw ? Math.round(costRaw * 100) : 0;
+    const costBreakdown = msg.costBreakdown ?? msg.call?.costs ?? null;
     const durationRaw = msg.durationSeconds;
     const durationSecs = typeof durationRaw === "number" ? Math.round(durationRaw) : null;
     const summary = msg.summary ?? msg.analysis?.summary ?? null;
@@ -492,6 +451,8 @@ Deno.serve(async (req: Request) => {
       recording_url: msg.recordingUrl ?? msg.stereoRecordingUrl ?? null,
       duration_secs: durationSecs,
       cost_cents: costCents,
+      cost_usd: costRaw ? Number(Number(costRaw).toFixed(4)) : 0,
+      cost_breakdown: costBreakdown,
       outcome,
       extracted_data: extractedVars,
       webhook_received_at: receivedAt,
@@ -568,43 +529,72 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // ── Billing deduction ──────────────────────────────────────────────────
-    if (businessId && durationSecs && durationSecs > 0) {
-      const { data: newBalance, error: deductErr } = await supabase.rpc("deduct_call_seconds", {
-        p_business_id: businessId,
-        p_seconds: durationSecs,
-      });
+    // ── Owner digest (only if no tool already texted them) ─────────────────
+    if (businessId) {
+      const digest = (async () => {
+        const { data: callRow } = await supabase.from("calls")
+          .select("id, owner_notified_at, caller_phone").eq("vapi_call_id", vapiCallId).maybeSingle();
+        if (!callRow || callRow.owner_notified_at) return;
+        const { data: biz } = await supabase.from("businesses")
+          .select("name, settings, owner_phone, notification_email").eq("id", businessId).single();
+        if (!biz) return;
+        const ev = extractedVars as Record<string, unknown>;
+        // Skip noise: nothing actionable and no emergency flag.
+        const actionable = outcome !== "info_given" || ev.urgency === "emergency" || ev.urgency === "urgent";
+        if (!actionable) return;
+        const sent = await notifyOwner(ownerTarget(biz), {
+          tag: ev.urgency === "emergency" ? "EMERGENCY CALL" : outcome === "transferred" ? "Call transferred" : "Call summary",
+          businessName: biz.name,
+          name: (ev.caller_name as string) ?? null,
+          phone: callRow.caller_phone ?? callerPhone,
+          address: [ev.address, ev.zip].filter(Boolean).join(" ") || null,
+          issue: (ev.issue as string) ?? summary,
+          urgency: (ev.urgency as string) ?? null,
+          link: callLink(callRow.id),
+        });
+        if (sent) await supabase.from("calls").update({ owner_notified_at: new Date().toISOString() }).eq("id", callRow.id);
+      })();
+      try { EdgeRuntime.waitUntil(digest); } catch { digest.catch(() => {}); }
+    }
 
-      if (deductErr) {
-        log({ event_type: "billing_deduction", status: "error", business_id: businessId, error_message: deductErr.message });
-      } else {
-        const balanceBefore = (newBalance as number) + durationSecs;
-        log({ event_type: "billing_deduction", status: "ok", business_id: businessId, deducted_secs: durationSecs, new_balance: newBalance });
+    // ── Usage accounting + owner heads-ups ─────────────────────────────────
+    if (businessId) {
+      const { data: bz } = await supabase.from("businesses")
+        .select("name, owner_phone, allow_overage, plan, calls_included, overage_cap_calls, settings")
+        .eq("id", businessId).single();
 
-        const crossedLow  = balanceBefore > LOW_BALANCE_THRESHOLD_SECS && (newBalance as number) <= LOW_BALANCE_THRESHOLD_SECS;
-        const crossedZero = balanceBefore > 0 && (newBalance as number) <= 0;
-
-        if (crossedLow || crossedZero) {
-          const { data: biz } = await supabase
-            .from("businesses")
-            .select("name, owner_phone, allow_overage")
-            .eq("id", businessId)
-            .single();
-
-          if (biz?.owner_phone) {
+      if (bz?.plan) {
+        // Plan metered in calls: alert at 80% and 100% of the included calls.
+        const { data: usedNow } = await supabase.rpc("calls_used_in_period", { p_business_id: businessId });
+        const after = (usedNow as number) ?? 0;
+        const crossed = crossedThreshold(bz.calls_included ?? 0, after - 1, after);
+        const to = (bz.settings?.notification_phone as string | undefined) ?? bz.owner_phone;
+        if (crossed && to) {
+          const text = crossed === 1
+            ? bz.allow_overage
+              ? `Orvia: ${bz.name} used all ${bz.calls_included} included calls. Overage is on, capped at ${bz.overage_cap_calls} extra calls.`
+              : `Orvia: ${bz.name} used all ${bz.calls_included} included calls. New calls will not be answered until your plan renews or you raise your cap.`
+            : `Orvia: ${bz.name} has used 80% of this period's ${bz.calls_included} calls.`;
+          const p = sendSms(to, text);
+          try { EdgeRuntime.waitUntil(p); } catch { p.catch(() => {}); }
+        }
+      } else if (durationSecs && durationSecs > 0) {
+        // Legacy: minutes balance
+        const { data: newBalance, error: deductErr } = await supabase.rpc("deduct_call_seconds", {
+          p_business_id: businessId, p_seconds: durationSecs,
+        });
+        if (deductErr) {
+          log({ event_type: "billing_deduction", status: "error", business_id: businessId, error_message: deductErr.message });
+        } else {
+          const balanceBefore = (newBalance as number) + durationSecs;
+          const crossedLow = balanceBefore > LOW_BALANCE_THRESHOLD_SECS && (newBalance as number) <= LOW_BALANCE_THRESHOLD_SECS;
+          const crossedZero = balanceBefore > 0 && (newBalance as number) <= 0;
+          if ((crossedLow || crossedZero) && bz?.owner_phone) {
             const minLeft = Math.max(0, Math.floor((newBalance as number) / 60));
-            const smsText = crossedZero
-              ? biz.allow_overage
-                ? `Orvia alert: ${biz.name} has run out of call minutes (overage active, calls continuing). Top up to avoid interruption.`
-                : `Orvia alert: ${biz.name} has run out of call minutes. New calls will be blocked until you top up.`
-              : `Orvia: ${biz.name} is running low - about ${minLeft} minutes of call time remaining. Top up soon to keep calls going.`;
-
-            const smsPromise = sendTwilioSms(biz.owner_phone, smsText);
-            try {
-              EdgeRuntime.waitUntil(smsPromise);
-            } catch {
-              smsPromise.catch(() => {});
-            }
+            const p = sendSms(bz.owner_phone, crossedZero
+              ? `Orvia alert: ${bz.name} has run out of call minutes.${bz.allow_overage ? " Overage active." : " New calls will be blocked until you top up."}`
+              : `Orvia: ${bz.name} has about ${minLeft} minutes of call time left.`);
+            try { EdgeRuntime.waitUntil(p); } catch { p.catch(() => {}); }
           }
         }
       }
