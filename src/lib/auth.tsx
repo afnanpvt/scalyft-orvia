@@ -24,10 +24,12 @@ export interface AuthContext {
   // Driven by the `users.must_change_password` flag (set by the invite flow).
   // Also true when the user is in a password-recovery session.
   mustChangePassword: boolean;
+  // True once profile loading finished and the login has no business (not invited / not onboarded).
+  hasNoAccess: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   updateProfile: (fullName: string) => Promise<{ error: string | null }>;
-  signInWithOAuth: (provider: "apple" | "github") => Promise<{ error: string | null }>;
+  signInWithOAuth: (provider: "google" | "apple" | "github") => Promise<{ error: string | null }>;
   requestPasswordReset: (email: string) => Promise<{ error: string | null }>;
   updatePassword: (newPassword: string) => Promise<{ error: string | null }>;
   // Clear the must_change_password flag after a successful change.
@@ -95,6 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   async function fetchUserData(userId: string, email: string | null) {
+    // Let a freshly signed-in (e.g. Google) user in if their verified email has a pending invite.
+    await supabase.rpc("accept_pending_invites");
     const { data } = await supabase
       .from("users")
       .select("business_id, full_name, role, theme_preference, must_change_password")
@@ -146,7 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: error?.message ?? null };
   }
 
-  async function signInWithOAuth(provider: "apple" | "github") {
+  async function signInWithOAuth(provider: "google" | "apple" | "github") {
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: { redirectTo: `${window.location.origin}/` },
@@ -179,6 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthCtx.Provider
       value={{
         user, session, isLoading, businessId, profile, mustChangePassword,
+        hasNoAccess: !isLoading && !!user && !businessId,
         signIn, signOut, updateProfile,
         signInWithOAuth, requestPasswordReset, updatePassword,
         clearMustChangePassword,

@@ -22,3 +22,23 @@ enable_refresh_token_rotation = true
 
 [storage]
 enabled = true
+
+# Webhook-style functions are called by Vapi / Stripe (no Supabase JWT); they
+# authenticate with shared secrets / signatures inside the function (fail-closed).
+[functions.assistant-request]
+verify_jwt = false
+[functions.check-availability]
+verify_jwt = false
+[functions.book-appointment]
+verify_jwt = false
+[functions.capture-lead]
+verify_jwt = false
+[functions.vapi-events]
+verify_jwt = false
+[functions.stripe-webhook]
+verify_jwt = false
+# create-checkout / onboard-business do their own auth (user JWT or x-admin-secret)
+[functions.create-checkout]
+verify_jwt = false
+[functions.onboard-business]
+verify_jwt = false

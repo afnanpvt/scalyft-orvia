@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_dashboard")({
 });
 
 function DashboardLayout() {
-  const { user, isLoading, mustChangePassword } = useAuth();
+  const { user, isLoading, mustChangePassword, hasNoAccess, signOut, profile } = useAuth();
   const navigate = useNavigate();
 
   // Handle logout while on dashboard (auth state changes after initial load)
@@ -36,6 +36,23 @@ function DashboardLayout() {
   }, [user, isLoading, mustChangePassword, navigate]);
 
   if (!user) return null;
+
+  if (hasNoAccess) {
+    return (
+      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24, textAlign: "center" }}>
+        <div style={{ maxWidth: 420 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 600, marginBottom: 8 }}>No access yet</h1>
+          <p style={{ fontSize: 14, color: "var(--muted-foreground)", marginBottom: 16 }}>
+            {profile.email ?? "This account"} isn't linked to a business. Ask your team admin to invite this exact email
+            (Team tab in Settings), then sign in again.
+          </p>
+          <button onClick={() => signOut()} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", cursor: "pointer" }}>
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <DashboardShell>

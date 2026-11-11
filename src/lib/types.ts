@@ -11,6 +11,14 @@ export interface Business {
   seconds_remaining: number;
   allow_overage: boolean;
   owner_phone: string | null;
+  plan: "trial" | "solo" | "pro" | "scale" | null;
+  calls_included: number | null;
+  overage_cap_calls: number;
+  period_start: string | null;
+  period_end: string | null;
+  trade: "hvac" | "plumbing" | "electrical" | "other" | null;
+  notification_email: string | null;
+  billing_status: "trialing" | "active" | "past_due" | "canceled" | null;
   created_at: string;
   updated_at: string;
 }
@@ -56,7 +64,13 @@ export interface BusinessSettings {
   // AI personality
   receptionist_name?: string;
   tone?: string;
-  language_preference?: "english" | "spanish" | "hindi" | "kannada" | "multilingual";
+  language_preference?: "english" | "spanish" | "multilingual";
+  trade?: string;
+  after_hours_policy?: "transfer_then_capture" | "capture_only" | "book_next_day";
+  transfer_during_hours?: boolean;
+  emergency_keywords?: string[];
+  intake_questions?: string[];
+  recording_disclosure?: boolean;
   special_instructions?: string[];
 
   // Emergency
@@ -87,7 +101,7 @@ export interface User {
   business_id: string;
   email: string;
   full_name: string | null;
-  role: "owner" | "admin" | "staff";
+  role: "owner" | "admin" | "staff" | "viewer";
   created_at: string;
 }
 
@@ -113,6 +127,9 @@ export interface Call {
     | "missed"
     | null;
   cost_cents: number;
+  cost_usd: number | null;
+  owner_notified_at: string | null;
+  transfer_attempted: boolean;
   transcript_status: "pending" | "complete" | "failed";
   ai_failure_reason: string | null;
   was_concurrent: boolean;
@@ -161,6 +178,8 @@ export interface Lead {
   phone: string;
   email: string | null;
   service_needed: string | null;
+  address: string | null;
+  zip: string | null;
   urgency: "emergency" | "urgent" | "routine" | "inquiry";
   notes: string | null;
   status: "new" | "contacted" | "booked" | "closed" | "lost";
@@ -176,6 +195,9 @@ export interface Appointment {
   customer_name: string;
   customer_phone: string;
   service_type: string | null;
+  address: string | null;
+  zip: string | null;
+  urgency: string | null;
   scheduled_start: string;
   scheduled_end: string | null;
   notes: string | null;
@@ -189,3 +211,18 @@ export interface Appointment {
   created_at: string;
   updated_at: string;
 }
+
+export interface UsageMonth {
+  business_id: string;
+  month: string;
+  calls: number;
+  seconds: number;
+  minutes: number;
+  cost_usd: number;
+  cost_per_minute_usd: number | null;
+}
+
+export type Role = "owner" | "admin" | "staff" | "viewer";
+export interface TeamMember { id: string; email: string; full_name: string | null; role: Role }
+export interface PendingInvite { id: string; email: string; role: Exclude<Role, "owner">; expires_at: string }
+export interface MyMembership { business_id: string; name: string; role: Role; is_active: boolean }
